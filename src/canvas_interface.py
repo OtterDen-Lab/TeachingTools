@@ -152,8 +152,8 @@ class CanvasInterface:
         if variation_count >= question.possible_variations:
           break
         
-  def get_assignments(self):
-    assignments = self.course.get_assignments()
+  def get_assignments(self, **kwargs):
+    assignments = self.course.get_assignments(**kwargs)
     return assignments
   
   
@@ -169,15 +169,43 @@ class CanvasInterface:
 class CanvasHelpers:
   @staticmethod
   def get_closed_assignments(interface: CanvasInterface) -> List[canvasapi.assignment.Assignment]:
-    return list(filter(
-      lambda a: a.published and a.lock_at is not None and (datetime.fromisoformat(a.lock_at) < datetime.now(timezone.utc)),
-      interface.get_assignments()
-    ))
-  
+    closed_assignments : List[canvasapi.assignment.Assignment] = []
+    for assignment in interface.get_assignments(
+      include=["all_dates"], 
+      order_by="name"
+    ):
+      if not assignment.published:
+        continue
+      if assignment.lock_at is not None:
+        # Then it's the easy case because there's no overrides
+        if datetime.fromisoformat(assignment.lock_at) < datetime.now(timezone.utc):
+          # Then the assignment is past due
+          closed_assignments.append(assignment)
+          continue
+      elif assignment.all_dates is not None:
+        
+        # First we need to figure out what the latest time this assignment could be available is
+        # todo: This could be done on a per-student basis
+        last_lock_datetime = None
+        for dates_dict in assignment.all_dates:
+          if dates_dict["lock_at"] is not None:
+            lock_datetime = datetime.fromisoformat(dates_dict["lock_at"])
+            if (last_lock_datetime is None) or (lock_datetime >= last_lock_datetime):
+              last_lock_datetime = lock_datetime
+        
+        # If we have found a valid lock time, and it's in the past then we lock
+        if last_lock_datetime is not None and last_lock_datetime <= datetime.now(timezone.utc):
+          closed_assignments.append(assignment)
+          continue
+          
+      else:
+        log.warning(f"Cannot find any lock dates for assignment {assignment.name}!")
+    
+    return closed_assignments
   @staticmethod
   def get_unsubmitted_submissions(interface: CanvasInterface, assignment: canvasapi.assignment.Assignment) -> List[canvasapi.submission.Submission]:
     submissions : List[canvasapi.submission.Submission] = list(filter(
-      lambda s: s.workflow_state == "unsubmitted",
+      lambda s: s.submitted_at is None and s.score is None and not s.excused,
       assignment.get_submissions()
     ))
     return submissions
@@ -186,10 +214,15 @@ class CanvasHelpers:
   def clear_out_missing(cls, interface: CanvasInterface):
     assignments = cls.get_closed_assignments(interface)
     for assignment in assignments:
-      log.debug(f"Assignment: {assignment}")
-      for submission in cls.get_unsubmitted_submissions(interface, assignment):
-        log.debug(f"{submission.user_id} ({interface.get_username(submission.user_id)}) : {submission.workflow_state} : {submission.missing}")
+      # if "PA6" not in assignment.name: continue
+      missing_submissions = cls.get_unsubmitted_submissions(interface, assignment)
+      if len(missing_submissions) == 0:
+        continue
+      log.info(f"Assignment: ({assignment.quiz_id if hasattr(assignment, 'quiz_id') else assignment.id}) {assignment.name} {assignment.published}")
+      for submission in missing_submissions:
+        log.info(f"{submission.user_id} ({interface.get_username(submission.user_id)}) : {submission.workflow_state} : {submission.missing} : {submission.score} : {submission.grader_id} : {submission.graded_at}")
         submission.edit(submission={"late_policy_status" : "missing"})
+      log.info("")
   
  
 def main():
