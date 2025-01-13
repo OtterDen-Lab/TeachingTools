@@ -1,0 +1,3 @@
+fuzzywuzzy
+colorama
+anthropic
