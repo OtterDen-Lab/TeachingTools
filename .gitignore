@@ -3,7 +3,6 @@ exam.pdf
 out/
 .idea/
 .DS_Store
-*.md
 *.zip
 .env
 output.csv
