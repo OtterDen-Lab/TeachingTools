@@ -1,0 +1,578 @@
+#!env python
+from __future__ import annotations
+
+import argparse
+import ast
+import base64
+import collections
+import dataclasses
+import math
+import random
+import shutil
+import sys
+from typing import List, Tuple, Dict, Optional
+import io
+import abc
+import enum
+import functools
+import fitz
+import fuzzywuzzy.fuzz
+import numpy as np
+import os
+
+import pandas as pd
+
+import TeachingTools.grading_assistant.ai_helper as ai_helper
+from TeachingTools.lms_interface.canvas_interface import CanvasInterface
+from TeachingTools.lms_interface.classes import Student
+
+import logging
+import colorama
+logging.basicConfig()
+log = logging.getLogger(__name__)
+log.setLevel(logging.DEBUG)
+
+SIMILARITY_THRESHOLD = 95
+
+
+@functools.total_ordering
+@dataclasses.dataclass
+class Feedback:
+  score: Optional[float] = None
+  comments: str = ""
+  attachments: List[io.BytesIO] = dataclasses.field(default_factory=list)
+  
+  def __str__(self):
+    return f"Feedback({self.score}, ...)"
+  
+  def __eq__(self, other):
+    if not isinstance(other, Feedback):
+      return NotImplemented
+    return self.score == other.score
+  
+  def __lt__(self, other):
+    if not isinstance(other, Feedback):
+      return NotImplemented
+    if self.score is None:
+      return False  # None is treated as greater than any other value
+    if other.score is None:
+      return True
+    return self.score < other.score
+
+
+class Submission:
+  def __init__(self, *args, **kwargs):
+    self.input_files = None
+    self.files_to_grade = None
+    self.feedback : Optional[Feedback] = None
+    self.__student: Optional[Student] = None
+  
+  @property
+  def student(self):
+    return self.__student
+  
+  @student.setter
+  def student(self, student):
+    self.__student = student
+  
+  def __str__(self):
+    try:
+      return f"S({self.student.name} : {self.feedback})"
+    except AttributeError:
+      return f"S({self.student} : {self.feedback})"
+
+
+class Submission__pdf(Submission):
+  def __init__(self, document_id, *args, student=None, approximate_name=None, feedback:Optional[Feedback]=None, question_scores=None, **kwargs):
+    super().__init__(*args, **kwargs)
+    self.document_id = document_id
+    self.approximate_name = approximate_name
+    if student is not None:
+      self.approximate_name = student.name
+      Submission.student.fset(self, student)
+    self.feedback : Optional[Feedback] = feedback
+    self.question_scores : Dict[int,float] = question_scores
+  
+  @Submission.student.setter
+  def student(self, student):
+    new_name_ratio = fuzzywuzzy.fuzz.ratio(student.name, self.approximate_name)
+    old_name_ratio = 0 if self.student is None else fuzzywuzzy.fuzz.ratio(self.student.name, self.approximate_name)
+    log.info(f'Setting student to "{student}" ({new_name_ratio}%) ({self.approximate_name})')
+    if (fuzzywuzzy.fuzz.ratio(student.name, self.approximate_name) / 100.0) <= SIMILARITY_THRESHOLD:
+      log.warning(
+        colorama.Back.RED
+        + colorama.Fore.LIGHTGREEN_EX
+        + colorama.Style.BRIGHT
+        + "Similarity below threshold"
+        + colorama.Style.RESET_ALL
+      )
+    
+    if new_name_ratio < old_name_ratio:
+      log.warning(
+        colorama.Back.RED
+        + colorama.Fore.LIGHTGREEN_EX
+        + colorama.Style.BRIGHT
+        + "New name worse than old name"
+        + colorama.Style.RESET_ALL
+      )
+    
+    # Call the parent class's student setter explicitly
+    Submission.student.fset(self, student)
+
+
+class AssignmentPart:
+  """Assignment part"""
+  def __init__(self, *args, **kwargs):
+    pass
+
+
+class Assignment(abc.ABC):
+  """Overall Assignment has one or more AssignmentPart objects.  Each part will have its own rubric and be passed to graders independently."""
+  def __init__(self, grading_root_dir, *args, **kwargs):
+    self.grading_root_dir = grading_root_dir
+    self.submissions : List[Submission] = []
+    self.original_dir = None
+  
+  def __enter__(self) -> Assignment:
+    self.original_dir = os.getcwd()
+    os.chdir(self.grading_root_dir)
+    return self
+  
+  def __exit__(self, exc_type, exc_value, traceback):
+    os.chdir(self.grading_root_dir)
+  
+  @abc.abstractmethod
+  def prepare(self, *args, **kwargs):
+    """
+    This function is intended to set up any directories or files as appropriate for grading.
+    It should take in some sort of input and prepare Submissions to be passed to a grader object.
+    :return: None
+    """
+    pass
+  
+  @abc.abstractmethod
+  def finalize(self, *args, **kwargs):
+    """
+    This function is intended to finalize any grading.  This could be reloading the grading CSV and matching names,
+    or could just be a noop.
+    :param args:
+    :param kwargs:
+    :return:
+    """
+
+
+class Assignment__exams_pdf(Assignment):
+  NAME_RECT = [360,50,600,130]
+  
+  def prepare(self, input_directory, canvas_interface, limit=None, *args, **kwargs):
+    
+    # Get students from canvas to try to match
+    canvas_students : List[Student] = canvas_interface.get_students()
+    unmatched_canvas_students : List[Student] = canvas_students # canvas_interface.get_students()
+    log.debug(canvas_students)
+    
+    # Read in all the PDFs
+    input_pdfs = [os.path.join(input_directory, f) for f in os.listdir(input_directory) if f.endswith(".pdf")]
+    log.debug(f"input_pdfs: {input_pdfs}")
+    
+    # Clean and create output folders
+    for path_name in ["01-shuffled", "02-redacted"]:
+      if os.path.exists(path_name):
+        shutil.rmtree(path_name)
+      os.mkdir(path_name)
+    
+    # Shuffle inputs
+    random.shuffle(input_pdfs)
+    
+    # Pre-allocate page mappings
+    # It feels weird to pre-allocate, but it makes it clearer than doing it in flow I think
+    pdfs_to_process = input_pdfs[:(limit if limit is not None else len(input_pdfs))]
+    num_users = len(pdfs_to_process)
+    num_pages_to_expect = fitz.open(input_pdfs[0]).page_count
+    page_mappings_by_user = collections.defaultdict(list)
+    
+    # For each page, shuffle the order so we can handle them in different orders
+    for page in range(num_pages_to_expect):
+      for user_id, random_page_id in enumerate(random.sample(range(num_users), k=num_users)):
+        page_mappings_by_user[user_id].append(random_page_id)
+    
+    # Walk through student submissions, shuffle and redact, and get approximate name
+    assignment_submissions : List[Submission__pdf] = []
+    for document_id, pdf_filepath in enumerate(pdfs_to_process):
+      log.debug(f"Processing {document_id+1}th document: {pdf_filepath}")
+      
+      approximate_student_name = self.get_approximate_student_name(
+        path_to_pdf=pdf_filepath,
+        use_ai=kwargs.get("use_ai", True),
+        all_student_names=[s.name for s in unmatched_canvas_students]
+      )
+      log.debug(f"Suggested name: {approximate_student_name}")
+      
+      # Find best match of the unmatched canvas
+      (score, best_match) = max(
+        (
+          (fuzzywuzzy.fuzz.ratio(s.name, approximate_student_name), s)
+          for s in unmatched_canvas_students
+        ),
+        key=lambda x: x[0]
+      )
+      if score > SIMILARITY_THRESHOLD:
+        assignment_submissions.append(Submission__pdf(document_id,  student=best_match))
+        unmatched_canvas_students.remove(best_match)
+      else:
+        log.warning(f"Rejecting proposed match for \"{approximate_student_name}\": \"{best_match.name}\" ({score})")
+        assignment_submissions.append(Submission__pdf(document_id, approximate_name=approximate_student_name))
+      
+      # Save aside a copy that's been shuffled for later reference and easy confirmation
+      shuffled_document = fitz.open(pdf_filepath)
+      shuffled_document.save(os.path.join("01-shuffled", f"{document_id:0{int(math.log10(len(input_pdfs))+1)}}.pdf"))
+      
+      # Break up each submission into pages
+      page_docs : List[fitz.Document] = self.redact_and_split(pdf_filepath)
+      for page_number, page in enumerate(page_docs):
+        
+        # Determine the output directory
+        page_directory = os.path.join("02-redacted", f"{page_number:0{int(math.log10(len(page_docs))+1)}}")
+        
+        # Make the output directroy if it doesn't exist
+        if not os.path.exists(page_directory): os.mkdir(page_directory)
+        
+        # Save the page to the appropriate directory, with the number connected to it.
+        try:
+          page.save(os.path.join(page_directory, f"{page_mappings_by_user[document_id][page_number]:0{int(math.log10(len(input_pdfs))+1)}}.pdf"))
+          page.close()
+        except IndexError:
+          log.warning(f"No page {page_number} found for {document_id}")
+      
+    log.debug(f"assignment_submissions: {assignment_submissions}")
+    
+    log.debug(assignment_submissions)
+    # Make a dataframe
+    df = pd.DataFrame([
+      {
+        "document_id" : submission.document_id,
+        "page_mappings" : page_mappings_by_user[submission.document_id],
+        "name" : submission.student.name if submission.student is not None else "",
+        "user_id" : submission.student.user_id if submission.student is not None else "",
+        "total" : 0.0
+      }
+      for submission in assignment_submissions
+    ])
+    print(df.head())
+    df = df.sort_values(by="document_id")
+    
+    df.to_csv("grades.intermediate.csv", index=False)
+    
+  def finalize(self, path_to_grading_csv, canvas_interface : CanvasInterface, *args, **kwargs):
+    log.debug("Finalizing grades")
+    
+    grades_df = pd.read_csv(path_to_grading_csv)
+    canvas_students_by_id = { s.user_id : s for s in canvas_interface.get_students()}
+    graded_submissions : List[Submission__pdf] = []
+    
+    # todo: Steps are going to be:
+    # 0. Recombine PDFs
+    # 1. For any entry that doesn't have an user_id associated with it load the name column as approximate name
+    # 2. Go through the matching process again to try to associate names
+    # 3. confirm names match using the previous process
+    # 4. upload and save out final grades
+    
+    # Clean out the extra columns not associated with any submission
+    grades_df = grades_df[grades_df["document_id"].notna()]
+    # grades_df["user_id"] = grades_df["user_id"].astype(int)
+    
+    page_mappings_by_document_id = grades_df.set_index("document_id")["page_mappings"].apply(ast.literal_eval).to_dict()
+    
+    log.debug(page_mappings_by_document_id)
+    
+    
+    # Merge the PDFs back together
+    # todo: this directory is hardcoded and used throughout, but should it be?
+    #  future is probably to move away from having the directory at all and go straight to file buffer
+    shutil.rmtree("03-final", ignore_errors=True)
+    os.mkdir("03-final")
+    self.merge_pages("02-redacted", "03-final", page_mappings_by_document_id)
+    documents_by_id : Dict[str,io.BytesIO] = {}
+    for document_id in grades_df["document_id"].values:
+      pdf_name = f"{document_id:0{math.ceil(math.log10(len(grades_df["document_id"].values)))}}.pdf"
+      with open(os.path.join("03-final", pdf_name), 'rb') as fid:
+        file_buffer = io.BytesIO(fid.read())
+        file_buffer.name = '999.pdf'
+        documents_by_id[document_id] = file_buffer
+    
+    # Putting this into a function for easy reuse
+    def get_Submission__pdf(row) -> Submission__pdf:
+      by_question_scores = {}
+      for key in row.keys():
+        if key.startswith("Q"):
+          try:
+            by_question_scores[int(key.replace('Q', ''))] = float(row[key])
+          except ValueError:
+            by_question_scores[int(key.replace('Q', ''))] = '-'
+      
+      log.debug(f'row["user_id"]: {row["user_id"]}')
+      if pd.notna(row["user_id"]):
+        submission = Submission__pdf(
+          document_id=row["document_id"],
+          student=canvas_students_by_id[int(row["user_id"])],
+          feedback=Feedback(
+            score=row["total"],
+            comments=self.generate_feedback_comments(row),
+            attachments=[documents_by_id[row["document_id"]]]
+          ),
+          question_scores=by_question_scores
+        )
+      else:
+        log.debug(f"approximate name: {row}")
+        submission = Submission__pdf(
+          document_id=row["document_id"],
+          approximate_name=row["name"],
+          feedback=Feedback(
+            score=row["total"],
+            comments=self.generate_feedback_comments(row),
+            attachments=[documents_by_id[row["document_id"]]]
+          ),
+          question_scores=by_question_scores
+        )
+      return submission
+    
+    # Make submission objects for students who have already been matched
+    for _, row in grades_df[grades_df["user_id"].notna()].iterrows():
+      graded_submissions.append(get_Submission__pdf(row))
+      del canvas_students_by_id[int(row["user_id"])]
+    
+    log.info(f"There are {len(canvas_students_by_id)} unmatched canvas users")
+    log.debug(canvas_students_by_id)
+    
+    # Get the students who have yet to be matched
+    manually_named_submissions : List[Submission__pdf] = []
+    log.info(f"There are {len(grades_df[grades_df['user_id'].isna()])} manually named students.")
+    for _, row in grades_df[grades_df["user_id"].isna()].iterrows():
+      manually_named_submissions.append(get_Submission__pdf(row))
+    log.debug([s.approximate_name for s in manually_named_submissions])
+    
+    # Pass through the matching algorithm
+    matched_submissions, _, _, unmatched_students = self.match_students_to_submissions(list(canvas_students_by_id.values()), manually_named_submissions)
+    graded_submissions.extend(matched_submissions)
+    
+    log.debug(f"Unmatched canvas students: {len(unmatched_students)}")
+    if len(unmatched_students) > 0:
+      log.error(f"There are {len(unmatched_students)} unmatched students remaining in the CSV.  Please correct and rerun.")
+      for student in unmatched_students:
+        log.warning(f"Found no match for student: {student.name} ({student.user_id})")
+      # todo: Should I really have an exit here?
+      exit(4)
+    
+    # Now we have a list of graded submissions
+    log.info(f"We have graded {len(graded_submissions)} submissions!")
+    # todo: This check doesn't do much, so maybe rematch original submissions via Claude again to see real predictions?
+    self.check_student_names(graded_submissions)
+  
+    if kwargs.get("push", False):
+      for submission in graded_submissions:
+        log.info(f"Adding in feedback for: {submission}")
+        canvas_interface.push_feedback(
+          score=submission.feedback.score,
+          comments=submission.feedback.comments,
+          attachments=submission.feedback.attachments,
+          user_id=submission.student.user_id,
+          keep_previous_best=False,
+          clobber_feedback=True
+        )
+      
+    # Make a dataframe
+    df = pd.DataFrame([
+      {
+        "document_id" : submission.document_id,
+        "name" : submission.student.name,
+        "user_id" : submission.student.user_id if submission.student is not None else "",
+        "total" : submission.feedback.score,
+        **{f"Q{key}" : score for key, score in submission.question_scores.items()}
+      }
+      for submission in graded_submissions
+    ])
+    df = df.sort_values(by="document_id")
+    
+    df.to_csv("grades.final.csv", index=False)
+    
+  @staticmethod
+  def match_students_to_submissions(students : List[Student], submissions : List[Submission__pdf]) -> Tuple[List[Submission__pdf], List[Submission__pdf], List[Student], List[Student]]:
+    # Modified from https://chatgpt.com/share/6743c2aa-477c-8001-9eb6-e5800c3f44da
+    # todo: this function has become a mess of what it's doing and returning.
+    submissions_w_names : List[Submission__pdf] = []
+    submissions_wo_names : List[Submission__pdf] = []
+    matched_students : List[Student] = []
+    unmatched_students : List[Student] = []
+    
+    while students and submissions:
+      # Find the pair with the maximum comparison value
+      best_pair : Tuple[Submission__pdf, Student]|None = None
+      best_value = float('-inf')
+      
+      # todo: update this to go through by using itertools, so we can make sure that the 2nd best is significantly worse than the best
+      
+      # Go through all the submissions and compare for best match
+      for submission in submissions:
+        for student in students:
+          log.debug(f"submission.approximate_name: {submission.approximate_name}")
+          log.debug(f"student.name: {student.name}\n")
+          value = fuzzywuzzy.fuzz.ratio(submission.approximate_name, student.name)
+          if value > best_value:
+            best_value = value
+            best_pair = (submission, student)
+      
+      # Once we've figured out the best current match, assign the Student to the submission, or add it to the unmatched list.
+      if (best_value / 100.0) > SIMILARITY_THRESHOLD:
+        best_pair[0].student = best_pair[1]
+        submissions_w_names.append(best_pair[0])
+        matched_students.append(best_pair[1])
+      else:
+        submissions_wo_names.append(best_pair[0])
+        unmatched_students.append(best_pair[1])
+        log.warning("Threshold not met, skipping")
+        
+      # Remove the matches, even if it wasn't the best match
+      submissions.remove(best_pair[0])
+      students.remove(best_pair[1])
+    # log.debug(f"submissions_w_names: {len(submissions_w_names)}")
+    # log.debug(f"submissions_wo_names: {len(submissions_wo_names)}")
+    try:
+      log.debug(f"Matched {100*(len(submissions_w_names) / len(submissions_w_names + submissions_wo_names)):0.2f}% of submissions")
+    except ZeroDivisionError:
+      log.warning("No possible submissions to match passed in")
+    return submissions_w_names, submissions_wo_names, matched_students, unmatched_students
+  
+  @classmethod
+  def redact_and_split(cls, path_to_pdf: str) -> List[fitz.Document]:
+    pdf_document = fitz.open(path_to_pdf)
+    
+    # First, we redact the first page
+    pdf_document[0].draw_rect(fitz.Rect(cls.NAME_RECT), color=(0,0,0), fill=(0,0,0))
+    
+    # Next, we break the PDF up into individual pages:
+    pdf_pages = []
+    
+    # Loop through all pages
+    for page_number in range(len(pdf_document)):
+      # Create a new document in memory
+      single_page_pdf = fitz.open()
+      
+      # Insert the current page into the new document
+      single_page_pdf.insert_pdf(pdf_document, from_page=page_number, to_page=page_number)
+      
+      # Append the single-page document to the list
+      pdf_pages.append(single_page_pdf)
+    
+    return pdf_pages
+  
+  @classmethod
+  def get_approximate_student_name(cls, path_to_pdf, use_ai=True, all_student_names=None):
+    
+    if use_ai:
+      document = fitz.open(path_to_pdf)
+      page = document[0]
+      pix = page.get_pixmap(clip=cls.NAME_RECT)
+      image_bytes = pix.tobytes("png")
+      base64_str = base64.b64encode(image_bytes).decode("utf-8")
+      document.close()
+      
+      query_string = "What name is written in this picture?  Please respond with only the name."
+      if all_student_names is not None:
+        query_string += "Some possible names are listed below, but use them as a guide rather than definitive list."
+        query_string += "\n - ".join(sorted(all_student_names))
+      response = ai_helper.AI_Helper__Anthropic().query_ai(query_string, attachments=[("png", base64_str)])
+      return response
+      
+      
+      # response = ai_helper.AI_Helper().query_ai("Can you summarize this for me?  Please return a json object with the key \"contents\" that elides the summary.", [("png", base64_str)], max_response_tokens=100)
+      # student_name = response.get("contents", None)
+      # if student_name is not None and ':' in student_name:
+      #   student_name = ''.join(student_name.split(':')[1:])
+      # return student_name
+    else:
+      return None
+
+  @classmethod
+  def merge_pages(cls, input_directory, output_directory, page_mappings_by_document_id):
+    # todo: refactor this so it is for a single PDF, returns a fitz object, and can take in a list of page number-index values
+    
+    # exam_pdfs = collections.defaultdict(lambda : fitz.open())
+    exam_pdfs_by_document_id = collections.defaultdict(lambda : fitz.open())
+    
+    for document_id, page_mappings in page_mappings_by_document_id.items():
+      for page_number, page_map in enumerate(page_mappings):
+        pdf_path = os.path.join(
+          input_directory,
+          f"{page_number:0{math.ceil(math.log10(len(page_mappings)))}}",
+          f"{page_map:0{math.ceil(math.log10(len(page_mappings_by_document_id)))}}.pdf"
+        )
+        try:
+          exam_pdfs_by_document_id[document_id].insert_pdf(fitz.open(pdf_path))
+        except RuntimeError:
+          continue
+    
+    for document_id, pdf_document in exam_pdfs_by_document_id.items():
+      output_pdf_name = os.path.join(
+        output_directory,
+        f"{document_id:0{math.ceil(math.log10(len(page_mappings_by_document_id)))}}.pdf"
+      )
+      exam_pdfs_by_document_id[document_id].save(output_pdf_name)
+    
+    return
+  
+  def check_student_names(self, submissions: List[Submission__pdf], threshold=0.8):
+    
+    id_width = max(map(lambda s: len(str(s.student.user_id)), submissions))
+    local_width = max(map(lambda s: len(s.student.name), submissions))
+    
+    comparisons = []
+    log.debug("Checking user IDs")
+    for submission in submissions:
+      sys.stderr.write('.')
+      sys.stderr.flush()
+      # canvas_name = self.canvas_course.get_user(int(user_id)).name
+      ratio = (fuzzywuzzy.fuzz.ratio(submission.approximate_name, submission.student.name) / 100.0)
+      comparisons.append((
+        ratio,
+        submission.student.user_id,
+        submission.approximate_name,
+        submission.student.name
+      ))
+    sys.stderr.write('\n')
+    
+    for (ratio, user_id, student_name, canvas_name) in sorted(comparisons):
+      compare_str = f"{user_id:{id_width}} : {100*ratio:3}% : {student_name:{local_width}} ?? {canvas_name}"
+      if (fuzzywuzzy.fuzz.ratio(student_name, canvas_name) / 100.0) <= threshold:
+        compare_str = colorama.Back.RED + colorama.Fore.LIGHTGREEN_EX + colorama.Style.BRIGHT + compare_str + colorama.Style.RESET_ALL
+      
+      log.debug(compare_str)
+
+  @staticmethod
+  def generate_feedback_comments(df_row : pd.DataFrame):
+    total_score = df_row["total"]
+    by_question_scores = {}
+    for key in df_row.keys():
+      if key.startswith("Q"):
+        by_question_scores[int(key.replace('Q', ''))] = df_row[key]
+    
+    feedback_comments_lines = []
+    for key in sorted(by_question_scores.keys()):
+      if by_question_scores[key] == "-":
+        feedback_comments_lines.extend([
+          f"Q{key:<{1+int(math.log10(len(by_question_scores)))}} : 0 (unanswered)"
+        ])
+      else:
+        feedback_comments_lines.extend([
+          f"Q{key:<{1+int(math.log10(len(by_question_scores)))}} : {int(by_question_scores[key])}"
+        ])
+    feedback_comments_lines.extend([
+      f"Total: {total_score} points"
+    ])
+    
+    return '\n'.join(feedback_comments_lines)
+
+def main():
+  passs
+
+if __name__ == "__main__":
+  main()
