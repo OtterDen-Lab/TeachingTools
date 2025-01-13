@@ -8,7 +8,7 @@ A set of tools that are used to help make writing and grading assignments easier
 
 There are two direct scripts currently enabled:
 1. [`generate_quiz.py`](generate_quiz.py): Generates quiz PDFs and canvas variations based on a range of input types and pre-defined problems
-2. [`grader.py`](grader.py: Helps to streamline the grading flow.  Currently only for exams but I'll be migrating code over shortly
+2. [`grader.py`](grader.py): Helps to streamline the grading flow.  Currently only for exams but I'll be migrating code over shortly
 
 ### Code Libraries
 
