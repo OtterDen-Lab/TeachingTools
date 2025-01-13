@@ -1,4 +1,5 @@
 #!env python
+from __future__ import annotations
 
 import time
 import typing
@@ -12,8 +13,10 @@ import canvasapi.assignment
 import canvasapi.submission
 import dotenv, os
 import sys
+import requests
 
 from TeachingTools.quiz_generation.quiz import Quiz
+from TeachingTools.lms_interface.classes import Student
 
 import logging
 logging.basicConfig()
@@ -153,7 +156,6 @@ class CanvasInterface:
     assignments = self.course.get_assignments(**kwargs)
     return assignments
   
-  
   def get_submissions(self, assignments: List[canvasapi.assignment.Assignment]):
     submissions : List[canvasapi.submission.Submission] = []
     for assignment in assignments:
@@ -163,6 +165,88 @@ class CanvasInterface:
   def get_username(self, user_id: int):
     return self.course.get_user(user_id).name
   
+  
+  def get_students(self) -> List[Student]:
+    return [Student(s.name, s.id) for s in self.course.get_users(enrollment_type=["student"])]
+
+class CanvasAssignment(CanvasInterface):
+  def __init__(self, assignment_id: int, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+    self.assignment = self.course.get_assignment(assignment_id)
+  
+  def push_feedback(self, user_id, score: float, comments: str, attachments=None, keep_previous_best=True, clobber_feedback=False):
+    log.debug(f"Adding feedback for {user_id}")
+    if attachments is None:
+      attachments = []
+    
+    # Get the previous score to check to see if we should reuse it
+    try:
+      submission = self.assignment.get_submission(user_id)
+      if keep_previous_best and submission.score > score:
+        log.warning(f"Current score ({submission.score}) higher than new score ({score}).  Going to use previous score.")
+        score = submission.score
+    except requests.exceptions.ConnectionError as e:
+      log.warning(f"No previous submission found for {user_id}")
+    
+    # Update the assignment
+    # Note: the bulk_update will create a submission if none exists
+    try:
+      self.assignment.submissions_bulk_update(
+        grade_data={
+          'submission[posted_grade]' : score
+        },
+        student_ids=[user_id]
+      )
+      
+      submission = self.assignment.get_submission(user_id)
+    except requests.exceptions.ConnectionError as e:
+      log.error(e)
+      log.debug(f"Failed on user_id = {user_id})")
+      log.debug(f"username: {self.course.get_user(user_id)}")
+      return
+    
+    # Push feedback to canvas
+    submission.edit(
+      submission={
+        'posted_grade':score,
+      },
+    )
+    
+    # If we should overwrite previous comments then remove all the previous submissions
+    if clobber_feedback:
+      log.debug("Clobbering...")
+      
+      for comment in submission.submission_comments:
+        # log.debug(f"Existing comment: {comment}")
+        comment_id = comment['id']
+        # Construct the URL to delete the comment
+        delete_url = f"{self.canvas_url}/api/v1/courses/{self.course.id}/assignments/{self.assignment.id}/submissions/{user_id}/comments/{comment_id}"
+        
+        # Make the DELETE request to delete the comment
+        response = requests.delete(delete_url, headers={"Authorization": f"Bearer {self.canvas_key}"})
+        if response.status_code == 200:
+          log.info(f"Deleted comment {comment_id}")
+        else:
+          log.warning(f"Failed to delete comment {comment_id}: {response.json()}")
+    
+    
+    def upload_buffer_as_file(buffer, name):
+      with io.FileIO(name, 'w+') as ffid:
+        ffid.write(buffer)
+        ffid.flush()
+        ffid.seek(0)
+        submission.upload_comment(ffid)
+      os.remove(name)
+    
+    if len(comments) > 0:
+      upload_buffer_as_file(comments.encode('utf-8'), "feedback.txt")
+    
+    for i, attachment_buffer in enumerate(attachments):
+      upload_buffer_as_file(attachment_buffer.read(), attachment_buffer.name)
+
+
+
+
 class CanvasHelpers:
   @staticmethod
   def get_closed_assignments(interface: CanvasInterface) -> List[canvasapi.assignment.Assignment]:
