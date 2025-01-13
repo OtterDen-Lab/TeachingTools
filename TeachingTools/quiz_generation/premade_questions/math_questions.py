@@ -4,7 +4,7 @@ import math
 import random
 from typing import List
 
-from question import Question, QuestionRegistry, Answer
+from TeachingTools.quiz_generation.question import Question, QuestionRegistry, Answer
 
 logging.basicConfig()
 log = logging.getLogger(__name__)

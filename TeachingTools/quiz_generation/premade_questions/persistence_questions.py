@@ -2,12 +2,11 @@
 from __future__ import annotations
 
 import logging
-import math
 import random
 from typing import List
 
-from misc import OutputFormat
-from question import Question, Answer, TableGenerator, QuestionRegistry
+from TeachingTools.quiz_generation.misc import OutputFormat
+from TeachingTools.quiz_generation.question import Question, Answer, TableGenerator, QuestionRegistry
 
 logging.basicConfig()
 log = logging.getLogger(__name__)

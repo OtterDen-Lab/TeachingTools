@@ -16,7 +16,7 @@ from typing import List, Dict, Any, Tuple
 import canvasapi.course, canvasapi.quiz
 import pytablewriter
 
-from misc import OutputFormat, Answer
+from TeachingTools.quiz_generation.misc import OutputFormat, Answer
 
 import logging
 logging.basicConfig()
@@ -64,7 +64,7 @@ class TableGenerator:
       table_lines = [
         # r"\begin{table}[h!]",
         # r"\centering",
-        r"\begin{tabular}{" + '|c' * len(self.value_matrix[0]) + '|}',
+        r"\begin{tabular}{" + '|l' * len(self.value_matrix[0]) + '|}',
         r"\toprule",
       ]
       if self.headers is not None:
@@ -89,6 +89,7 @@ class QuestionRegistry:
   
   @classmethod
   def register(cls, question_type=None):
+    log.debug("Registering...")
     def decorator(subclass):
       # Use the provided name or fall back to the class name
       name = question_type.lower() if question_type else subclass.__name__.lower()
@@ -111,12 +112,14 @@ class QuestionRegistry:
     
   @classmethod
   def load_premade_questions(cls):
-    package_name = "premade_questions"
-    package_path = pathlib.Path(__file__).parent / package_name
+    package_name = "TeachingTools.quiz_generation.premade_questions"  # Fully qualified package name
+    package_path = pathlib.Path(__file__).parent / "premade_questions"
+    log.debug(f"package_path: {package_path}")
     
     for _, module_name, _ in pkgutil.iter_modules([str(package_path)]):
       # Import the module
       module = importlib.import_module(f"{package_name}.{module_name}")
+      log.debug(f"Loaded module: {module}")
       
       # Find all classes in the module
       # for attr_name in dir(module):

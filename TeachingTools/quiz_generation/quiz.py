@@ -14,9 +14,8 @@ from typing import List, Dict
 
 import yaml
 
-import canvas_interface
-from misc import OutputFormat
-from question import Question, QuestionRegistry
+from TeachingTools.quiz_generation.misc import OutputFormat
+from TeachingTools.quiz_generation.question import Question, QuestionRegistry
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -155,6 +154,7 @@ class Quiz:
         r"\usepackage{longtable}",
         r"\usepackage{arydshln}",
         r"\usepackage{ragged2e}\let\Centering\flushleft",
+        
         r"% Custom commands",
         r"\newcounter{NumQuestions}",
         r"\newcommand{\question}[1]{ %",
@@ -169,10 +169,8 @@ class Quiz:
         
         
         r"\providecommand{\tightlist}{%",
-        r"\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}",
+        r"\setlength{\itemsep}{10pt}\setlength{\parskip}{10pt}",
         r"}",
-        
-        
         
         r"\title{" + self.name + r"}",
         
@@ -297,41 +295,9 @@ class Quiz:
     )
     proc.wait(timeout=30)
     tmp_tex.close()
-    
-  
-def parse_args():
-  parser = argparse.ArgumentParser()
-  
-  parser.add_argument("--prod", action="store_true")
-  parser.add_argument("--course_id", default=25523, type=int)
-  
-  parser.add_argument("--quiz_yaml", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "../example_files/exam.yaml"))
-  parser.add_argument("--num_canvas", default=0, type=int)
-  parser.add_argument("--num_pdfs", default=0, type=int)
-  
-  args = parser.parse_args()
-  return args
 
 def main():
-  
-  args = parse_args()
-  
-  quizzes = Quiz.from_yaml(args.quiz_yaml)
-  for quiz in quizzes:
-    quiz.select_questions()
-    
-    for q in quiz:
-      log.debug(q.kind)
-    
-    for i in range(args.num_pdfs):
-      quiz.generate_latex(remove_previous=(i==0))
-    
-    if args.num_canvas > 0:
-      interface = canvas_interface.CanvasInterface(prod=args.prod, course_id=args.course_id)
-      interface.push_quiz_to_canvas(quiz, args.num_canvas, title=quiz.name, is_practice=quiz.practice)
-    
-    quiz.describe()
-  
+  pass
   
 
 if __name__ == "__main__":

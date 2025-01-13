@@ -4,7 +4,7 @@ from __future__ import annotations
 import enum
 from typing import List
 
-from question import Question, Answer, TableGenerator, QuestionRegistry
+from TeachingTools.quiz_generation.question import Question, Answer, TableGenerator, QuestionRegistry
 
 import random
 import math

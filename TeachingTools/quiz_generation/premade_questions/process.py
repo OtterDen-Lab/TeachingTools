@@ -6,7 +6,6 @@ import dataclasses
 import enum
 import logging
 import os
-import pprint
 import random
 import uuid
 from typing import List
@@ -14,8 +13,8 @@ from typing import List
 import canvasapi.course, canvasapi.quiz
 import matplotlib.pyplot as plt
 
-from misc import OutputFormat
-from question import Question, Answer, QuestionRegistry
+from TeachingTools.quiz_generation.misc import OutputFormat
+from TeachingTools.quiz_generation.question import Question, Answer, QuestionRegistry
 
 logging.basicConfig()
 log = logging.getLogger(__name__)

@@ -5,11 +5,8 @@ import enum
 import itertools
 from typing import List, Dict, Optional, Tuple, Any
 import random
-import re
 
-import lark
-
-from question import QuestionRegistry, Question, Answer
+from TeachingTools.quiz_generation.question import QuestionRegistry, Question, Answer
 
 import logging
 logging.basicConfig()

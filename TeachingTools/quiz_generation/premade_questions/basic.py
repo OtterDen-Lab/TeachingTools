@@ -5,8 +5,6 @@ import datetime
 import inspect
 import pprint
 import random
-import re
-import typing
 
 import canvasapi.course
 import canvasapi.quiz
@@ -17,9 +15,9 @@ import jinja2
 
 import logging
 
-from misc import OutputFormat
-from question import Question, QuestionRegistry, Answer, TableGenerator
-from .exam_generation_functions import QuickFunctions
+from TeachingTools.quiz_generation.misc import OutputFormat
+from TeachingTools.quiz_generation.question import Question, QuestionRegistry, Answer, TableGenerator
+from TeachingTools.quiz_generation.premade_questions.exam_generation_functions import QuickFunctions
 
 logging.basicConfig()
 log = logging.getLogger(__name__)

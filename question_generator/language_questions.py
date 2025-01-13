@@ -1,12 +1,11 @@
 #env python
 from __future__ import annotations
 
-import dataclasses
 import random
 import string
-from typing import Dict, List, Iterable, Tuple, LiteralString
+from typing import Dict, List
 
-import question
+from quiz_generation import question
 import variable
 
 import logging

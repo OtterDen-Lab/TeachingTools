@@ -1,12 +1,9 @@
 #!env python
 
-import argparse
-import collections.abc
-import pprint
 import time
 import typing
 from datetime import datetime, timezone
-from typing import Dict, Set, List
+from typing import List
 
 import canvasapi
 import canvasapi.course
@@ -16,7 +13,7 @@ import canvasapi.submission
 import dotenv, os
 import sys
 
-from quiz import Quiz, Question
+from TeachingTools.quiz_generation.quiz import Quiz
 
 import logging
 logging.basicConfig()
