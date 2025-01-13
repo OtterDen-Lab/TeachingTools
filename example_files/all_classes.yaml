@@ -1,0 +1,79 @@
+name: "(Ungraded) Language"
+practice: False
+questions:
+  1:
+    Language:
+      class: LanguageQuestion
+      repeat: 5
+---
+name: "(Ungraded) BitsAndBytes"
+practice: False
+questions:
+ 1:
+   BitsAndBytes:
+     class: BitsAndBytes
+     repeat: 5
+---
+name: "(Ungraded) HexAndBinary"
+practice: False
+questions:
+ 1:
+   HexAndBinary:
+     class: HexAndBinary
+     repeat: 5
+---
+name: "(Ungraded) AverageMemoryAccessTime"
+practice: False
+questions:
+ 1:
+   AverageMemoryAccessTime:
+     class: AverageMemoryAccessTime
+     repeat: 5
+---
+name: "(Ungraded) Caching"
+practice: False
+questions:
+ 1:
+   Caching:
+     class: CachingQuestion
+     repeat: 5
+---
+name: "(Ungraded) Paging"
+practice: False
+questions:
+ 1:
+   Paging:
+     class: Paging
+     repeat: 5
+---
+name: "(Ungraded) HardDriveAccessTime"
+practice: False
+questions:
+ 1:
+   HardDriveAccessTime:
+     class: HardDriveAccessTime
+     repeat: 5
+---
+name: "(Ungraded) INodeAccesses"
+practice: False
+questions:
+ 1:
+   INodeAccesses:
+     class: INodeAccesses
+     repeat: 5
+---
+name: "(Ungraded) VSFS_states"
+practice: False
+questions:
+  1:
+    VSFS_states:
+      class: VSFS_states
+      repeat: 5
+---
+name: "(Ungraded) Scheduling"
+practice: False
+questions:
+ 1:
+   Scheduling:
+     class: SchedulingQuestion
+     repeat: 5
