@@ -15,4 +15,4 @@ courses:
         id: 403593
         disabled: False
         kwargs:
-          num_repeats: 1
+          num_repeats: 3

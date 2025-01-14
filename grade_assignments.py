@@ -87,6 +87,7 @@ def main():
       
       # Create assignment object if we have enough information
       assignment = course.get_assignment(assignment_id)
+      assignment_grading_kwargs = yaml_assignment.get('kwargs', {})
       
       # Focus on the given assignment
       with Assignment__ProgrammingAssignment(lms_assignment=assignment, grading_root_dir=root_dir) as assignment:
@@ -95,7 +96,7 @@ def main():
           regrade=True
         )
         grader = Grader__CST334(assignment_path=yaml_assignment.get('name'))
-        grader.grade(assignment)
+        grader.grade(assignment, **assignment_grading_kwargs)
         for submission in assignment.submissions:
           log.debug(submission)
         assignment.finalize(push=push_grades)
