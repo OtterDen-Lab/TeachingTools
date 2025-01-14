@@ -8,6 +8,7 @@ import yaml
 from TeachingTools.quiz_generation.quiz import Quiz
 from TeachingTools.lms_interface.canvas_interface import CanvasInterface, CanvasCourse, CanvasAssignment
 from TeachingTools.grading_assistant.assignment import Assignment__Exam, Assignment__ProgrammingAssignment
+from TeachingTools.grading_assistant.grader import Grader__Dummy
 
 import logging
 
@@ -93,7 +94,11 @@ def main():
           limit=args.limit,
           regrade=True
         )
-        pass
+        grader = Grader__Dummy()
+        grader.grade(assignment)
+        for submission in assignment.submissions:
+          log.debug(submission)
+        assignment.finalize(push=push_grades)
   
   
   return
