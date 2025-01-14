@@ -13,3 +13,4 @@ pypandoc~=1.6.3
 pytablewriter~=1.2.0
 canvasapi~=3.2.0
 pypdf~=4.1.0
+docker-py
