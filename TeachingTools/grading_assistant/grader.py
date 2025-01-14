@@ -171,7 +171,13 @@ class Grader__docker(Grader, abc.ABC):
         self.add_files_to_docker(files_to_copy)
       execution_results = self.execute_grading(*args, **kwargs)
       return self.score_grading(execution_results,*args,  **kwargs)
-
+  
+  def grade(self, assignment: Assignment, *args, **kwargs) -> None:
+    for submission in assignment.submissions:
+      if submission.files is None or len(submission.files) == 0:
+        submission.feedback = Feedback(0.0, "Assignment submission files missing")
+        continue
+      submission.feedback = self.grade_assignment(submission.files, **kwargs)
 
 class Grader__CST334(Grader__docker):
   
@@ -368,10 +374,3 @@ class Grader__CST334(Grader__docker):
     final_feedback.comments += "###################\n"
     
     return final_feedback
-
-  def grade(self, assignment: Assignment, *args, **kwargs) -> None:
-    for submission in assignment.submissions:
-      if submission.files is None or len(submission.files) == 0:
-        submission.feedback = Feedback(0.0, "Assignment submission files missing")
-        continue
-      submission.feedback = self.grade_assignment(submission.files, **kwargs)
