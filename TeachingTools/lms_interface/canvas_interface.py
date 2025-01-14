@@ -46,11 +46,14 @@ class CanvasInterface:
     log.debug(os.environ.get("CANVAS_API_URL"))
     if prod:
       log.warning("Using canvas PROD!")
-      self.canvas = canvasapi.Canvas(os.environ.get("CANVAS_API_URL_prod"), os.environ.get("CANVAS_API_KEY_prod"))
+      self.canvas_url = os.environ.get("CANVAS_API_URL_prod")
+      self.canvas_key = os.environ.get("CANVAS_API_KEY_prod")
     else:
       log.info("Using canvas DEV")
-      self.canvas = canvasapi.Canvas(os.environ.get("CANVAS_API_URL"), os.environ.get("CANVAS_API_KEY_prod"))
-  
+      self.canvas_url = os.environ.get("CANVAS_API_URL")
+      self.canvas_key = os.environ.get("CANVAS_API_KEY_prod")
+    self.canvas = canvasapi.Canvas(self.canvas_url, self.canvas_key)
+    
   def get_course(self, course_id: int) -> CanvasCourse:
     return CanvasCourse(
       canvas_interface = self,
@@ -59,7 +62,7 @@ class CanvasInterface:
 
 class CanvasCourse:
   def __init__(self, *args, canvas_interface : CanvasInterface, canvasapi_course : canvasapi.course.Course, **kwargs):
-    super().__init__(*args, **kwargs)
+    self.canvas_interface = canvas_interface
     self.course = canvasapi_course #self.canvas.get_course(course=course_id)
   
   def create_assignment_group(self, name="dev") -> canvasapi.course.AssignmentGroup:
@@ -165,7 +168,11 @@ class CanvasCourse:
           break
   
   def get_assignment(self, assignment_id : int) -> CanvasAssignment:
-    return CanvasAssignment(self, self.course.get_assignment(assignment_id))
+    return CanvasAssignment(
+      canvasapi_interface=self.canvas_interface,
+      canvasapi_course=self,
+      canvasapi_assignment=self.course.get_assignment(assignment_id)
+    )
     
   def get_assignments(self, **kwargs) -> List[CanvasAssignment]:
     assignments : List[CanvasAssignment] = []
@@ -184,8 +191,9 @@ class CanvasCourse:
     return [Student(s.name, s.id) for s in self.course.get_users(enrollment_type=["student"])]
 
 class CanvasAssignment:
-  def __init__(self, canvas_interface : CanvasCourse, canvasapi_assignment: canvasapi.assignment.Assignment, *args, **kwargs):
-    self.canvas_interface = canvas_interface
+  def __init__(self, *args, canvasapi_interface: CanvasInterface, canvasapi_course : CanvasCourse, canvasapi_assignment: canvasapi.assignment.Assignment, **kwargs):
+    self.canvas_interface = canvasapi_interface
+    self.canvas_course = canvasapi_course
     self.assignment = canvasapi_assignment
   
   def push_feedback(self, user_id, score: float, comments: str, attachments=None, keep_previous_best=True, clobber_feedback=False):
@@ -229,15 +237,15 @@ class CanvasAssignment:
     # If we should overwrite previous comments then remove all the previous submissions
     if clobber_feedback:
       log.debug("Clobbering...")
-      
+      # todo: clobbering should probably be moved up or made into a different function for cleanliness.
       for comment in submission.submission_comments:
         # log.debug(f"Existing comment: {comment}")
         comment_id = comment['id']
         # Construct the URL to delete the comment
-        delete_url = f"{self.canvas_url}/api/v1/courses/{self.course.id}/assignments/{self.assignment.id}/submissions/{user_id}/comments/{comment_id}"
+        delete_url = f"{self.canvas_interface.canvas_url}/api/v1/courses/{self.canvas_course.course.id}/assignments/{self.assignment.id}/submissions/{user_id}/comments/{comment_id}"
         
         # Make the DELETE request to delete the comment
-        response = requests.delete(delete_url, headers={"Authorization": f"Bearer {self.canvas_key}"})
+        response = requests.delete(delete_url, headers={"Authorization": f"Bearer {self.canvas_interface.canvas_key}"})
         if response.status_code == 200:
           log.info(f"Deleted comment {comment_id}")
         else:
@@ -270,7 +278,7 @@ class CanvasAssignment:
     for canvaspai_submission in self.assignment.get_submissions(include='submission_history', **kwargs):
       
       # Get the student object for the submission
-      student = Student(self.canvas_interface.get_username(canvaspai_submission.user_id), user_id=canvaspai_submission.user_id)
+      student = Student(self.canvas_course.get_username(canvaspai_submission.user_id), user_id=canvaspai_submission.user_id)
       
       # Get the status.  Note: it might be changed in the near future if there are no attachments
       status = (Submission.Status.UNGRADED if canvaspai_submission.workflow_state == "submitted" else Submission.Status.GRADED)
@@ -295,7 +303,7 @@ class CanvasAssignment:
     return submissions
   
   def get_students(self):
-    return self.canvas_interface.get_students()
+    return self.canvas_course.get_students()
 
 
 class CanvasHelpers:
