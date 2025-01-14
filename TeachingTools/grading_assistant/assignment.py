@@ -112,66 +112,6 @@ class Assignment__ProgrammingAssignment(Assignment):
   def finalize(self, *args, **kwargs):
     pass
   
-  
-  def old__download_submission_files(self, submissions: List[Submission], download_all_variations=False, download_dir=None, overwrite=False, user_id=None) \
-      -> Dict[Tuple[int, int, str],List[str]]:
-    log.debug(f"download_submission_files(self, {len(submissions)} submissions)")
-    
-    # Set up the attachments directory if not passed in as an argument
-    if download_dir is None:
-      download_dir = self.working_dir
-    
-    if overwrite:
-      if os.path.exists(download_dir): shutil.rmtree(download_dir)
-    if not os.path.exists(download_dir):
-      os.mkdir(download_dir)
-    
-    submission_files = collections.defaultdict(list)
-    
-    for student_submission in submissions:
-      if student_submission.missing:
-        # skip missing assignments
-        continue
-      if user_id is not None and student_submission.user_id != user_id:
-        continue
-      
-      # Get student name for posterity
-      student_name = self.canvas_course.get_user(student_submission.user_id)
-      log.debug(f"For {student_submission.user_id} there are {len(student_submission.submission_history)} submissions")
-      
-      # Cycle through each attempt, but walk the list backwards so we grab the latest first, in case that's the only one we end up grading
-      for attempt_number, submission_attempt in enumerate(student_submission.submission_history[::-1]):
-        
-        # todo: this might have to be improved to grab each combination of files separately in case a resubmission didn't have a full set of files for some reason
-        
-        # If there are no attachments then the student never submitted anything and this submission was automatically closed
-        if "attachments" not in submission_attempt:
-          continue
-        log.debug(f"Submission #{attempt_number+1} has {len(submission_attempt['attachments'])} variations")
-        
-        # Download each attachment
-        for attachment in submission_attempt['attachments']:
-          
-          # Generate a local file name with a number of options
-          local_file_name = f"{student_name.name.replace(' ', '-')}_{attempt_number}_{student_submission.user_id}_{attachment['filename']}"
-          local_path = os.path.join(download_dir, local_file_name)
-          
-          # Download the file, overwriting if appropriate.
-          if overwrite or not os.path.exists(local_path):
-            log.debug(f"Downloading {attachment['url']} to {local_path}")
-            urllib.request.urlretrieve(attachment['url'], local_path)
-            time.sleep(0.1)
-          else:
-            log.debug(f"{local_path} already exists")
-          
-          # Store the local filenames on a per-(student,attempt) basis
-          submission_files[(student_submission.user_id, attempt_number, student_name)].append(local_path)
-        
-        # Break if we were only supposed to download a single variation
-        if not download_all_variations:
-          break
-    return dict(submission_files)
-
 class Assignment__Exam(Assignment):
   NAME_RECT = [360,50,600,130]
 
