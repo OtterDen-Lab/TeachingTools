@@ -11,3 +11,4 @@ courses:
           nonce: True # just as an example of how to do this
       - name: PA2
         id: 403593
+        disabled: True

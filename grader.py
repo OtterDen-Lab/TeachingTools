@@ -74,6 +74,8 @@ def main():
     
     # Walk through assignments in course to grade, error if we don't have required information
     for yaml_assignment in yaml_course.get('assignments', []):
+      if yaml_assignment.get('disabled', False):
+        continue
       try:
         assignment_id = yaml_assignment['id']
       except KeyError as e:
