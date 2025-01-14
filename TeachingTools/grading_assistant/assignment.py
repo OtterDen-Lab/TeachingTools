@@ -46,7 +46,8 @@ class Assignment(abc.ABC):
   1. prepare : prepares files for grading by downloading, anonymizing, etc.
   2. finalize : combines parts of grading as necessary
   """
-  def __init__(self, grading_root_dir, *args, **kwargs):
+  def __init__(self, lms_assignment : CanvasAssignment, grading_root_dir, *args, **kwargs):
+    self.lms_assignment = lms_assignment
     self.grading_root_dir = grading_root_dir
     self.submissions : List[Submission] = []
     self.original_dir = None
@@ -71,7 +72,7 @@ class Assignment(abc.ABC):
     """
     pass
   
-  @abc.abstractmethod
+  
   def finalize(self, *args, **kwargs):
     """
     This function is intended to finalize any grading.  This could be reloading the grading CSV and matching names,
@@ -80,7 +81,19 @@ class Assignment(abc.ABC):
     :param kwargs:
     :return:
     """
-    pass
+    
+    if kwargs.get("push", False):
+      for submission in self.submissions:
+        log.info(f"Pushing feedback for: {submission}")
+        self.lms_assignment.push_feedback(
+          score=submission.feedback.score,
+          comments=submission.feedback.comments,
+          attachments=submission.feedback.attachments,
+          user_id=submission.student.user_id,
+          keep_previous_best=False,
+          clobber_feedback=True
+        )
+
 
 
 class Assignment__ProgrammingAssignment(Assignment):
@@ -88,9 +101,8 @@ class Assignment__ProgrammingAssignment(Assignment):
   Assignment for programming assignment grading, where prepare will download files and finalize will upload feedback.
   Will hopefully be run automatically.
   """
-  def __init__(self, *args, lms_assignment : CanvasAssignment, **kwargs):
+  def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
-    self.lms_assignment = lms_assignment
   
   def prepare(self, *args, limit=None, regrade=False, only_include_latest=True, **kwargs):
     
@@ -110,7 +122,7 @@ class Assignment__ProgrammingAssignment(Assignment):
       log.debug(f"{i+1 : 0{math.ceil(math.log10(len(self.submissions)))}} : {submission.student.name} -> files: {submission.files}")
     
   def finalize(self, *args, **kwargs):
-    pass
+    super().finalize(*args, **kwargs)
   
 class Assignment__Exam(Assignment):
   NAME_RECT = [360,50,600,130]
@@ -357,18 +369,6 @@ class Assignment__Exam(Assignment):
     # todo: This check doesn't do much, so maybe rematch original submissions via Claude again to see real predictions?
     self.check_student_names(graded_submissions)
   
-    if kwargs.get("push", False):
-      for submission in graded_submissions:
-        log.info(f"Adding in feedback for: {submission}")
-        canvas_assignment.push_feedback(
-          score=submission.feedback.score,
-          comments=submission.feedback.comments,
-          attachments=submission.feedback.attachments,
-          user_id=submission.student.user_id,
-          keep_previous_best=False,
-          clobber_feedback=True
-        )
-      
     # Make a dataframe
     df = pd.DataFrame([
       {
@@ -383,6 +383,11 @@ class Assignment__Exam(Assignment):
     df = df.sort_values(by="document_id")
     
     df.to_csv("grades.final.csv", index=False)
+    
+    # Set the submissions to the graded submissions
+    self.submissions = graded_submissions
+    
+    super().finalize(*args, **kwargs)
     
   @staticmethod
   def match_students_to_submissions(students : List[Student], submissions : List[Submission__pdf]) -> Tuple[List[Submission__pdf], List[Submission__pdf], List[Student], List[Student]]:
