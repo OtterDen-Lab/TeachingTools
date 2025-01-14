@@ -10,6 +10,8 @@ import math
 import random
 import shutil
 import sys
+import time
+import urllib
 from typing import List, Tuple, Dict, Optional
 import io
 import abc
@@ -23,11 +25,13 @@ import os
 import pandas as pd
 
 import TeachingTools.grading_assistant.ai_helper as ai_helper
-from TeachingTools.lms_interface.canvas_interface import CanvasInterface
-from TeachingTools.lms_interface.classes import Student
+from TeachingTools.lms_interface.canvas_interface import CanvasCourse, CanvasAssignment
+from TeachingTools.lms_interface.classes import Student, Submission, Feedback
 
 import logging
 import colorama
+
+
 logging.basicConfig()
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
@@ -35,111 +39,28 @@ log.setLevel(logging.DEBUG)
 SIMILARITY_THRESHOLD = 95
 
 
-@functools.total_ordering
-@dataclasses.dataclass
-class Feedback:
-  score: Optional[float] = None
-  comments: str = ""
-  attachments: List[io.BytesIO] = dataclasses.field(default_factory=list)
-  
-  def __str__(self):
-    return f"Feedback({self.score}, ...)"
-  
-  def __eq__(self, other):
-    if not isinstance(other, Feedback):
-      return NotImplemented
-    return self.score == other.score
-  
-  def __lt__(self, other):
-    if not isinstance(other, Feedback):
-      return NotImplemented
-    if self.score is None:
-      return False  # None is treated as greater than any other value
-    if other.score is None:
-      return True
-    return self.score < other.score
-
-
-class Submission:
-  def __init__(self, *args, **kwargs):
-    self.input_files = None
-    self.files_to_grade = None
-    self.feedback : Optional[Feedback] = None
-    self.__student: Optional[Student] = None
-  
-  @property
-  def student(self):
-    return self.__student
-  
-  @student.setter
-  def student(self, student):
-    self.__student = student
-  
-  def __str__(self):
-    try:
-      return f"S({self.student.name} : {self.feedback})"
-    except AttributeError:
-      return f"S({self.student} : {self.feedback})"
-
-
-class Submission__pdf(Submission):
-  def __init__(self, document_id, *args, student=None, approximate_name=None, feedback:Optional[Feedback]=None, question_scores=None, **kwargs):
-    super().__init__(*args, **kwargs)
-    self.document_id = document_id
-    self.approximate_name = approximate_name
-    if student is not None:
-      self.approximate_name = student.name
-      Submission.student.fset(self, student)
-    self.feedback : Optional[Feedback] = feedback
-    self.question_scores : Dict[int,float] = question_scores
-  
-  @Submission.student.setter
-  def student(self, student):
-    new_name_ratio = fuzzywuzzy.fuzz.ratio(student.name, self.approximate_name)
-    old_name_ratio = 0 if self.student is None else fuzzywuzzy.fuzz.ratio(self.student.name, self.approximate_name)
-    log.info(f'Setting student to "{student}" ({new_name_ratio}%) ({self.approximate_name})')
-    if (fuzzywuzzy.fuzz.ratio(student.name, self.approximate_name) / 100.0) <= SIMILARITY_THRESHOLD:
-      log.warning(
-        colorama.Back.RED
-        + colorama.Fore.LIGHTGREEN_EX
-        + colorama.Style.BRIGHT
-        + "Similarity below threshold"
-        + colorama.Style.RESET_ALL
-      )
-    
-    if new_name_ratio < old_name_ratio:
-      log.warning(
-        colorama.Back.RED
-        + colorama.Fore.LIGHTGREEN_EX
-        + colorama.Style.BRIGHT
-        + "New name worse than old name"
-        + colorama.Style.RESET_ALL
-      )
-    
-    # Call the parent class's student setter explicitly
-    Submission.student.fset(self, student)
-
-
-class AssignmentPart:
-  """Assignment part"""
-  def __init__(self, *args, **kwargs):
-    pass
-
-
 class Assignment(abc.ABC):
-  """Overall Assignment has one or more AssignmentPart objects.  Each part will have its own rubric and be passed to graders independently."""
+  """
+  Class to represent an assignment and act as an abstract base class for other classes.  Will be passed to a grader.
+  Two functions need to be overriden for child classes:
+  1. prepare : prepares files for grading by downloading, anonymizing, etc.
+  2. finalize : combines parts of grading as necessary
+  """
   def __init__(self, grading_root_dir, *args, **kwargs):
     self.grading_root_dir = grading_root_dir
     self.submissions : List[Submission] = []
     self.original_dir = None
   
   def __enter__(self) -> Assignment:
+    """Enables use as a context manager (e.g. `with [Assignment]`) by managing working directory"""
+    # todo: Enable use of anonymous temp directories
     self.original_dir = os.getcwd()
     os.chdir(self.grading_root_dir)
     return self
   
   def __exit__(self, exc_type, exc_value, traceback):
-    os.chdir(self.grading_root_dir)
+    """Enables use as a context manager (e.g. `with [Assignment]`) by managing working directory"""
+    os.chdir(self.original_dir)
   
   @abc.abstractmethod
   def prepare(self, *args, **kwargs):
@@ -159,10 +80,133 @@ class Assignment(abc.ABC):
     :param kwargs:
     :return:
     """
+    pass
 
 
-class Assignment__exams_pdf(Assignment):
+class Assignment__ProgrammingAssignment(Assignment):
+  """
+  Assignment for programming assignment grading, where prepare will download files and finalize will upload feedback.
+  Will hopefully be run automatically.
+  """
+  def __init__(self, *args, lms_assignment : CanvasAssignment, **kwargs):
+    super().__init__(*args, **kwargs)
+    self.lms_assignment = lms_assignment
+  
+  def prepare(self, *args, limit=None, regrade=False, only_include_latest=True, **kwargs):
+    
+    # Steps:
+    #  1. Get the submissions
+    #  2. Filter out submissions we don't want
+    #  3. possibly download proactively
+    self.submissions = self.lms_assignment.get_submissions()
+    if not regrade:
+      self.submissions = list(filter(lambda s: s.status == Submission.Status.UNGRADED, self.submissions))
+    for submission in self.submissions:
+      log.debug(f"{submission.student.name} -> files: {submission.files}")
+    
+  def finalize(self, *args, **kwargs):
+    pass
+  
+  
+  def old__download_submission_files(self, submissions: List[Submission], download_all_variations=False, download_dir=None, overwrite=False, user_id=None) \
+      -> Dict[Tuple[int, int, str],List[str]]:
+    log.debug(f"download_submission_files(self, {len(submissions)} submissions)")
+    
+    # Set up the attachments directory if not passed in as an argument
+    if download_dir is None:
+      download_dir = self.working_dir
+    
+    if overwrite:
+      if os.path.exists(download_dir): shutil.rmtree(download_dir)
+    if not os.path.exists(download_dir):
+      os.mkdir(download_dir)
+    
+    submission_files = collections.defaultdict(list)
+    
+    for student_submission in submissions:
+      if student_submission.missing:
+        # skip missing assignments
+        continue
+      if user_id is not None and student_submission.user_id != user_id:
+        continue
+      
+      # Get student name for posterity
+      student_name = self.canvas_course.get_user(student_submission.user_id)
+      log.debug(f"For {student_submission.user_id} there are {len(student_submission.submission_history)} submissions")
+      
+      # Cycle through each attempt, but walk the list backwards so we grab the latest first, in case that's the only one we end up grading
+      for attempt_number, submission_attempt in enumerate(student_submission.submission_history[::-1]):
+        
+        # todo: this might have to be improved to grab each combination of files separately in case a resubmission didn't have a full set of files for some reason
+        
+        # If there are no attachments then the student never submitted anything and this submission was automatically closed
+        if "attachments" not in submission_attempt:
+          continue
+        log.debug(f"Submission #{attempt_number+1} has {len(submission_attempt['attachments'])} variations")
+        
+        # Download each attachment
+        for attachment in submission_attempt['attachments']:
+          
+          # Generate a local file name with a number of options
+          local_file_name = f"{student_name.name.replace(' ', '-')}_{attempt_number}_{student_submission.user_id}_{attachment['filename']}"
+          local_path = os.path.join(download_dir, local_file_name)
+          
+          # Download the file, overwriting if appropriate.
+          if overwrite or not os.path.exists(local_path):
+            log.debug(f"Downloading {attachment['url']} to {local_path}")
+            urllib.request.urlretrieve(attachment['url'], local_path)
+            time.sleep(0.1)
+          else:
+            log.debug(f"{local_path} already exists")
+          
+          # Store the local filenames on a per-(student,attempt) basis
+          submission_files[(student_submission.user_id, attempt_number, student_name)].append(local_path)
+        
+        # Break if we were only supposed to download a single variation
+        if not download_all_variations:
+          break
+    return dict(submission_files)
+
+class Assignment__Exam(Assignment):
   NAME_RECT = [360,50,600,130]
+
+  class Submission__pdf(Submission):
+    def __init__(self, document_id, *args, student=None, approximate_name=None, feedback:Optional[Feedback]=None, question_scores=None, **kwargs):
+      super().__init__(*args, **kwargs)
+      self.document_id = document_id
+      self.approximate_name = approximate_name
+      if student is not None:
+        self.approximate_name = student.name
+        Submission.student.fset(self, student)
+      self.feedback : Optional[Feedback] = feedback
+      self.question_scores : Dict[int,float] = question_scores
+    
+    @Submission.student.setter
+    def student(self, student):
+      new_name_ratio = fuzzywuzzy.fuzz.ratio(student.name, self.approximate_name)
+      old_name_ratio = 0 if self.student is None else fuzzywuzzy.fuzz.ratio(self.student.name, self.approximate_name)
+      log.info(f'Setting student to "{student}" ({new_name_ratio}%) ({self.approximate_name})')
+      if (fuzzywuzzy.fuzz.ratio(student.name, self.approximate_name) / 100.0) <= SIMILARITY_THRESHOLD:
+        log.warning(
+          colorama.Back.RED
+          + colorama.Fore.LIGHTGREEN_EX
+          + colorama.Style.BRIGHT
+          + "Similarity below threshold"
+          + colorama.Style.RESET_ALL
+        )
+      
+      if new_name_ratio < old_name_ratio:
+        log.warning(
+          colorama.Back.RED
+          + colorama.Fore.LIGHTGREEN_EX
+          + colorama.Style.BRIGHT
+          + "New name worse than old name"
+          + colorama.Style.RESET_ALL
+        )
+      
+      # Call the parent class's student setter explicitly
+      Submission.student.fset(self, student)
+    
   
   def prepare(self, input_directory, canvas_interface, limit=None, *args, **kwargs):
     
@@ -197,7 +241,7 @@ class Assignment__exams_pdf(Assignment):
         page_mappings_by_user[user_id].append(random_page_id)
     
     # Walk through student submissions, shuffle and redact, and get approximate name
-    assignment_submissions : List[Submission__pdf] = []
+    assignment_submissions : List[Assignment__Exam.Submission__pdf] = []
     for document_id, pdf_filepath in enumerate(pdfs_to_process):
       log.debug(f"Processing {document_id+1}th document: {pdf_filepath}")
       
@@ -217,11 +261,11 @@ class Assignment__exams_pdf(Assignment):
         key=lambda x: x[0]
       )
       if score > SIMILARITY_THRESHOLD:
-        assignment_submissions.append(Submission__pdf(document_id,  student=best_match))
+        assignment_submissions.append(Assignment__Exam.Submission__pdf(document_id,  student=best_match))
         unmatched_canvas_students.remove(best_match)
       else:
         log.warning(f"Rejecting proposed match for \"{approximate_student_name}\": \"{best_match.name}\" ({score})")
-        assignment_submissions.append(Submission__pdf(document_id, approximate_name=approximate_student_name))
+        assignment_submissions.append(Assignment__Exam.Submission__pdf(document_id, approximate_name=approximate_student_name))
       
       # Save aside a copy that's been shuffled for later reference and easy confirmation
       shuffled_document = fitz.open(pdf_filepath)
@@ -263,12 +307,12 @@ class Assignment__exams_pdf(Assignment):
     
     df.to_csv("grades.intermediate.csv", index=False)
     
-  def finalize(self, path_to_grading_csv, canvas_interface : CanvasInterface, *args, **kwargs):
+  def finalize(self, path_to_grading_csv, canvas_assignment : CanvasAssignment, *args, **kwargs):
     log.debug("Finalizing grades")
     
     grades_df = pd.read_csv(path_to_grading_csv)
-    canvas_students_by_id = { s.user_id : s for s in canvas_interface.get_students()}
-    graded_submissions : List[Submission__pdf] = []
+    canvas_students_by_id = { s.user_id : s for s in canvas_assignment.get_students()}
+    graded_submissions : List[Assignment__Exam.Submission__pdf] = []
     
     # todo: Steps are going to be:
     # 0. Recombine PDFs
@@ -301,7 +345,7 @@ class Assignment__exams_pdf(Assignment):
         documents_by_id[document_id] = file_buffer
     
     # Putting this into a function for easy reuse
-    def get_Submission__pdf(row) -> Submission__pdf:
+    def get_Submission__pdf(row) -> Assignment__Exam.Submission__pdf:
       by_question_scores = {}
       for key in row.keys():
         if key.startswith("Q"):
@@ -312,7 +356,7 @@ class Assignment__exams_pdf(Assignment):
       
       log.debug(f'row["user_id"]: {row["user_id"]}')
       if pd.notna(row["user_id"]):
-        submission = Submission__pdf(
+        submission = Assignment__Exam.Submission__pdf(
           document_id=row["document_id"],
           student=canvas_students_by_id[int(row["user_id"])],
           feedback=Feedback(
@@ -324,7 +368,7 @@ class Assignment__exams_pdf(Assignment):
         )
       else:
         log.debug(f"approximate name: {row}")
-        submission = Submission__pdf(
+        submission = Assignment__Exam.Submission__pdf(
           document_id=row["document_id"],
           approximate_name=row["name"],
           feedback=Feedback(
@@ -345,7 +389,7 @@ class Assignment__exams_pdf(Assignment):
     log.debug(canvas_students_by_id)
     
     # Get the students who have yet to be matched
-    manually_named_submissions : List[Submission__pdf] = []
+    manually_named_submissions : List[Assignment__Exam.Submission__pdf] = []
     log.info(f"There are {len(grades_df[grades_df['user_id'].isna()])} manually named students.")
     for _, row in grades_df[grades_df["user_id"].isna()].iterrows():
       manually_named_submissions.append(get_Submission__pdf(row))
@@ -371,7 +415,7 @@ class Assignment__exams_pdf(Assignment):
     if kwargs.get("push", False):
       for submission in graded_submissions:
         log.info(f"Adding in feedback for: {submission}")
-        canvas_interface.push_feedback(
+        canvas_assignment.push_feedback(
           score=submission.feedback.score,
           comments=submission.feedback.comments,
           attachments=submission.feedback.attachments,
@@ -399,14 +443,14 @@ class Assignment__exams_pdf(Assignment):
   def match_students_to_submissions(students : List[Student], submissions : List[Submission__pdf]) -> Tuple[List[Submission__pdf], List[Submission__pdf], List[Student], List[Student]]:
     # Modified from https://chatgpt.com/share/6743c2aa-477c-8001-9eb6-e5800c3f44da
     # todo: this function has become a mess of what it's doing and returning.
-    submissions_w_names : List[Submission__pdf] = []
-    submissions_wo_names : List[Submission__pdf] = []
+    submissions_w_names : List[Assignment__Exam.Submission__pdf] = []
+    submissions_wo_names : List[Assignment__Exam.Submission__pdf] = []
     matched_students : List[Student] = []
     unmatched_students : List[Student] = []
     
     while students and submissions:
       # Find the pair with the maximum comparison value
-      best_pair : Tuple[Submission__pdf, Student]|None = None
+      best_pair : Tuple[Assignment__Exam.Submission__pdf, Student]|None = None
       best_value = float('-inf')
       
       # todo: update this to go through by using itertools, so we can make sure that the 2nd best is significantly worse than the best
@@ -570,9 +614,3 @@ class Assignment__exams_pdf(Assignment):
     ])
     
     return '\n'.join(feedback_comments_lines)
-
-def main():
-  passs
-
-if __name__ == "__main__":
-  main()

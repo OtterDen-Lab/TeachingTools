@@ -14,9 +14,10 @@ import canvasapi.submission
 import dotenv, os
 import sys
 import requests
+import io
 
 from TeachingTools.quiz_generation.quiz import Quiz
-from TeachingTools.lms_interface.classes import Student
+from TeachingTools.lms_interface.classes import Student, Submission
 
 import logging
 logging.basicConfig()
@@ -36,9 +37,8 @@ logger.setLevel(logging.WARNING)
 
 QUESTION_VARIATIONS_TO_TRY = 1000
 
-
 class CanvasInterface:
-  def __init__(self, *, course_id : int, prod=False):
+  def __init__(self, *, prod=False):
     super().__init__()
     dotenv.load_dotenv(os.path.join(os.path.expanduser("~"), ".env"))
     log.debug(os.environ.get("CANVAS_API_URL"))
@@ -48,7 +48,17 @@ class CanvasInterface:
     else:
       log.info("Using canvas DEV")
       self.canvas = canvasapi.Canvas(os.environ.get("CANVAS_API_URL"), os.environ.get("CANVAS_API_KEY_prod"))
-    self.course = self.canvas.get_course(course=course_id)
+  
+  def get_course(self, course_id: int) -> CanvasCourse:
+    return CanvasCourse(
+      canvas_interface = self,
+      canvasapi_course = self.canvas.get_course(course_id)
+    )
+
+class CanvasCourse:
+  def __init__(self, *args, canvas_interface : CanvasInterface, canvasapi_course : canvasapi.course.Course, **kwargs):
+    super().__init__(*args, **kwargs)
+    self.course = canvasapi_course #self.canvas.get_course(course=course_id)
   
   def create_assignment_group(self, name="dev") -> canvasapi.course.AssignmentGroup:
     for assignment_group in self.course.get_assignment_groups():
@@ -151,13 +161,23 @@ class CanvasInterface:
           break
         if variation_count >= question.possible_variations:
           break
-        
-  def get_assignments(self, **kwargs):
+  
+  def get_assignment(self, assignment_id : int) -> CanvasAssignment:
+    return CanvasAssignment(self, self.course.get_assignment(assignment_id))
+    
+  def get_assignments(self, **kwargs) -> List[CanvasAssignment]:
+    assignments : List[CanvasAssignment] = []
+    for canvasapi_assignment in self.course.get_assignments(**kwargs):
+      assignments.append(
+        CanvasAssignment(self, canvasapi_assignment)
+      )
+    
     assignments = self.course.get_assignments(**kwargs)
     return assignments
   
-  def get_submissions(self, assignments: List[canvasapi.assignment.Assignment]):
-    submissions : List[canvasapi.submission.Submission] = []
+  # todo: remove?
+  def old__get_submissions(self, assignments: List[canvasapi.assignment.Assignment]) -> List[Submission]:
+    submissions : List[Submission] = []
     for assignment in assignments:
       submissions.extend(assignment.get_submissions())
     return submissions
@@ -165,14 +185,13 @@ class CanvasInterface:
   def get_username(self, user_id: int):
     return self.course.get_user(user_id).name
   
-  
   def get_students(self) -> List[Student]:
     return [Student(s.name, s.id) for s in self.course.get_users(enrollment_type=["student"])]
 
-class CanvasAssignment(CanvasInterface):
-  def __init__(self, assignment_id: int, *args, **kwargs):
-    super().__init__(*args, **kwargs)
-    self.assignment = self.course.get_assignment(assignment_id)
+class CanvasAssignment:
+  def __init__(self, canvas_interface : CanvasCourse, canvasapi_assignment: canvasapi.assignment.Assignment, *args, **kwargs):
+    self.canvas_interface = canvas_interface
+    self.assignment = canvasapi_assignment
   
   def push_feedback(self, user_id, score: float, comments: str, attachments=None, keep_previous_best=True, clobber_feedback=False):
     log.debug(f"Adding feedback for {user_id}")
@@ -243,13 +262,26 @@ class CanvasAssignment(CanvasInterface):
     
     for i, attachment_buffer in enumerate(attachments):
       upload_buffer_as_file(attachment_buffer.read(), attachment_buffer.name)
-
-
+  
+  def get_submissions(self, **kwargs) -> List[Submission]:
+    submissions : List[Submission] = []
+    for canvaspai_submission in self.assignment.get_submissions(**kwargs):
+      submissions.append(
+        Submission( # todo: this seems stupid lol
+          student=Student(self.canvas_interface.get_username(canvaspai_submission.user_id), user_id=canvaspai_submission.user_id),
+          status=(Submission.Status.UNGRADED if canvaspai_submission.workflow_state == "submitted" else Submission.Status.GRADED)
+          # todo: attach canvas submission as well so we can get files or report back
+        )
+      )
+    return submissions
+  
+  def get_students(self):
+    return self.canvas_interface.get_students()
 
 
 class CanvasHelpers:
   @staticmethod
-  def get_closed_assignments(interface: CanvasInterface) -> List[canvasapi.assignment.Assignment]:
+  def get_closed_assignments(interface: CanvasCourse) -> List[canvasapi.assignment.Assignment]:
     closed_assignments : List[canvasapi.assignment.Assignment] = []
     for assignment in interface.get_assignments(
       include=["all_dates"], 
@@ -284,7 +316,7 @@ class CanvasHelpers:
     
     return closed_assignments
   @staticmethod
-  def get_unsubmitted_submissions(interface: CanvasInterface, assignment: canvasapi.assignment.Assignment) -> List[canvasapi.submission.Submission]:
+  def get_unsubmitted_submissions(interface: CanvasCourse, assignment: canvasapi.assignment.Assignment) -> List[canvasapi.submission.Submission]:
     submissions : List[canvasapi.submission.Submission] = list(filter(
       lambda s: s.submitted_at is None and s.score is None and not s.excused,
       assignment.get_submissions()
@@ -292,7 +324,7 @@ class CanvasHelpers:
     return submissions
   
   @classmethod
-  def clear_out_missing(cls, interface: CanvasInterface):
+  def clear_out_missing(cls, interface: CanvasCourse):
     assignments = cls.get_closed_assignments(interface)
     for assignment in assignments:
       # if "PA6" not in assignment.name: continue
@@ -306,9 +338,3 @@ class CanvasHelpers:
       log.info("")
   
  
-def main():
-  interface = CanvasInterface(course_id=25523, prod=False)
-  
-
-if __name__ == "__main__":
-  main()
