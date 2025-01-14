@@ -6,6 +6,8 @@ import logging
 import dataclasses
 import functools
 import io
+import os
+import urllib
 from typing import Optional, List
 
 logging.basicConfig()
@@ -23,6 +25,7 @@ class Student:
 class Submission:
   
   class Status(enum.Enum):
+    MISSING = enum.auto()
     UNGRADED = enum.auto()
     GRADED = enum.auto()
     
@@ -33,19 +36,19 @@ class Submission:
       status : Submission.Status = Status.UNGRADED,
       **kwargs
   ):
-    self.__student: Optional[Student] = student
+    self._student: Optional[Student] = student
     self.status = status
     self.input_files = None
-    self.__files = None
+    self._files = None
     self.feedback : Optional[Feedback] = None
   
   @property
   def student(self):
-    return self.__student
+    return self._student
   
   @student.setter
   def student(self, student):
-    self.__student = student
+    self._student = student
   
   def __str__(self):
     try:
@@ -55,8 +58,39 @@ class Submission:
 
   @property
   def files(self):
-    return self.__files
+    return self._files
   
+
+class Submission__Canvas(Submission):
+  def __init__(self, *args, attachments : Optional[List], **kwargs):
+    super().__init__(*args, **kwargs)
+    self._attachments = attachments
+  
+  @property
+  def files(self):
+    # Check if we have already downloaded the files locally and return if we have
+    if self._files is not None:
+      return self._files
+    
+    # If we haven't downloaded the files yet, check if we have attachments and can download them
+    if self._attachments is not None:
+      self.__files = []
+      download_dir = "files"
+      if not os.path.exists(download_dir):
+        os.mkdir(download_dir)
+      for attachment in self._attachments:
+        
+        # Generate a local file name with a number of options
+        local_file_name = f"{self.student.name.replace(' ', '-')}_{self.student.user_id}_{attachment['filename']}"
+        local_path = os.path.join(download_dir, local_file_name)
+        urllib.request.urlretrieve(attachment['url'], local_path)
+        
+        self.__files.append(local_path)
+        
+        
+    return self.__files
+
+
 
 @functools.total_ordering
 @dataclasses.dataclass

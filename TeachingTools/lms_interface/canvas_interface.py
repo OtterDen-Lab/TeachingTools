@@ -1,6 +1,7 @@
 #!env python
 from __future__ import annotations
 
+import pprint
 import time
 import typing
 from datetime import datetime, timezone
@@ -17,9 +18,10 @@ import requests
 import io
 
 from TeachingTools.quiz_generation.quiz import Quiz
-from TeachingTools.lms_interface.classes import Student, Submission
+from TeachingTools.lms_interface.classes import Student, Submission, Submission__Canvas
 
 import logging
+
 logging.basicConfig()
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
@@ -175,13 +177,6 @@ class CanvasCourse:
     assignments = self.course.get_assignments(**kwargs)
     return assignments
   
-  # todo: remove?
-  def old__get_submissions(self, assignments: List[canvasapi.assignment.Assignment]) -> List[Submission]:
-    submissions : List[Submission] = []
-    for assignment in assignments:
-      submissions.extend(assignment.get_submissions())
-    return submissions
-  
   def get_username(self, user_id: int):
     return self.course.get_user(user_id).name
   
@@ -264,13 +259,37 @@ class CanvasAssignment:
       upload_buffer_as_file(attachment_buffer.read(), attachment_buffer.name)
   
   def get_submissions(self, **kwargs) -> List[Submission]:
+    """
+    Gets submission objects (in this case Submission__Canvas objects) that have students and potentially attachments
+    :param kwargs:
+    :return:
+    """
     submissions : List[Submission] = []
-    for canvaspai_submission in self.assignment.get_submissions(**kwargs):
+    
+    # Get all submissions and their history (which is necessary for attachments when students can resubmit)
+    for canvaspai_submission in self.assignment.get_submissions(include='submission_history', **kwargs):
+      
+      # Get the student object for the submission
+      student = Student(self.canvas_interface.get_username(canvaspai_submission.user_id), user_id=canvaspai_submission.user_id)
+      
+      # Get the status.  Note: it might be changed in the near future if there are no attachments
+      status = (Submission.Status.UNGRADED if canvaspai_submission.workflow_state == "submitted" else Submission.Status.GRADED)
+      log.info(f"Getting submission for {student} ({status})")
+      
+      # Try to get the attachments.  If there are none then mark the submission as missing
+      # todo: maybe report it as missing if after deadline?
+      try:
+        attachments = canvaspai_submission.submission_history[-1]["attachments"]
+      except KeyError:
+        attachments = None
+        status = Submission.Status.MISSING
+      
+      # Add submission to list
       submissions.append(
-        Submission( # todo: this seems stupid lol
-          student=Student(self.canvas_interface.get_username(canvaspai_submission.user_id), user_id=canvaspai_submission.user_id),
-          status=(Submission.Status.UNGRADED if canvaspai_submission.workflow_state == "submitted" else Submission.Status.GRADED)
-          # todo: attach canvas submission as well so we can get files or report back
+        Submission__Canvas(
+          student=student,
+          status=status,
+          attachments=attachments
         )
       )
     return submissions
@@ -322,7 +341,6 @@ class CanvasHelpers:
       assignment.get_submissions()
     ))
     return submissions
-  
   @classmethod
   def clear_out_missing(cls, interface: CanvasCourse):
     assignments = cls.get_closed_assignments(interface)
