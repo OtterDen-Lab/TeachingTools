@@ -1,0 +1,13 @@
+prod: False
+push: False
+root_dir: /Users/ssogden/scratch/grader
+courses:
+  - name: CST334
+    id: 25523
+    assignments:
+      - name: PA1
+        id: 403592
+        kwargs:
+          nonce: True # just as an example of how to do this
+      - name: PA2
+        id: 403593
