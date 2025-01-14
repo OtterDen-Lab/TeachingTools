@@ -371,4 +371,7 @@ class Grader__CST334(Grader__docker):
 
   def grade(self, assignment: Assignment, *args, **kwargs) -> None:
     for submission in assignment.submissions:
+      if submission.files is None or len(submission.files) == 0:
+        submission.feedback = Feedback(0.0, "Assignment submission files missing")
+        continue
       submission.feedback = self.grade_assignment(submission.files, **kwargs)
