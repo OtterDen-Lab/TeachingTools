@@ -7,8 +7,12 @@ courses:
     assignments:
       - name: PA1
         id: 403592
+        disabled: True
         kwargs:
           nonce: True # just as an example of how to do this
+          num_repeats: 1
       - name: PA2
         id: 403593
-        disabled: True
+        disabled: False
+        kwargs:
+          num_repeats: 1
