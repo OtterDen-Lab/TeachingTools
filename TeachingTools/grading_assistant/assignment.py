@@ -101,8 +101,13 @@ class Assignment__ProgrammingAssignment(Assignment):
     self.submissions = self.lms_assignment.get_submissions()
     if not regrade:
       self.submissions = list(filter(lambda s: s.status == Submission.Status.UNGRADED, self.submissions))
-    for submission in self.submissions:
-      log.debug(f"{submission.student.name} -> files: {submission.files}")
+    
+    log.info(f"Total students to grade: {len(self.submissions)}")
+    if limit is not None:
+      log.warning(f"Limiting to {limit} students")
+      self.submissions = self.submissions[:limit]
+    for i, submission in enumerate(self.submissions):
+      log.debug(f"{i+1 : 0{math.ceil(math.log10(len(self.submissions)))}} : {submission.student.name} -> files: {submission.files}")
     
   def finalize(self, *args, **kwargs):
     pass
