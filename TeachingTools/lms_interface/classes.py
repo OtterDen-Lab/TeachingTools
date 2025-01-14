@@ -74,7 +74,7 @@ class Submission__Canvas(Submission):
     
     # If we haven't downloaded the files yet, check if we have attachments and can download them
     if self._attachments is not None:
-      self.__files = []
+      self._files = []
       download_dir = "files"
       if not os.path.exists(download_dir):
         os.mkdir(download_dir)
@@ -85,10 +85,10 @@ class Submission__Canvas(Submission):
         local_path = os.path.join(download_dir, local_file_name)
         urllib.request.urlretrieve(attachment['url'], local_path)
         
-        self.__files.append(local_path)
+        self._files.append(local_path)
         
         
-    return self.__files
+    return self._files
 
 
 
