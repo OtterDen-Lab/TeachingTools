@@ -1,12 +1,13 @@
 prod: False
 push: True
-root_dir: /Users/ssogden/scratch/grader
+root_dir: /Users/ssogden/scratch/grader/exam4
 courses:
   - name: CST334
     id: 25523
     assignments:
       - name: Exam 4
         id: 430894
-        disabled: False
+        kind: Exam
         grader: Manual
-        input_dir: /Users/ssogden/scratch/grader/00-input
+        kwargs:
+          input_directory: 00-input

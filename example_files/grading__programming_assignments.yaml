@@ -7,13 +7,16 @@ courses:
     assignments:
       - name: PA1
         id: 403592
+        kind: ProgrammingAssignment
+        grader: CST334
         disabled: True
         kwargs:
           nonce: True # just as an example of how to do this
           num_repeats: 1
       - name: PA2
         id: 403593
+        kind: ProgrammingAssignment
+        grader: CST334
         disabled: False
-        grader: Dummy
         kwargs:
           num_repeats: 3

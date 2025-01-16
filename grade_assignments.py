@@ -96,10 +96,17 @@ def main():
       )
       
       # Focus on the given assignment
-      with AssignmentRegistry.create(yaml_assignment['kind'], lms_assignment=assignment, grading_root_dir=root_dir) as assignment:
+      with AssignmentRegistry.create(
+          yaml_assignment['kind'],
+          lms_assignment=assignment,
+          grading_root_dir=root_dir,
+          **yaml_assignment.get('assignment_kwargs', {})
+      ) as assignment:
+        
         assignment.prepare(
           limit=args.limit,
-          regrade=True
+          regrade=True,
+          **yaml_assignment.get("kwargs", {})
         )
         grader.grade(assignment, **assignment_grading_kwargs)
         for submission in assignment.submissions:

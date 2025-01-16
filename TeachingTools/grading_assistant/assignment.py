@@ -210,11 +210,11 @@ class Assignment__Exam(Assignment):
       # Call the parent class's student setter explicitly
       Submission.student.fset(self, student)
     
-  def prepare(self, input_directory, canvas_interface, limit=None, *args, **kwargs):
+  def prepare(self, input_directory, limit=None, *args, **kwargs):
     
     # Get students from canvas to try to match
-    canvas_students : List[Student] = canvas_interface.get_students()
-    unmatched_canvas_students : List[Student] = canvas_students # canvas_interface.get_students()
+    canvas_students : List[Student] = self.lms_assignment.get_students()
+    unmatched_canvas_students : List[Student] = canvas_students
     log.debug(canvas_students)
     
     # Read in all the PDFs
