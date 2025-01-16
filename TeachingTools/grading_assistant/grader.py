@@ -105,7 +105,7 @@ class Grader__Manual(Grader):
         **submission.extra_info,
         "name" : submission.student.name if submission.student is not None else "",
         "user_id" : submission.student.user_id if submission.student is not None else "",
-        "total" : 0.0
+        "total" : None
       }
       for submission in assignment.submissions
     ])
