@@ -16,7 +16,7 @@ def parse_args():
   parser.add_argument("--prod", action="store_true")
   parser.add_argument("--course_id", default=25523, type=int)
   
-  parser.add_argument("--quiz_yaml", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "example_files/exam.yaml"))
+  parser.add_argument("--quiz_yaml", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "example_files/exam_generation.yaml"))
   parser.add_argument("--num_canvas", default=0, type=int)
   parser.add_argument("--num_pdfs", default=0, type=int)
   
