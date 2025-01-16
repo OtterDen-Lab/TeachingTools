@@ -14,5 +14,6 @@ courses:
       - name: PA2
         id: 403593
         disabled: False
+        grader: Dummy
         kwargs:
           num_repeats: 3
