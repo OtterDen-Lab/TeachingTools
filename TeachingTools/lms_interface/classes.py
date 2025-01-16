@@ -41,6 +41,7 @@ class Submission:
     self.input_files = None
     self._files = None
     self.feedback : Optional[Feedback] = None
+    self.extra_info = {}
   
   @property
   def student(self):
@@ -60,6 +61,8 @@ class Submission:
   def files(self):
     return self._files
   
+  def set_extra(self, extras_dict):
+    self.extra_info.update(extras_dict)
 
 class Submission__Canvas(Submission):
   def __init__(self, *args, attachments : Optional[List], **kwargs):
