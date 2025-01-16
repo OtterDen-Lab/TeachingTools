@@ -266,7 +266,7 @@ class CanvasAssignment:
     for i, attachment_buffer in enumerate(attachments):
       upload_buffer_as_file(attachment_buffer.read(), attachment_buffer.name)
   
-  def get_submissions(self, **kwargs) -> List[Submission]:
+  def get_submissions(self, limit=None, **kwargs) -> List[Submission]:
     """
     Gets submission objects (in this case Submission__Canvas objects) that have students and potentially attachments
     :param kwargs:
@@ -275,7 +275,7 @@ class CanvasAssignment:
     submissions : List[Submission] = []
     
     # Get all submissions and their history (which is necessary for attachments when students can resubmit)
-    for canvaspai_submission in self.assignment.get_submissions(include='submission_history', **kwargs):
+    for i, canvaspai_submission in enumerate(self.assignment.get_submissions(include='submission_history', **kwargs)):
       
       # Get the student object for the submission
       student = Student(self.canvas_course.get_username(canvaspai_submission.user_id), user_id=canvaspai_submission.user_id)
@@ -300,6 +300,8 @@ class CanvasAssignment:
           attachments=attachments
         )
       )
+      if limit is not None and i >= limit:
+        break
     return submissions
   
   def get_students(self):

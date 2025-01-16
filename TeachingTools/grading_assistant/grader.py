@@ -44,6 +44,7 @@ class Grader(abc.ABC):
     """
     pass
 
+
 class GraderRegistry:
   _registry = {}
   _scanned = False
