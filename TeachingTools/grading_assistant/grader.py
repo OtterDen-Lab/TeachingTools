@@ -2,6 +2,10 @@
 from __future__ import annotations
 
 import abc
+import importlib
+import pathlib
+import pkgutil
+
 import docker
 import docker.errors
 import docker.models.images
@@ -14,6 +18,7 @@ import json
 import shutil
 import yaml
 from collections import defaultdict
+import pandas as pd
 
 from typing import List, Tuple, Optional
 
@@ -27,7 +32,8 @@ log.setLevel(logging.DEBUG)
 
 
 class Grader(abc.ABC):
-  pass
+  def __init__(self, *args, **kwargs):
+    super().__init__()
 
   @abc.abstractmethod
   def grade(self, assignment: Assignment, *args, **kwargs) -> None:
@@ -38,7 +44,49 @@ class Grader(abc.ABC):
     """
     pass
 
+class GraderRegistry:
+  _registry = {}
+  _scanned = False
+  
+  @classmethod
+  def register(cls, grader_type=None):
+    log.debug("Registering...")
+    
+    def decorator(subclass):
+      # Use the provided name or fall back to the class name
+      name = grader_type.lower() if grader_type else subclass.__name__.lower()
+      cls._registry[name] = subclass
+      return subclass
+    
+    return decorator
+  
+  @classmethod
+  def create(cls, grader_type, **kwargs):
+    """Instantiate a registered subclass."""
+    
+    # If we haven't already loaded our premades, do so now
+    if not cls._scanned:
+      cls.load_premade_questions()
+    # Check to see if it's in the registry
+    if grader_type.lower() not in cls._registry:
+      raise ValueError(f"Unknown grader type: {grader_type}")
+    
+    return cls._registry[grader_type.lower()](**kwargs)
+  
+  
+  @classmethod
+  def load_premade_questions(cls):
+    package_name = "TeachingTools.grading_assistant"  # Fully qualified package name
+    package_path = pathlib.Path(__file__).parent / "grader"
+    log.debug(f"package_path: {package_path}")
+    
+    for _, module_name, _ in pkgutil.iter_modules([str(package_path)]):
+      # Import the module
+      module = importlib.import_module(f"{package_name}.{module_name}")
+      log.debug(f"Loaded module: {module}")
 
+
+@GraderRegistry.register("Dummy")
 class Grader__Dummy(Grader):
   def grade(self, assignment: Assignment, *args, **kwargs) -> None:
     for submission in assignment.submissions:
@@ -181,6 +229,8 @@ class Grader__docker(Grader, abc.ABC):
         continue
       submission.feedback = self.grade_assignment(submission.files, **kwargs)
 
+
+@GraderRegistry.register("CST334")
 class Grader__CST334(Grader__docker):
   
   def __init__(self, assignment_path, use_online_repo=False):
@@ -377,7 +427,7 @@ class Grader__CST334(Grader__docker):
     
     return final_feedback
 
-
+@GraderRegistry.register("Step-by-step")
 class Grader_stepbystep(Grader__docker):
   
   def __init__(self, rubric_file, *args, **kwargs):
