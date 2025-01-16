@@ -120,14 +120,6 @@ class QuestionRegistry:
       # Import the module
       module = importlib.import_module(f"{package_name}.{module_name}")
       log.debug(f"Loaded module: {module}")
-      
-      # Find all classes in the module
-      # for attr_name in dir(module):
-      #   attr = getattr(module, attr_name)
-      #   if isinstance(attr, type) and issubclass(attr, Question) and attr is not Question:
-      #
-      #   #   cls.subclasses[attr_name] = attr
-
 
 class Question(abc.ABC):
   """
