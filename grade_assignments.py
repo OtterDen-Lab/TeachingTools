@@ -8,7 +8,7 @@ import yaml
 from TeachingTools.quiz_generation.quiz import Quiz
 from TeachingTools.lms_interface.canvas_interface import CanvasInterface, CanvasCourse, CanvasAssignment
 from TeachingTools.grading_assistant.assignment import Assignment__Exam, Assignment__ProgrammingAssignment
-from TeachingTools.grading_assistant.grader import Grader__Dummy, Grader__CST334
+from TeachingTools.grading_assistant.grader import GraderRegistry
 
 import logging
 
@@ -16,11 +16,11 @@ logging.basicConfig()
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
+
 def parse_args():
   parser = argparse.ArgumentParser()
   
-  parser.add_argument("--yaml", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "example_files/programming_assignments.yaml"))
-  
+  parser.add_argument("--yaml", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "example_files/grading__programming_assignments.yaml"))
   parser.add_argument("--limit", default=None, type=int)
   
   return parser.parse_args()
@@ -95,7 +95,10 @@ def main():
           limit=args.limit,
           regrade=True
         )
-        grader = Grader__CST334(assignment_path=yaml_assignment.get('name'))
+        grader = GraderRegistry.create(
+          yaml_assignment.get("grader", "Dummy"),
+          assignment_path=yaml_assignment.get('name')
+        )
         grader.grade(assignment, **assignment_grading_kwargs)
         for submission in assignment.submissions:
           log.debug(submission)
