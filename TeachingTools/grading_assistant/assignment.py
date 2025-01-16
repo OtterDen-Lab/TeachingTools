@@ -36,7 +36,7 @@ logging.basicConfig()
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
-SIMILARITY_THRESHOLD = 95
+NAME_SIMILARITY_THRESHOLD = 95
 
 
 class Assignment(abc.ABC):
@@ -95,7 +95,6 @@ class Assignment(abc.ABC):
         )
 
 
-
 class Assignment__ProgrammingAssignment(Assignment):
   """
   Assignment for programming assignment grading, where prepare will download files and finalize will upload feedback.
@@ -123,6 +122,7 @@ class Assignment__ProgrammingAssignment(Assignment):
     
   def finalize(self, *args, **kwargs):
     super().finalize(*args, **kwargs)
+
   
 class Assignment__Exam(Assignment):
   NAME_RECT = [360,50,600,130]
@@ -143,7 +143,7 @@ class Assignment__Exam(Assignment):
       new_name_ratio = fuzzywuzzy.fuzz.ratio(student.name, self.approximate_name)
       old_name_ratio = 0 if self.student is None else fuzzywuzzy.fuzz.ratio(self.student.name, self.approximate_name)
       log.info(f'Setting student to "{student}" ({new_name_ratio}%) ({self.approximate_name})')
-      if (fuzzywuzzy.fuzz.ratio(student.name, self.approximate_name) / 100.0) <= SIMILARITY_THRESHOLD:
+      if (fuzzywuzzy.fuzz.ratio(student.name, self.approximate_name) / 100.0) <= NAME_SIMILARITY_THRESHOLD:
         log.warning(
           colorama.Back.RED
           + colorama.Fore.LIGHTGREEN_EX
@@ -164,7 +164,6 @@ class Assignment__Exam(Assignment):
       # Call the parent class's student setter explicitly
       Submission.student.fset(self, student)
     
-  
   def prepare(self, input_directory, canvas_interface, limit=None, *args, **kwargs):
     
     # Get students from canvas to try to match
@@ -217,12 +216,26 @@ class Assignment__Exam(Assignment):
         ),
         key=lambda x: x[0]
       )
-      if score > SIMILARITY_THRESHOLD:
-        assignment_submissions.append(Assignment__Exam.Submission__pdf(document_id,  student=best_match))
+      if score > NAME_SIMILARITY_THRESHOLD:
+        submission = Assignment__Exam.Submission__pdf(
+          document_id,
+          student=best_match
+        )
         unmatched_canvas_students.remove(best_match)
       else:
         log.warning(f"Rejecting proposed match for \"{approximate_student_name}\": \"{best_match.name}\" ({score})")
-        assignment_submissions.append(Assignment__Exam.Submission__pdf(document_id, approximate_name=approximate_student_name))
+        submission = Assignment__Exam.Submission__pdf(
+          document_id,
+          approximate_name=approximate_student_name
+        )
+      
+      # Add in the page numbers
+      submission.set_extra({"document_id" : document_id})
+      submission.set_extra(page_mappings_by_user[document_id])
+      
+      # Add to submissions
+      assignment_submissions.append(submission)
+      
       
       # Save aside a copy that's been shuffled for later reference and easy confirmation
       shuffled_document = fitz.open(pdf_filepath)
@@ -240,13 +253,19 @@ class Assignment__Exam(Assignment):
         
         # Save the page to the appropriate directory, with the number connected to it.
         try:
-          page.save(os.path.join(page_directory, f"{page_mappings_by_user[document_id][page_number]:0{int(math.log10(len(input_pdfs))+1)}}.pdf"))
+          page.save(os.path.join(page_directory, f"{ page_mappings_by_user[document_id][page_number]:0{int(math.log10(len(input_pdfs))+1)} }.pdf"))
           page.close()
         except IndexError:
           log.warning(f"No page {page_number} found for {document_id}")
       
     log.debug(f"assignment_submissions: {assignment_submissions}")
     
+
+    self.submissions = assignment_submissions
+    
+    return
+    
+    #todo: migrate the below to the grader
     log.debug(assignment_submissions)
     # Make a dataframe
     df = pd.DataFrame([
@@ -416,7 +435,7 @@ class Assignment__Exam(Assignment):
             best_pair = (submission, student)
       
       # Once we've figured out the best current match, assign the Student to the submission, or add it to the unmatched list.
-      if (best_value / 100.0) > SIMILARITY_THRESHOLD:
+      if (best_value / 100.0) > NAME_SIMILARITY_THRESHOLD:
         best_pair[0].student = best_pair[1]
         submissions_w_names.append(best_pair[0])
         matched_students.append(best_pair[1])

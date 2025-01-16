@@ -91,7 +91,34 @@ class Grader__Dummy(Grader):
   def grade(self, assignment: Assignment, *args, **kwargs) -> None:
     for submission in assignment.submissions:
       log.info(f"Grading {submission}...")
-      submission.feedback = Feedback(43.0, "Excellent job")
+      submission.feedback = Feedback(43.0, "(Grader not actually run.  Please contact your professor if you see this in production.)")
+
+@GraderRegistry.register("Manual")
+class Grader__Manual(Grader):
+  def prepare(self, assignment: Assignment, *args, **kwargs):
+    
+    log.debug(assignment.submissions)
+    # Make a dataframe
+    df = pd.DataFrame([
+      {
+        **submission.extra_info,
+        "name" : submission.student.name if submission.student is not None else "",
+        "user_id" : submission.student.user_id if submission.student is not None else "",
+        "total" : 0.0
+      }
+      for submission in assignment.submissions
+    ])
+    print(df.head())
+    df = df.sort_values(by="document_id")
+    
+    df.to_csv("grades.intermediate.csv", index=False)
+    
+  
+  def finalize(self, assignment, *args, **kwargs):
+    pass
+  
+  def grade(self, assignment: Assignment, *args, **kwargs) -> None:
+    self.prepare(assignment, *args, **kwargs)
 
 
 class Grader__docker(Grader, abc.ABC):
