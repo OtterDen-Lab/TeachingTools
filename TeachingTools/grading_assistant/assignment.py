@@ -6,7 +6,10 @@ import ast
 import base64
 import collections
 import dataclasses
+import importlib
 import math
+import pathlib
+import pkgutil
 import random
 import shutil
 import sys
@@ -95,6 +98,49 @@ class Assignment(abc.ABC):
         )
 
 
+class AssignmentRegistry:
+  _registry = {}
+  _scanned = False
+  
+  @classmethod
+  def register(cls, assignment_type=None):
+    log.debug("Registering...")
+    
+    def decorator(subclass):
+      # Use the provided name or fall back to the class name
+      name = assignment_type.lower() if assignment_type else subclass.__name__.lower()
+      cls._registry[name] = subclass
+      return subclass
+    
+    return decorator
+  
+  @classmethod
+  def create(cls, assignment_type, **kwargs):
+    """Instantiate a registered subclass."""
+    
+    # If we haven't already loaded our premades, do so now
+    if not cls._scanned:
+      cls.load_premade_questions()
+    # Check to see if it's in the registry
+    if assignment_type.lower() not in cls._registry:
+      raise ValueError(f"Unknown assignment type: {assignment_type}")
+    
+    return cls._registry[assignment_type.lower()](**kwargs)
+  
+  
+  @classmethod
+  def load_premade_questions(cls):
+    package_name = "TeachingTools.grading_assistant"  # Fully qualified package name
+    package_path = pathlib.Path(__file__).parent / "grader"
+    log.debug(f"package_path: {package_path}")
+    
+    for _, module_name, _ in pkgutil.iter_modules([str(package_path)]):
+      # Import the module
+      module = importlib.import_module(f"{package_name}.{module_name}")
+      log.debug(f"Loaded module: {module}")
+
+
+@AssignmentRegistry.register("ProgrammingAssignment")
 class Assignment__ProgrammingAssignment(Assignment):
   """
   Assignment for programming assignment grading, where prepare will download files and finalize will upload feedback.
@@ -109,7 +155,7 @@ class Assignment__ProgrammingAssignment(Assignment):
     #  1. Get the submissions
     #  2. Filter out submissions we don't want
     #  3. possibly download proactively
-    self.submissions = self.lms_assignment.get_submissions()
+    self.submissions = self.lms_assignment.get_submissions(limit=(None if not regrade else limit))
     if not regrade:
       self.submissions = list(filter(lambda s: s.status == Submission.Status.UNGRADED, self.submissions))
     
@@ -123,7 +169,7 @@ class Assignment__ProgrammingAssignment(Assignment):
   def finalize(self, *args, **kwargs):
     super().finalize(*args, **kwargs)
 
-  
+@AssignmentRegistry.register("Exam")
 class Assignment__Exam(Assignment):
   NAME_RECT = [360,50,600,130]
 

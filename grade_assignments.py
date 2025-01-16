@@ -7,7 +7,7 @@ import yaml
 
 from TeachingTools.quiz_generation.quiz import Quiz
 from TeachingTools.lms_interface.canvas_interface import CanvasInterface, CanvasCourse, CanvasAssignment
-from TeachingTools.grading_assistant.assignment import Assignment__Exam, Assignment__ProgrammingAssignment
+from TeachingTools.grading_assistant.assignment import AssignmentRegistry
 from TeachingTools.grading_assistant.grader import GraderRegistry
 
 import logging
@@ -89,15 +89,17 @@ def main():
       assignment = course.get_assignment(assignment_id)
       assignment_grading_kwargs = yaml_assignment.get('kwargs', {})
       
+      # Get the grader from the registry
+      grader = GraderRegistry.create(
+        yaml_assignment.get("grader", "Dummy"),
+        assignment_path=yaml_assignment.get('name')
+      )
+      
       # Focus on the given assignment
-      with Assignment__ProgrammingAssignment(lms_assignment=assignment, grading_root_dir=root_dir) as assignment:
+      with AssignmentRegistry.create(yaml_assignment['kind'], lms_assignment=assignment, grading_root_dir=root_dir) as assignment:
         assignment.prepare(
           limit=args.limit,
           regrade=True
-        )
-        grader = GraderRegistry.create(
-          yaml_assignment.get("grader", "Dummy"),
-          assignment_path=yaml_assignment.get('name')
         )
         grader.grade(assignment, **assignment_grading_kwargs)
         for submission in assignment.submissions:
