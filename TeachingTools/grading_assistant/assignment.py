@@ -277,7 +277,10 @@ class Assignment__Exam(Assignment):
       
       # Add in the page numbers
       submission.set_extra({"document_id" : document_id})
-      submission.set_extra(page_mappings_by_user[document_id])
+      submission.set_extra({
+        f"P{page_number}" : page
+        for page_number, page in enumerate(page_mappings_by_user[document_id])
+      })
       
       # Add to submissions
       assignment_submissions.append(submission)
@@ -299,7 +302,7 @@ class Assignment__Exam(Assignment):
         
         # Save the page to the appropriate directory, with the number connected to it.
         try:
-          page.save(os.path.join(page_directory, f"{ page_mappings_by_user[document_id][page_number]:0{int(math.log10(len(input_pdfs))+1)} }.pdf"))
+          page.save(os.path.join(page_directory, f"{ page_mappings_by_user[document_id][page_number]: 0{int(math.log10(len(input_pdfs))+1)}}.pdf"))
           page.close()
         except IndexError:
           log.warning(f"No page {page_number} found for {document_id}")

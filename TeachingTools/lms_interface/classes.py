@@ -8,7 +8,7 @@ import functools
 import io
 import os
 import urllib
-from typing import Optional, List
+from typing import Optional, List, Dict
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -61,7 +61,7 @@ class Submission:
   def files(self):
     return self._files
   
-  def set_extra(self, extras_dict):
+  def set_extra(self, extras_dict: Dict):
     self.extra_info.update(extras_dict)
 
 class Submission__Canvas(Submission):
