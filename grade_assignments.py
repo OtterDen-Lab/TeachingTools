@@ -105,6 +105,12 @@ def main():
         
         # If the grader doesn't need preparation (e.g. we have already graded and are just finalizing), then skip the prep step
         if grader.assignment_needs_preparation():
+          # If manual, double check that we should clobber the files
+          if yaml_assignment.get("grader", "Dummy").lower() in ["manual"]:
+            prepare_assignment = input("Would you like to prepare assignment?  (y/N)").strip().lower()
+            if prepare_assignment not in ['y', 'yes']:
+              log.info("Aborting execution based on response")
+              return
           assignment.prepare(
             limit=args.limit,
             regrade=True,
