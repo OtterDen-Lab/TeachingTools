@@ -103,12 +103,16 @@ def main():
           **yaml_assignment.get('assignment_kwargs', {})
       ) as assignment:
         
-        assignment.prepare(
-          limit=args.limit,
-          regrade=True,
-          **yaml_assignment.get("kwargs", {})
-        )
+        # If the grader doesn't need preparation (e.g. we have already graded and are just finalizing), then skip the prep step
+        if grader.assignment_needs_preparation():
+          assignment.prepare(
+            limit=args.limit,
+            regrade=True,
+            **yaml_assignment.get("kwargs", {})
+          )
+          
         grader.grade(assignment, **assignment_grading_kwargs)
+        
         for submission in assignment.submissions:
           log.debug(submission)
         assignment.finalize(push=push_grades)

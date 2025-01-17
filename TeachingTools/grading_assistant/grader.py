@@ -44,6 +44,8 @@ class Grader(abc.ABC):
     """
     pass
 
+  def assignment_needs_preparation(self):
+    return True
 
 class GraderRegistry:
   _registry = {}
@@ -96,9 +98,26 @@ class Grader__Dummy(Grader):
 
 @GraderRegistry.register("Manual")
 class Grader__Manual(Grader):
-  def prepare(self, assignment: Assignment, *args, **kwargs):
+  
+  CSV_NAME = "grades.intermediate.csv"
+  
+  def is_grading_complete(self):
+    """
+    Checks to see if grading is complete.  Currently just looks for whether there is a `total` score for each entry.
+    :return:
+    """
+    if not os.path.exists(self.CSV_NAME): return False
     
-    log.debug(assignment.submissions)
+    grades_df = pd.read_csv(self.CSV_NAME)
+    
+    # Clean out the extra columns not associated with any submission
+    grades_df = grades_df[grades_df["document_id"].notna()]
+    
+    # If there are entries missing a `total` column then we should get a different count and are incomplete
+    return grades_df[grades_df["total"].notna()].shape == grades_df.shape
+  
+  def prepare(self, assignment: Assignment, *args, **kwargs):
+    log.debug("Preparing manual grading")
     # Make a dataframe
     df = pd.DataFrame([
       {
@@ -112,15 +131,20 @@ class Grader__Manual(Grader):
     print(df.head())
     df = df.sort_values(by="document_id")
     
-    df.to_csv("grades.intermediate.csv", index=False)
-    
+    df.to_csv(self.CSV_NAME, index=False)
   
   def finalize(self, assignment, *args, **kwargs):
-    pass
-  
+    log.debug("Finalizing manual grading")
+    exit()
+    
   def grade(self, assignment: Assignment, *args, **kwargs) -> None:
-    self.prepare(assignment, *args, **kwargs)
+    if self.is_grading_complete():
+      self.finalize(assignment, args, **kwargs)
+    else:
+      self.prepare(assignment, *args, **kwargs)
 
+  def assignment_needs_preparation(self):
+    return not self.is_grading_complete()
 
 class Grader__docker(Grader, abc.ABC):
   client = docker.from_env()
