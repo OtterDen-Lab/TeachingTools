@@ -210,6 +210,7 @@ class Grader__Manual(Grader):
     
     # Now we have a list of graded submissions
     log.info(f"We have graded {len(graded_submissions)} submissions!")
+    assignment.submissions = graded_submissions
     self.ready_to_finalize = True
     
   def grade(self, assignment: Assignment, *args, **kwargs) -> None:
