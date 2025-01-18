@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import abc
+import ast
 import importlib
 import pathlib
 import pkgutil
+import pprint
 
 import docker
 import docker.errors
@@ -23,7 +25,7 @@ import pandas as pd
 from typing import List, Tuple, Optional
 
 from TeachingTools.grading_assistant.assignment import Assignment
-from TeachingTools.lms_interface.classes import Feedback
+from TeachingTools.lms_interface.classes import Feedback, Submission
 
 import logging
 logging.basicConfig()
@@ -34,6 +36,7 @@ log.setLevel(logging.DEBUG)
 class Grader(abc.ABC):
   def __init__(self, *args, **kwargs):
     super().__init__()
+    self.ready_to_finalize = True
 
   @abc.abstractmethod
   def grade(self, assignment: Assignment, *args, **kwargs) -> None:
@@ -46,6 +49,24 @@ class Grader(abc.ABC):
 
   def assignment_needs_preparation(self):
     return True
+
+  def prepare(self, *args, **kwargs):
+    """
+    Anything that is needed to take the assignment and prepare it for grading.
+    For example, making a CSV file from the submissions for manual grading
+    :param args:
+    :param kwargs:
+    :return:
+    """
+  
+  def finalize(self, *args, **kwargs):
+    """
+    anything that is needed to connect the grades/feedback to the submissions after grading.
+    For example, loading up the CSV and connecting grades to the submissions
+    :param args:
+    :param kwargs:
+    :return:
+    """
 
 class GraderRegistry:
   _registry = {}
@@ -69,7 +90,7 @@ class GraderRegistry:
     
     # If we haven't already loaded our premades, do so now
     if not cls._scanned:
-      cls.load_premade_questions()
+      cls.load_premade_graders()
     # Check to see if it's in the registry
     if grader_type.lower() not in cls._registry:
       raise ValueError(f"Unknown grader type: {grader_type}")
@@ -78,7 +99,7 @@ class GraderRegistry:
   
   
   @classmethod
-  def load_premade_questions(cls):
+  def load_premade_graders(cls):
     package_name = "TeachingTools.grading_assistant"  # Fully qualified package name
     package_path = pathlib.Path(__file__).parent / "grader"
     log.debug(f"package_path: {package_path}")
@@ -95,6 +116,7 @@ class Grader__Dummy(Grader):
     for submission in assignment.submissions:
       log.info(f"Grading {submission}...")
       submission.feedback = Feedback(43.0, "(Grader not actually run.  Please contact your professor if you see this in production.)")
+
 
 @GraderRegistry.register("Manual")
 class Grader__Manual(Grader):
@@ -117,11 +139,13 @@ class Grader__Manual(Grader):
     return grades_df[grades_df["total"].notna()].shape == grades_df.shape
   
   def prepare(self, assignment: Assignment, *args, **kwargs):
+    self.ready_to_finalize = False
     log.debug("Preparing manual grading")
     # Make a dataframe
     df = pd.DataFrame([
       {
         **submission.extra_info,
+        #"page_mappings" : page_mappings_by_user[submission.document_id],
         "name" : submission.student.name if submission.student is not None else "",
         "user_id" : submission.student.user_id if submission.student is not None else "",
         "total" : None
@@ -135,7 +159,58 @@ class Grader__Manual(Grader):
   
   def finalize(self, assignment, *args, **kwargs):
     log.debug("Finalizing manual grading")
-    exit()
+    if not self.is_grading_complete():
+      log.error("It seems like some entries do not have scores.  Please correct and rerun.")
+      exit(4)
+    
+    # Steps:
+    # 1. Recreate submissions
+    # 2. Pass back to assignment to remerge
+    # 3. Generate grades and feedback
+    
+    # Load CSV
+    grades_df = pd.read_csv(self.CSV_NAME)
+    # Remove any extra information (because I like tracking my progress)
+    grades_df = grades_df[grades_df["document_id"].notna()]
+    
+    # Get list of students from canvas
+    # todo: this should probably be done in the `assignment`
+    canvas_students_by_id = { s.user_id : s for s in assignment.lms_assignment.get_students() }
+    
+    graded_submissions : List[Submission] = []
+    
+    # Make submission objects for students who have already been matched
+    for _, row in grades_df[grades_df["user_id"].notna()].iterrows():
+      log.debug(canvas_students_by_id[int(row["user_id"])])
+      submission = Submission(
+        student=canvas_students_by_id[int(row["user_id"])],
+        status=Submission.Status.GRADED,
+      )
+      # todo: get PDFs and comments.
+      submission.feedback = Feedback(
+        score=row["total"],
+        comments="(comments_to_be_added later)",
+        attachments=[]
+      )
+      submission.set_extra({
+        "page_mappings": grades_df.set_index("document_id")["page_mappings"].apply(ast.literal_eval).to_dict(),
+        "document_id": row["document_id"]
+      })
+      graded_submissions.append(submission)
+      del canvas_students_by_id[int(row["user_id"])]
+    
+    log.info(f"There were {len(graded_submissions)} matched canvas users.")
+    log.info(f"There are {len(canvas_students_by_id)} unmatched canvas users")
+    log.debug("\n" + pprint.pformat(canvas_students_by_id))
+    
+    # If we have unmatched students, exit because they should be manually matched.
+    if grades_df[grades_df["user_id"].isna()].shape[0] > 0:
+      log.error("There were unmatched students.  Please correct and re-run.")
+      exit(2)
+    
+    # Now we have a list of graded submissions
+    log.info(f"We have graded {len(graded_submissions)} submissions!")
+    self.ready_to_finalize = True
     
   def grade(self, assignment: Assignment, *args, **kwargs) -> None:
     if self.is_grading_complete():
@@ -145,6 +220,7 @@ class Grader__Manual(Grader):
 
   def assignment_needs_preparation(self):
     return not self.is_grading_complete()
+
 
 class Grader__docker(Grader, abc.ABC):
   client = docker.from_env()
@@ -478,6 +554,7 @@ class Grader__CST334(Grader__docker):
     final_feedback.comments += "###################\n"
     
     return final_feedback
+
 
 @GraderRegistry.register("Step-by-step")
 class Grader_stepbystep(Grader__docker):

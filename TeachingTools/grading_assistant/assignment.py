@@ -281,6 +281,7 @@ class Assignment__Exam(Assignment):
         f"P{page_number}" : page
         for page_number, page in enumerate(page_mappings_by_user[document_id])
       })
+      submission.set_extra({"page_mappings": page_mappings_by_user[document_id]})
       
       # Add to submissions
       assignment_submissions.append(submission)
@@ -331,129 +332,21 @@ class Assignment__Exam(Assignment):
     df = df.sort_values(by="document_id")
     
     df.to_csv("grades.intermediate.csv", index=False)
-    
-  def finalize(self, path_to_grading_csv, canvas_assignment : CanvasAssignment, *args, **kwargs):
+  
+  def finalize(self, *args, **kwargs):
     log.debug("Finalizing grades")
     
-    grades_df = pd.read_csv(path_to_grading_csv)
-    canvas_students_by_id = { s.user_id : s for s in canvas_assignment.get_students()}
-    graded_submissions : List[Assignment__Exam.Submission__pdf] = []
-    
-    # todo: Steps are going to be:
-    # 0. Recombine PDFs
-    # 1. For any entry that doesn't have an user_id associated with it load the name column as approximate name
-    # 2. Go through the matching process again to try to associate names
-    # 3. confirm names match using the previous process
-    # 4. upload and save out final grades
-    
-    # Clean out the extra columns not associated with any submission
-    grades_df = grades_df[grades_df["document_id"].notna()]
-    # grades_df["user_id"] = grades_df["user_id"].astype(int)
-    
-    page_mappings_by_document_id = grades_df.set_index("document_id")["page_mappings"].apply(ast.literal_eval).to_dict()
-    
-    log.debug(page_mappings_by_document_id)
-    
-    
-    # Merge the PDFs back together
-    # todo: this directory is hardcoded and used throughout, but should it be?
-    #  future is probably to move away from having the directory at all and go straight to file buffer
-    shutil.rmtree("03-final", ignore_errors=True)
-    os.mkdir("03-final")
-    self.merge_pages("02-redacted", "03-final", page_mappings_by_document_id)
-    documents_by_id : Dict[str,io.BytesIO] = {}
-    for document_id in grades_df["document_id"].values:
-      pdf_name = f"{document_id:0{math.ceil(math.log10(len(grades_df["document_id"].values)))}}.pdf"
-      with open(os.path.join("03-final", pdf_name), 'rb') as fid:
-        file_buffer = io.BytesIO(fid.read())
-        file_buffer.name = '999.pdf'
-        documents_by_id[document_id] = file_buffer
-    
-    # Putting this into a function for easy reuse
-    def get_Submission__pdf(row) -> Assignment__Exam.Submission__pdf:
-      by_question_scores = {}
-      for key in row.keys():
-        if key.startswith("Q"):
-          try:
-            by_question_scores[int(key.replace('Q', ''))] = float(row[key])
-          except ValueError:
-            by_question_scores[int(key.replace('Q', ''))] = '-'
-      
-      log.debug(f'row["user_id"]: {row["user_id"]}')
-      if pd.notna(row["user_id"]):
-        submission = Assignment__Exam.Submission__pdf(
-          document_id=row["document_id"],
-          student=canvas_students_by_id[int(row["user_id"])],
-          feedback=Feedback(
-            score=row["total"],
-            comments=self.generate_feedback_comments(row),
-            attachments=[documents_by_id[row["document_id"]]]
-          ),
-          question_scores=by_question_scores
-        )
-      else:
-        log.debug(f"approximate name: {row}")
-        submission = Assignment__Exam.Submission__pdf(
-          document_id=row["document_id"],
-          approximate_name=row["name"],
-          feedback=Feedback(
-            score=row["total"],
-            comments=self.generate_feedback_comments(row),
-            attachments=[documents_by_id[row["document_id"]]]
-          ),
-          question_scores=by_question_scores
-        )
-      return submission
-    
-    # Make submission objects for students who have already been matched
-    for _, row in grades_df[grades_df["user_id"].notna()].iterrows():
-      graded_submissions.append(get_Submission__pdf(row))
-      del canvas_students_by_id[int(row["user_id"])]
-    
-    log.info(f"There are {len(canvas_students_by_id)} unmatched canvas users")
-    log.debug(canvas_students_by_id)
-    
-    # Get the students who have yet to be matched
-    manually_named_submissions : List[Assignment__Exam.Submission__pdf] = []
-    log.info(f"There are {len(grades_df[grades_df['user_id'].isna()])} manually named students.")
-    for _, row in grades_df[grades_df["user_id"].isna()].iterrows():
-      manually_named_submissions.append(get_Submission__pdf(row))
-    log.debug([s.approximate_name for s in manually_named_submissions])
-    
-    # Pass through the matching algorithm
-    matched_submissions, _, _, unmatched_students = self.match_students_to_submissions(list(canvas_students_by_id.values()), manually_named_submissions)
-    graded_submissions.extend(matched_submissions)
-    
-    log.debug(f"Unmatched canvas students: {len(unmatched_students)}")
-    if len(unmatched_students) > 0:
-      log.error(f"There are {len(unmatched_students)} unmatched students remaining in the CSV.  Please correct and rerun.")
-      for student in unmatched_students:
-        log.warning(f"Found no match for student: {student.name} ({student.user_id})")
-      # todo: Should I really have an exit here?
-      exit(4)
-    
-    # Now we have a list of graded submissions
-    log.info(f"We have graded {len(graded_submissions)} submissions!")
-    # todo: This check doesn't do much, so maybe rematch original submissions via Claude again to see real predictions?
-    self.check_student_names(graded_submissions)
-  
-    # Make a dataframe
-    df = pd.DataFrame([
-      {
-        "document_id" : submission.document_id,
-        "name" : submission.student.name,
-        "user_id" : submission.student.user_id if submission.student is not None else "",
-        "total" : submission.feedback.score,
-        **{f"Q{key}" : score for key, score in submission.question_scores.items()}
-      }
-      for submission in graded_submissions
-    ])
-    df = df.sort_values(by="document_id")
-    
-    df.to_csv("grades.final.csv", index=False)
-    
-    # Set the submissions to the graded submissions
-    self.submissions = graded_submissions
+    for submission in self.submissions:
+      graded_exam = self.merge_pages(
+        "02-redacted",
+        submission.extra_info.get('page_mappings', []),
+        num_documents=len(self.submissions)
+      )
+      graded_exam.name = f"exam.pdf"
+      submission.feedback.attachments.append(
+        graded_exam
+      )
+      pass
     
     super().finalize(*args, **kwargs)
     
@@ -555,32 +448,23 @@ class Assignment__Exam(Assignment):
       return None
 
   @classmethod
-  def merge_pages(cls, input_directory, output_directory, page_mappings_by_document_id):
-    # todo: refactor this so it is for a single PDF, returns a fitz object, and can take in a list of page number-index values
+  def merge_pages(cls, input_directory, page_mappings, num_documents) -> io.BytesIO:
+    exam_pdf = fitz.open()
     
-    # exam_pdfs = collections.defaultdict(lambda : fitz.open())
-    exam_pdfs_by_document_id = collections.defaultdict(lambda : fitz.open())
-    
-    for document_id, page_mappings in page_mappings_by_document_id.items():
-      for page_number, page_map in enumerate(page_mappings):
-        pdf_path = os.path.join(
-          input_directory,
-          f"{page_number:0{math.ceil(math.log10(len(page_mappings)))}}",
-          f"{page_map:0{math.ceil(math.log10(len(page_mappings_by_document_id)))}}.pdf"
-        )
-        try:
-          exam_pdfs_by_document_id[document_id].insert_pdf(fitz.open(pdf_path))
-        except RuntimeError:
-          continue
-    
-    for document_id, pdf_document in exam_pdfs_by_document_id.items():
-      output_pdf_name = os.path.join(
-        output_directory,
-        f"{document_id:0{math.ceil(math.log10(len(page_mappings_by_document_id)))}}.pdf"
+    for page_number, page_map in enumerate(page_mappings):
+      pdf_path = os.path.join(
+        input_directory,
+        f"{page_number:0{math.ceil(math.log10(len(page_mappings)))}}",
+        f"{page_map:0{math.ceil(math.log10(num_documents))}}.pdf"
       )
-      exam_pdfs_by_document_id[document_id].save(output_pdf_name)
+      try:
+        exam_pdf.insert_pdf(fitz.open(pdf_path))
+      except RuntimeError:
+        continue
     
-    return
+    output_bytes = io.BytesIO()
+    exam_pdf.save(output_bytes)
+    return output_bytes
   
   def check_student_names(self, submissions: List[Submission__pdf], threshold=0.8):
     

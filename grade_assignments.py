@@ -107,7 +107,7 @@ def main():
         if grader.assignment_needs_preparation():
           # If manual, double check that we should clobber the files
           if yaml_assignment.get("grader", "Dummy").lower() in ["manual"]:
-            prepare_assignment = input("Would you like to prepare assignment?  (y/N)").strip().lower()
+            prepare_assignment = input("Would you like to prepare assignment? (y/N) ").strip().lower()
             if prepare_assignment not in ['y', 'yes']:
               log.info("Aborting execution based on response")
               return
@@ -121,7 +121,9 @@ def main():
         
         for submission in assignment.submissions:
           log.debug(submission)
-        assignment.finalize(push=push_grades)
+        
+        if grader.ready_to_finalize:
+          assignment.finalize(push=push_grades)
   
   
   return
