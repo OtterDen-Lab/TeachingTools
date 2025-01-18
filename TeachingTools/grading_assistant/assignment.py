@@ -84,8 +84,9 @@ class Assignment(abc.ABC):
     :param kwargs:
     :return:
     """
-    
+    log.debug("Went to parent,..")
     if kwargs.get("push", False):
+      log.debug("Pushing")
       for submission in self.submissions:
         log.info(f"Pushing feedback for: {submission}")
         self.lms_assignment.push_feedback(
@@ -289,21 +290,21 @@ class Assignment__Exam(Assignment):
       
       # Save aside a copy that's been shuffled for later reference and easy confirmation
       shuffled_document = fitz.open(pdf_filepath)
-      shuffled_document.save(os.path.join("01-shuffled", f"{document_id:0{int(math.log10(len(input_pdfs))+1)}}.pdf"))
+      shuffled_document.save(os.path.join("01-shuffled", f"{document_id:03}.pdf"))
       
       # Break up each submission into pages
       page_docs : List[fitz.Document] = self.redact_and_split(pdf_filepath)
       for page_number, page in enumerate(page_docs):
         
         # Determine the output directory
-        page_directory = os.path.join("02-redacted", f"{page_number:0{int(math.log10(len(page_docs))+1)}}")
+        page_directory = os.path.join("02-redacted", f"{page_number:03}")
         
         # Make the output directroy if it doesn't exist
         if not os.path.exists(page_directory): os.mkdir(page_directory)
         
         # Save the page to the appropriate directory, with the number connected to it.
         try:
-          page.save(os.path.join(page_directory, f"{ page_mappings_by_user[document_id][page_number]: 0{int(math.log10(len(input_pdfs))+1)}}.pdf"))
+          page.save(os.path.join(page_directory, f"{page_mappings_by_user[document_id][page_number]:03}.pdf"))
           page.close()
         except IndexError:
           log.warning(f"No page {page_number} found for {document_id}")
@@ -452,18 +453,22 @@ class Assignment__Exam(Assignment):
     exam_pdf = fitz.open()
     
     for page_number, page_map in enumerate(page_mappings):
+      log.debug(f"Adding {page_number} from {page_mappings}")
       pdf_path = os.path.join(
         input_directory,
-        f"{page_number:0{math.ceil(math.log10(len(page_mappings)))}}",
-        f"{page_map:0{math.ceil(math.log10(num_documents))}}.pdf"
+        f"{page_number:03}",
+        f"{page_map:03}.pdf"
       )
       try:
         exam_pdf.insert_pdf(fitz.open(pdf_path))
-      except RuntimeError:
+      except RuntimeError as e:
+        log.error("Page error")
+        log.error(e)
         continue
     
     output_bytes = io.BytesIO()
     exam_pdf.save(output_bytes)
+    output_bytes.seek(0)
     return output_bytes
   
   def check_student_names(self, submissions: List[Submission__pdf], threshold=0.8):
