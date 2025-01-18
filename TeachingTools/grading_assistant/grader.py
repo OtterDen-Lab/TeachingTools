@@ -193,7 +193,7 @@ class Grader__Manual(Grader):
         attachments=[]
       )
       submission.set_extra({
-        "page_mappings": grades_df.set_index("document_id")["page_mappings"].apply(ast.literal_eval).to_dict(),
+        "page_mappings": ast.literal_eval(row["page_mappings"]),
         "document_id": row["document_id"]
       })
       graded_submissions.append(submission)
