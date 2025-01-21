@@ -3,7 +3,7 @@ import argparse
 import os
 
 from TeachingTools.quiz_generation.quiz import Quiz
-from TeachingTools.lms_interface.canvas_interface import CanvasCourse
+from TeachingTools.lms_interface.canvas_interface import CanvasInterface, CanvasCourse
 
 import logging
 logging.basicConfig()
@@ -38,8 +38,9 @@ def main():
       quiz.generate_latex(remove_previous=(i==0))
     
     if args.num_canvas > 0:
-      interface = CanvasCourse(prod=args.prod, course_id=args.course_id)
-      interface.push_quiz_to_canvas(quiz, args.num_canvas, title=quiz.name, is_practice=quiz.practice)
+      canvas_interface = CanvasInterface(prod=args.prod)
+      canvas_course = canvas_interface.get_course(course_id=args.course_id)
+      canvas_course.push_quiz_to_canvas(quiz, args.num_canvas, title=quiz.name, is_practice=quiz.practice)
     
     quiz.describe()
 
