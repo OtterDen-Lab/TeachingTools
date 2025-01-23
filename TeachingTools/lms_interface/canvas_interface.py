@@ -266,7 +266,7 @@ class CanvasAssignment:
     for i, attachment_buffer in enumerate(attachments):
       upload_buffer_as_file(attachment_buffer.read(), attachment_buffer.name)
   
-  def get_submissions(self, limit=None, **kwargs) -> List[Submission]:
+  def get_submissions(self, limit=None, only_ungraded=True, **kwargs) -> List[Submission]:
     """
     Gets submission objects (in this case Submission__Canvas objects) that have students and potentially attachments
     :param kwargs:
@@ -277,12 +277,16 @@ class CanvasAssignment:
     # Get all submissions and their history (which is necessary for attachments when students can resubmit)
     for i, canvaspai_submission in enumerate(self.assignment.get_submissions(include='submission_history', **kwargs)):
       
-      # Get the student object for the submission
-      student = Student(self.canvas_course.get_username(canvaspai_submission.user_id), user_id=canvaspai_submission.user_id)
-      
       # Get the status.  Note: it might be changed in the near future if there are no attachments
       status = (Submission.Status.UNGRADED if canvaspai_submission.workflow_state == "submitted" else Submission.Status.GRADED)
-      log.info(f"Getting submission for {student} ({status})")
+      
+      if status is Submission.Status.GRADED and only_ungraded:
+        continue
+      
+      
+      # Get the student object for the submission
+      student = Student(self.canvas_course.get_username(canvaspai_submission.user_id), user_id=canvaspai_submission.user_id)
+      log.info(f"Considering submission for {student} ({status})")
       
       # Try to get the attachments.  If there are none then mark the submission as missing
       # todo: maybe report it as missing if after deadline?
