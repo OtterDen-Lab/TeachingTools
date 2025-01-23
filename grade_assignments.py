@@ -63,7 +63,7 @@ def main():
   # Walk through all defined courses, error if we don't have required information
   for yaml_course in grader_info.get('courses', []):
     try:
-      course_id = yaml_course['id']
+      course_id = int(yaml_course['id'])
     except KeyError as e:
       log.error("No course ID specified.  Please update.")
       log.error(f"{pprint.pformat(yaml_course)}")
@@ -88,6 +88,7 @@ def main():
       # Create assignment object if we have enough information
       assignment = course.get_assignment(assignment_id)
       assignment_grading_kwargs = yaml_assignment.get('kwargs', {})
+      do_regrade = yaml_course.get('regrade', False) or yaml_assignment.get('regrade', False)
       
       # Get the grader from the registry
       grader = GraderRegistry.create(
@@ -113,7 +114,7 @@ def main():
               return
           assignment.prepare(
             limit=args.limit,
-            regrade=True,
+            regrade=do_regrade,
             **yaml_assignment.get("kwargs", {})
           )
           
@@ -125,23 +126,6 @@ def main():
         if grader.ready_to_finalize:
           assignment.finalize(push=push_grades)
   
-  
-  return
-  root_dir = args.root_dir
-  pdf_in_dir = args.pdf_in_dir
-  prepare = args.prepare
-  finalize = args.finalize
-  course_id = args.course_id
-  assignment_id = args.assignment_id
-  
-  with Assignment__Exam(root_dir) as assignment:
-    canvas_interface = CanvasCourse(prod=args.prod, course_id=course_id)
-    canvas_assignment = canvas_interface.get_assignment(assignment_id=assignment_id)
-    if prepare:
-      assignment.prepare(input_directory=pdf_in_dir, limit=args.limit, canvas_interface=canvas_interface, use_ai=args.use_ai)
-    if finalize:
-      assignment.finalize("grades.intermediate.csv", canvas_assignment, push=args.push)
-
 
 
 
