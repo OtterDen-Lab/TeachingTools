@@ -121,6 +121,7 @@ class QuestionRegistry:
       module = importlib.import_module(f"{package_name}.{module_name}")
       log.debug(f"Loaded module: {module}")
 
+
 class Question(abc.ABC):
   """
   A question base class that will be able to output questions to a variety of formats.
@@ -169,21 +170,21 @@ class Question(abc.ABC):
     self.possible_variations = float('inf')
   
   def get__latex(self, *args, **kwargs):
-    question_text, explanation_text, answers = self.generate(OutputFormat.LATEX)
-    return re.sub(r'\[answer.+]', r"\\answerblank{3}", question_text)
+    concrete_question = self.generate(OutputFormat.LATEX)
+    return re.sub(r'\[answer.+]', r"\\answerblank{3}", concrete_question.question_text)
 
   def get__canvas(self, course: canvasapi.course.Course, quiz : canvasapi.quiz.Quiz, *args, **kwargs):
     
-    question_text, explanation_text, answers = self.generate(OutputFormat.CANVAS, course=course, quiz=quiz)
+    concrete_question : ConcreteQuestion = self.generate(OutputFormat.CANVAS, course=course, quiz=quiz)
     
     question_type, answers = self.get_answers(*args, **kwargs)
     return {
       "question_name": f"{self.name} ({datetime.datetime.now().strftime('%m/%d/%y %H:%M:%S.%f')})",
-      "question_text": question_text,
+      "question_text": concrete_question.question_text,
       "question_type": question_type.value, #e.g. "fill_in_multiple_blanks"
       "points_possible": self.points_value,
       "answers": answers,
-      "neutral_comments_html": explanation_text
+      "neutral_comments_html": concrete_question.explanation_text
     }
   
   def get_header(self, output_format : OutputFormat, *args, **kwargs) -> str:
@@ -303,7 +304,7 @@ class Question(abc.ABC):
     """
     self.answers = []
 
-  def generate(self, output_format: OutputFormat, *args, **kwargs):
+  def generate(self, output_format: OutputFormat, *args, **kwargs) -> ConcreteQuestion:
     # Renew the problem as appropriate
     self.instantiate()
     while (not self.is_interesting()):
@@ -322,7 +323,20 @@ class Question(abc.ABC):
     question_body += self.get_footer(output_format)
     
     # Return question body, explanation, and answers
-    return question_body, question_explanation, self.get_answers()
+    return ConcreteQuestion(
+      question_text=question_body,
+      answer_text=self.get_answers(),
+      explanation_text=question_explanation,
+      interest=(1.0 if self.is_interesting() else 0.0)
+    )
   
   def is_interesting(self) -> bool:
     return True
+
+@dataclasses.dataclass
+class ConcreteQuestion():
+  question_text : str
+  answer_text : str
+  explanation_text : str
+  interest : float
+  

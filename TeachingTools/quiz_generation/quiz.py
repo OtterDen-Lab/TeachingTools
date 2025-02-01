@@ -47,7 +47,6 @@ class Quiz:
       return -q.points_value
     return iter(sorted(self.questions, key=sort_func))
     
-  
   def describe(self):
     counter = collections.Counter([q.points_value for q in self.questions])
     log.info(f"{self.name} : {sum(map(lambda q: q.points_value, self.questions))}points : {len(self.questions)} / {len(self.possible_questions)} questions picked.  {list(counter.items())}")

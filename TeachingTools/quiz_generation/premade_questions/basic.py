@@ -62,7 +62,7 @@ class Question_legacy(Question):
   
   def get__canvas(self, course: canvasapi.course.Course, quiz : canvasapi.quiz.Quiz, *args, **kwargs):
     
-    question_text, explanation_text, answers = self.generate(OutputFormat.CANVAS, *args, **kwargs)
+    concrete_question = self.generate(OutputFormat.CANVAS, *args, **kwargs)
     def replace_answers(input_str):
       counter = 1
       replacements = []
@@ -73,7 +73,7 @@ class Question_legacy(Question):
         counter += 1
       return input_str, replacements
     
-    question_text, occurances = replace_answers(question_text)
+    question_text, occurances = replace_answers(concrete_question.question_text)
     answers = [
       {
         "blank_id" : a,
@@ -89,7 +89,7 @@ class Question_legacy(Question):
       "question_type": Answer.AnswerKind.BLANK.value, #e.g. "fill_in_multiple_blanks"
       "points_possible": 1,
       "answers": answers,
-      "neutral_comments_html": explanation_text
+      "neutral_comments_html": concrete_question.explanation_text
     }
   
   def get_answers(self, *args, **kwargs) -> Tuple[str, List[Dict[str,Any]]]:
