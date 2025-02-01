@@ -89,7 +89,6 @@ class QuestionRegistry:
   
   @classmethod
   def register(cls, question_type=None):
-    log.debug("Registering...")
     def decorator(subclass):
       # Use the provided name or fall back to the class name
       name = question_type.lower() if question_type else subclass.__name__.lower()
@@ -119,7 +118,7 @@ class QuestionRegistry:
     for _, module_name, _ in pkgutil.iter_modules([str(package_path)]):
       # Import the module
       module = importlib.import_module(f"{package_name}.{module_name}")
-      log.debug(f"Loaded module: {module}")
+      log.debug(f"Loaded module: {module.__name__}")
 
 
 class Question(abc.ABC):
@@ -297,19 +296,21 @@ class Question(abc.ABC):
     # log.warning("get_answers using default implementation!  Consider implementing!")
     return Answer.AnswerKind.BLANK, list(itertools.chain(*[a.get_for_canvas() for a in self.answers]))
 
-  def instantiate(self, *args, **kwargs):
+  def instantiate(self, rng_seed=None, *args, **kwargs):
     """If it is necessary to regenerate aspects between usages, this is the time to do it
+    :param rng_seed: random number generator seed to use when regenerating question
     :param *args:
     :param **kwargs:
     """
     self.answers = []
 
-  def generate(self, output_format: OutputFormat, *args, **kwargs) -> ConcreteQuestion:
+  def generate(self, output_format: OutputFormat, rng_seed=None, *args, **kwargs) -> ConcreteQuestion:
     # Renew the problem as appropriate
-    self.instantiate()
-    while (not self.is_interesting()):
-      log.debug("Still not interesting...")
-      self.instantiate()
+    self.instantiate(rng_seed)
+    
+    # while (not self.is_interesting()):
+    #   log.debug("Still not interesting...")
+    #   self.instantiate()
     
     question_body = self.get_header(output_format)
     question_explanation = ""

@@ -27,7 +27,8 @@ class HardDriveAccessTime(IOQuestion):
     
     self.instantiate()
   
-  def instantiate(self, *args, **kwargs):
+  def instantiate(self, rng_seed=None, *args, **kwargs):
+    random.seed(rng_seed)
     super().instantiate()
     
     
@@ -128,7 +129,8 @@ class INodeAccesses(IOQuestion):
     
     self.instantiate()
   
-  def instantiate(self, *args, **kwargs):
+  def instantiate(self, rng_seed=None, *args, **kwargs):
+    random.seed(rng_seed)
     super().instantiate()
     
     # Calculating this first to use blocksize as an even multiple of it
@@ -225,7 +227,8 @@ class VSFS_states(IOQuestion):
     
     self.instantiate()
   
-  def instantiate(self, *args, **kwargs):
+  def instantiate(self, rng_seed=None, *args, **kwargs):
+    random.seed(rng_seed)
     super().instantiate()
     
     

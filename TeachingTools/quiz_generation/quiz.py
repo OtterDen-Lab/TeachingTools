@@ -124,10 +124,26 @@ class Quiz:
       questions_picked = self.possible_questions
     self.questions = questions_picked
   
+  def get_concrete(self, format: OutputFormat, rng_seed=None):
+    questions = {}
+    rubric = {}
+    for i, question in enumerate(self):
+      concrete_question = question.generate(format, rng_seed=rng_seed)
+      questions[i] = concrete_question.question_text
+      rubric[i] = {
+        "explanation" : concrete_question.explanation_text,
+        "answer" : concrete_question.answer_text
+      }
+    return questions, rubric
+  
   def get_latex(self) -> str:
+    
+    questions, rubric = self.get_concrete(OutputFormat.LATEX)
+    
     text = self.get_header(OutputFormat.LATEX) + "\n\n"
-    for question in self:
-      text += question.get__latex() + "\n\n"
+    for question_number in sorted(questions.keys()):
+      question = questions[question_number]
+      text += question # question.get__latex() + "\n\n"
     text += self.get_footer(OutputFormat.LATEX)
     return text
   

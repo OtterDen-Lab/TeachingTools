@@ -193,7 +193,8 @@ class SchedulingQuestion(ProcessQuestion):
     self.num_jobs = num_jobs
     self.instantiate()
   
-  def instantiate(self, scheduler_kind=None, *args, **kwargs):
+  def instantiate(self, rng_seed=None, scheduler_kind=None, *args, **kwargs):
+    random.seed(rng_seed)
     super().instantiate()
     self.job_stats = {}
     if scheduler_kind is None:
@@ -270,11 +271,12 @@ class SchedulingQuestion(ProcessQuestion):
       Answer("answer__average_turnaround_time", sum([job.turnaround_time for job in jobs]) / len(jobs), variable_kind=Answer.VariableKind.FLOAT)
     ])
     
+    # todo: find a new way to ensure we get a wide range of different kinds of schedulers
     # Special looping behavior for this problem to ensure it will regenerate using the same scheduler.
     # Otherwise, we end up with the distribution of schedulers being inversely proportional to how good they are
-    if not self.is_interesting():
-      log.debug("Is not interesting, rerunning...")
-      self.instantiate(scheduler_kind=self.SCHEDULER_KIND)
+    # if not self.is_interesting():
+    #   log.debug("Is not interesting, rerunning...")
+    #   self.instantiate(scheduler_kind=self.SCHEDULER_KIND)
   
   def get_body_lines(self, output_format: OutputFormat|None = None, *args, **kwargs) -> List[str]:
     

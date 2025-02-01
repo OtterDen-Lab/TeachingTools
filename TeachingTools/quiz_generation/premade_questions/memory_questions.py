@@ -100,7 +100,14 @@ class CachingQuestion(MemoryQuestion):
     
     self.instantiate()
   
-  def instantiate(self, *args, **kwargs):
+  def instantiate(self, rng_seed=None, *args, **kwargs):
+    log.debug(f"rng_seed: {rng_seed}")
+    random.seed(rng_seed)
+    
+    for _ in range(10):
+      log.debug(f"random: {random.random()}")
+    log.debug("")
+    
     self.answers = []
     self.cache_policy = random.choice(list(self.Kind))
     
@@ -240,7 +247,8 @@ class Paging(MemoryAccessQuestion):
     
     self.instantiate()
   
-  def instantiate(self, *args, **kwargs):
+  def instantiate(self, rng_seed=None, *args, **kwargs):
+    random.seed(rng_seed)
     super().instantiate()
     
     self.num_offset_bits = random.randint(self.MIN_OFFSET_BITS, self.MAX_OFFSET_BITS)

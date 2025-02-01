@@ -142,7 +142,8 @@ class LanguageQuestion(Question):
     
     self.instantiate()
   
-  def instantiate(self, grammar_str: Optional[str] = None, *args, **kwargs):
+  def instantiate(self, rng_seed=None, grammar_str: Optional[str] = None, *args, **kwargs):
+    random.seed(rng_seed)
     log.debug("Instantiate")
     self.answers = []
     

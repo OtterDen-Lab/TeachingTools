@@ -27,7 +27,8 @@ class BitsAndBytes(MathQuestion):
     super().__init__(*args, **kwargs)
     self.instantiate()
   
-  def instantiate(self, *args, **kwargs):
+  def instantiate(self, rng_seed=None, *args, **kwargs):
+    random.seed(rng_seed)
     self.from_binary = 0 == random.randint(0,1)
     self.num_bits = random.randint(self.MIN_BITS, self.MAX_BITS)
     self.num_bytes = int(math.pow(2, self.num_bits))
@@ -85,7 +86,8 @@ class HexAndBinary(MathQuestion):
     super().__init__(*args, **kwargs)
     self.instantiate()
   
-  def instantiate(self, *args, **kwargs):
+  def instantiate(self, rng_seed=None, *args, **kwargs):
+    random.seed(rng_seed)
     self.from_binary = random.choice([True, False])
     self.number_of_hexits = random.randint(1, 8)
     self.value = random.randint(1, 16**self.number_of_hexits)
@@ -153,7 +155,8 @@ class AverageMemoryAccessTime(MathQuestion):
     super().__init__(*args, **kwargs)
     self.instantiate()
   
-  def instantiate(self, *args, **kwargs):
+  def instantiate(self, rng_seed=None, *args, **kwargs):
+    random.seed(rng_seed)
     
     orders_of_magnitude_different = random.randint(1,4)
     self.hit_latency = random.randint(1,9)
