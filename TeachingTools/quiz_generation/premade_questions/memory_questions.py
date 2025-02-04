@@ -101,7 +101,7 @@ class CachingQuestion(MemoryQuestion):
     self.instantiate()
   
   def instantiate(self, rng_seed=None, *args, **kwargs):
-    random.seed(rng_seed)
+    super().instantiate(rng_seed=rng_seed, *args, **kwargs)
     
     self.answers = []
     self.cache_policy = random.choice(list(self.Kind))
@@ -243,8 +243,7 @@ class Paging(MemoryAccessQuestion):
     self.instantiate()
   
   def instantiate(self, rng_seed=None, *args, **kwargs):
-    random.seed(rng_seed)
-    super().instantiate()
+    super().instantiate(rng_seed=rng_seed, *args, **kwargs)
     
     self.num_offset_bits = random.randint(self.MIN_OFFSET_BITS, self.MAX_OFFSET_BITS)
     self.num_vpn_bits = random.randint(self.MIN_VPN_BITS, self.MAX_VPN_BITS)

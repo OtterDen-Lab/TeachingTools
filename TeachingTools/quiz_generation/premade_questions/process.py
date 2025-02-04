@@ -194,8 +194,8 @@ class SchedulingQuestion(ProcessQuestion):
     self.instantiate()
   
   def instantiate(self, rng_seed=None, scheduler_kind=None, *args, **kwargs):
-    random.seed(rng_seed)
-    super().instantiate()
+    super().instantiate(rng_seed=rng_seed, *args, **kwargs)
+    
     self.job_stats = {}
     if scheduler_kind is None:
       self.SCHEDULER_KIND = random.choice(list(SchedulingQuestion.Kind))

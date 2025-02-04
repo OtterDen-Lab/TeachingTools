@@ -9,6 +9,7 @@ import importlib
 import itertools
 import pathlib
 import pkgutil
+import random
 import re
 import pypandoc
 import yaml
@@ -167,6 +168,8 @@ class Question(abc.ABC):
     
     self.answers = []
     self.possible_variations = float('inf')
+    
+    self.rng_seed_offset = kwargs.get("rng_seed_offset", 0)
   
   def get__latex(self, *args, **kwargs):
     concrete_question = self.generate(OutputFormat.LATEX)
@@ -303,6 +306,12 @@ class Question(abc.ABC):
     :param **kwargs:
     """
     self.answers = []
+    if rng_seed is None:
+      random.seed(rng_seed)
+    else:
+      log.debug(f"rng_seed + self.rng_seed_offset: {rng_seed + self.rng_seed_offset}")
+      random.seed(rng_seed + self.rng_seed_offset)
+    
 
   def generate(self, output_format: OutputFormat, rng_seed=None, *args, **kwargs) -> ConcreteQuestion:
     # Renew the problem as appropriate

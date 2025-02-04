@@ -187,11 +187,12 @@ class Quiz:
         # todo: I can also add in "extra credit" and "mix-ins" as other keys to indicate extra credit or questions that can go anywhere
         log.info(f"Parsing {question_value} point questions")
         
-        def make_question(q_name, q_data):
+        def make_question(q_name, q_data, **kwargs):
           kwargs= {
             "name" : q_name,
             "points_value" : question_value,
-            **q_data.get("kwargs", {})
+            **q_data.get("kwargs", {}),
+            **kwargs
           }
           if "topic" in q_data:
             kwargs["topic"] = Question.Topic.from_string(q_data["topic"])
@@ -214,10 +215,9 @@ class Quiz:
             )
           else:
             questions_for_exam.extend([
-              make_question(q_name, q_data)
-              for _ in range(q_data.get("repeat", 1))
-            ]
-            )
+              make_question(q_name, q_data, rng_seed_offset=repeat_number)
+              for repeat_number in range(q_data.get("repeat", 1))
+            ])
           
       quiz_from_yaml = Quiz(name, questions_for_exam, practice)
       quiz_from_yaml.set_sort_order(sort_order)

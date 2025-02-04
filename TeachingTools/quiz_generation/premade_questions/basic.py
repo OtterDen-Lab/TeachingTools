@@ -221,7 +221,7 @@ class FromGenerator(FromText):
     self.answers = []
   
   def instantiate(self, rng_seed=None, *args, **kwargs):
-    super().instantiate(rng_seed=rng_seed)
+    super().instantiate(rng_seed=rng_seed, *args, **kwargs)
     try:
       self.text = self.generator()
     except TypeError:

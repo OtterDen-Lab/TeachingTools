@@ -28,9 +28,7 @@ class HardDriveAccessTime(IOQuestion):
     self.instantiate()
   
   def instantiate(self, rng_seed=None, *args, **kwargs):
-    random.seed(rng_seed)
-    super().instantiate()
-    
+    super().instantiate(rng_seed=rng_seed, *args, **kwargs)
     
     self.hard_drive_rotation_speed = 100 * random.randint(36, 150) # e.g. 3600rpm to 15000rpm
     self.seek_delay = float(round(random.randrange(3, 20), 2))
@@ -130,8 +128,7 @@ class INodeAccesses(IOQuestion):
     self.instantiate()
   
   def instantiate(self, rng_seed=None, *args, **kwargs):
-    random.seed(rng_seed)
-    super().instantiate()
+    super().instantiate(rng_seed=rng_seed, *args, **kwargs)
     
     # Calculating this first to use blocksize as an even multiple of it
     self.inode_size = 2**random.randint(6, 10)
@@ -228,9 +225,7 @@ class VSFS_states(IOQuestion):
     self.instantiate()
   
   def instantiate(self, rng_seed=None, *args, **kwargs):
-    random.seed(rng_seed)
-    super().instantiate()
-    
+    super().instantiate(rng_seed=rng_seed, *args, **kwargs)
     
     fs = self.vsfs(4, 4)
     operations = fs.run_for_steps(3)
