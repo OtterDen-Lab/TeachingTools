@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import dataclasses
 import itertools
 import logging
 import os.path
@@ -16,16 +17,51 @@ import yaml
 
 from TeachingTools.quiz_generation.misc import OutputFormat
 from TeachingTools.quiz_generation.question import Question, QuestionRegistry
+from TeachingTools.quiz_generation.question import ConcreteQuestion
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
+
+
+class ConcreteQuestionSet:
+  def __init__(self, questions: List[Question], rng_seed):
+    self.questions : List[ConcreteQuestion] = [
+      question.generate(OutputFormat.LATEX, rng_seed=rng_seed) # todo: try to remove reliance on latex here (again)
+      for question in questions
+    ]
+    
+  def interesting_score(self, *, weighted=False):
+    overall_score = 0.0
+    for q in self.questions:
+      overall_score += q.interest if not weighted else q.value
+    log.debug(f"Overall score: {overall_score}")
+    return overall_score / (len(self.questions) if not weighted else sum([q.value for q in self.questions]))
+  
+  
+  def get_latex(self) -> str:
+    text = ""
+    for question in self.questions:
+      text += question.question_text + "\n\n"
+    return text
+  
+  def get_rubric(self):
+    return {
+      i : {
+        "Value": question.value,
+        "Answer" : question.answer_text,
+        "Explanation": question.explanation_text
+      }
+      for i, question in enumerate(self.questions)
+    }
 
 class Quiz:
   """
   A quiz object that will build up questions and output them in a range of formats (hopefully)
   It should be that a single quiz object can contain multiples -- essentially it builds up from the questions and then can generate a variety of questions.
   """
+  
+  INTEREST_THRESHOLD = 1.0
   
   def __init__(self, name, possible_questions: List[dict|Question], practice, *args, **kwargs):
     self.name = name
@@ -126,39 +162,74 @@ class Quiz:
       questions_picked = self.possible_questions
     self.questions = questions_picked
   
-  def get_concrete(self, format: OutputFormat, rng_seed=None):
-    questions = {}
-    rubric = {}
-    for i, question in enumerate(self):
-      concrete_question = question.generate(format, rng_seed=rng_seed)
-      questions[i] = concrete_question.question_text
-      rubric[i] = {
-        "explanation" : concrete_question.explanation_text,
-        "answer" : concrete_question.answer_text
-      }
-    return questions, rubric
+  def set_sort_order(self, sort_order):
+    self.question_sort_order = sort_order
+
+  @classmethod
+  def from_yaml(cls, path_to_yaml) -> List[Quiz]:
+    
+    quizes_loaded : List[Quiz] = []
+    
+    with open(path_to_yaml) as fid:
+      list_of_exam_dicts = list(yaml.safe_load_all(fid))
+    log.debug(list_of_exam_dicts)
+    
+    for exam_dict in list_of_exam_dicts:
+      # Get general quiz information from the dictionary
+      name = exam_dict.get("name", "Unnamed Exam")
+      practice = exam_dict.get("practice", False)
+      sort_order = list(map(lambda t: Question.Topic.from_string(t), exam_dict.get("sort order", [])))
+      sort_order = sort_order + list(filter(lambda t: t not in sort_order, Question.Topic))
+      
+      # Load questions from the quiz dictionary
+      questions_for_exam = []
+      for question_value, question_definitions in exam_dict["questions"].items():
+        # todo: I can also add in "extra credit" and "mix-ins" as other keys to indicate extra credit or questions that can go anywhere
+        log.info(f"Parsing {question_value} point questions")
+        
+        def make_question(q_name, q_data):
+          kwargs= {
+            "name" : q_name,
+            "points_value" : question_value,
+            **q_data.get("kwargs", {})
+          }
+          if "topic" in q_data:
+            kwargs["topic"] = Question.Topic.from_string(q_data["topic"])
+          elif "kind" in q_data:
+            kwargs["topic"] = Question.Topic.from_string(q_data["kind"])
+          new_question = QuestionRegistry.create(
+            q_data["class"],
+            **kwargs
+          )
+          return new_question
+        
+        for q_name, q_data in question_definitions.items():
+          log.debug(f"{q_name} : {q_data}")
+          if "pick" in q_data:
+            num_to_pick = q_data["pick"]
+            del q_data["pick"]
+            questions_for_exam.extend(
+              make_question(name, data) for name, data in
+              random.sample(list(q_data.items()), num_to_pick)
+            )
+          else:
+            questions_for_exam.extend([
+              make_question(q_name, q_data)
+              for _ in range(q_data.get("repeat", 1))
+            ]
+            )
+          
+      quiz_from_yaml = Quiz(name, questions_for_exam, practice)
+      quiz_from_yaml.set_sort_order(sort_order)
+      quizes_loaded.append(quiz_from_yaml)
+    return quizes_loaded
   
-  def get_latex(self) -> str:
-    
-    rng_seed = random.random()
-    while rng_seed in self.used_seeds:
-      rng_seed = random.randint(0, 1_000_000_000_000)
-    self.used_seeds.append(rng_seed)
-    
-    questions, rubric = self.get_concrete(OutputFormat.LATEX, rng_seed=rng_seed)
-    
-    text = self.get_header(OutputFormat.LATEX) + "\n\n"
-    for question_number in sorted(questions.keys()):
-      question = questions[question_number]
-      text += question # question.get__latex() + "\n\n"
-    text += self.get_footer(OutputFormat.LATEX)
-    return text
   
   def get_header(self, output_format: OutputFormat, *args, **kwargs) -> str:
     lines = []
     if output_format == OutputFormat.LATEX:
       lines.extend([
-      
+        
         r"\documentclass[12pt]{article}",
         r"\usepackage[a4paper, margin=1in]{geometry}",
         r"\usepackage{times}",
@@ -224,77 +295,38 @@ class Quiz:
       ])
     return '\n'.join(lines)
   
-  def set_sort_order(self, sort_order):
-    self.question_sort_order = sort_order
-
-  @classmethod
-  def from_yaml(cls, path_to_yaml) -> List[Quiz]:
-    
-    quizes_loaded : List[Quiz] = []
-    
-    with open(path_to_yaml) as fid:
-      list_of_exam_dicts = list(yaml.safe_load_all(fid))
-    log.debug(list_of_exam_dicts)
-    
-    for exam_dict in list_of_exam_dicts:
-      # Get general quiz information from the dictionary
-      name = exam_dict.get("name", "Unnamed Exam")
-      practice = exam_dict.get("practice", False)
-      sort_order = list(map(lambda t: Question.Topic.from_string(t), exam_dict.get("sort order", [])))
-      sort_order = sort_order + list(filter(lambda t: t not in sort_order, Question.Topic))
-      
-      # Load questions from the quiz dictionary
-      questions_for_exam = []
-      for question_value, question_definitions in exam_dict["questions"].items():
-        # todo: I can also add in "extra credit" and "mix-ins" as other keys to indicate extra credit or questions that can go anywhere
-        log.info(f"Parsing {question_value} point questions")
-        
-        def make_question(q_name, q_data):
-          kwargs= {
-            "name" : q_name,
-            "points_value" : question_value,
-            **q_data.get("kwargs", {})
-          }
-          if "topic" in q_data:
-            kwargs["topic"] = Question.Topic.from_string(q_data["topic"])
-          elif "kind" in q_data:
-            kwargs["topic"] = Question.Topic.from_string(q_data["kind"])
-          new_question = QuestionRegistry.create(
-            q_data["class"],
-            **kwargs
-          )
-          return new_question
-        
-        for q_name, q_data in question_definitions.items():
-          log.debug(f"{q_name} : {q_data}")
-          if "pick" in q_data:
-            num_to_pick = q_data["pick"]
-            del q_data["pick"]
-            questions_for_exam.extend(
-              make_question(name, data) for name, data in
-              random.sample(list(q_data.items()), num_to_pick)
-            )
-          else:
-            questions_for_exam.extend([
-              make_question(q_name, q_data)
-              for _ in range(q_data.get("repeat", 1))
-            ]
-            )
-          
-      quiz_from_yaml = Quiz(name, questions_for_exam, practice)
-      quiz_from_yaml.set_sort_order(sort_order)
-      quizes_loaded.append(quiz_from_yaml)
-    return quizes_loaded
-
   def generate_latex(self, remove_previous=False):
     
     if remove_previous:
       if os.path.exists('out'): shutil.rmtree('out')
     
+    latex_quiz = None
+    
+    while True:
+      # Pick a new random seed
+      rng_seed = random.randint(0, 1_000_000_000_000)
+      
+      # Check if it's been used already
+      if rng_seed in self.used_seeds:
+        continue
+      else:
+        self.used_seeds.append(rng_seed)
+      
+      # Make a quiz
+      question_set = ConcreteQuestionSet(self.questions, rng_seed=rng_seed)
+      
+      # Check if it's interesting enough
+      if question_set.interesting_score() >= self.INTEREST_THRESHOLD:
+        break
+      else:
+        log.debug(f"Not interesting enough: {question_set.interesting_score()}")
+    
     tmp_tex = tempfile.NamedTemporaryFile('w')
     
-    tmp_tex.write(self.get_latex())
-    tmp_tex.flush()
+    tmp_tex.write(self.get_header(OutputFormat.LATEX) + "\n\n")
+    tmp_tex.write(question_set.get_latex())
+    tmp_tex.write(self.get_footer(OutputFormat.LATEX))
+    
     tmp_tex.flush()
     shutil.copy(f"{tmp_tex.name}", "debug.tex")
     p = subprocess.Popen(

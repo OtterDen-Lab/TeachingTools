@@ -328,6 +328,7 @@ class Question(abc.ABC):
       question_text=question_body,
       answer_text=self.get_answers(),
       explanation_text=question_explanation,
+      value=self.points_value,
       interest=(1.0 if self.is_interesting() else 0.0)
     )
   
@@ -339,5 +340,6 @@ class ConcreteQuestion():
   question_text : str
   answer_text : str
   explanation_text : str
+  value: float
   interest : float
   
