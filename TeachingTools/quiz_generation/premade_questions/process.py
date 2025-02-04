@@ -8,7 +8,7 @@ import logging
 import os
 import random
 import uuid
-from typing import List
+from typing import List, Optional
 
 import canvasapi.course, canvasapi.quiz
 import matplotlib.pyplot as plt
@@ -193,14 +193,14 @@ class SchedulingQuestion(ProcessQuestion):
     self.num_jobs = num_jobs
     self.instantiate()
   
-  def instantiate(self, rng_seed=None, scheduler_kind=None, *args, **kwargs):
+  def instantiate(self, rng_seed=None, previous : Optional[SchedulingQuestion]=None, *args, **kwargs):
     super().instantiate(rng_seed=rng_seed, *args, **kwargs)
     
     self.job_stats = {}
-    if scheduler_kind is None:
+    if previous is None:
       self.SCHEDULER_KIND = random.choice(list(SchedulingQuestion.Kind))
     else:
-      self.SCHEDULER_KIND = scheduler_kind
+      self.SCHEDULER_KIND = previous.SCHEDULER_KIND
     
     log.debug(f"Using a {self.SCHEDULER_KIND} scheduler")
     
@@ -270,13 +270,6 @@ class SchedulingQuestion(ProcessQuestion):
       Answer("answer__average_response_time", sum([job.response_time for job in jobs]) / len(jobs), variable_kind=Answer.VariableKind.FLOAT),
       Answer("answer__average_turnaround_time", sum([job.turnaround_time for job in jobs]) / len(jobs), variable_kind=Answer.VariableKind.FLOAT)
     ])
-    
-    # todo: find a new way to ensure we get a wide range of different kinds of schedulers
-    # Special looping behavior for this problem to ensure it will regenerate using the same scheduler.
-    # Otherwise, we end up with the distribution of schedulers being inversely proportional to how good they are
-    # if not self.is_interesting():
-    #   log.debug("Is not interesting, rerunning...")
-    #   self.instantiate(scheduler_kind=self.SCHEDULER_KIND)
   
   def get_body_lines(self, output_format: OutputFormat|None = None, *args, **kwargs) -> List[str]:
     

@@ -11,7 +11,7 @@ import random
 import shutil
 import subprocess
 import tempfile
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 import yaml
 
@@ -25,17 +25,21 @@ log.setLevel(logging.DEBUG)
 
 
 class ConcreteQuestionSet:
-  def __init__(self, questions: List[Question], rng_seed):
-    self.questions : List[ConcreteQuestion] = [
-      question.generate(OutputFormat.LATEX, rng_seed=rng_seed) # todo: try to remove reliance on latex here (again)
-      for question in questions
-    ]
+  def __init__(self, questions: List[Question], rng_seed, previous_question_set : Optional[ConcreteQuestionSet]= None):
+    self.questions : List[ConcreteQuestion] = []
+    for i, question in enumerate(questions):
+      self.questions.append(
+        question.generate(
+          OutputFormat.LATEX, # todo: try to remove reliance on latex here (again)
+          rng_seed=rng_seed,
+          previous=(None if previous_question_set is None else previous_question_set.questions[i]) # Keeps scheduling questions across all types
+        )
+      )
     
   def interesting_score(self, *, weighted=False):
     overall_score = 0.0
     for q in self.questions:
       overall_score += q.interest if not weighted else q.value
-    log.debug(f"Overall score: {overall_score}")
     return overall_score / (len(self.questions) if not weighted else sum([q.value for q in self.questions]))
   
   
@@ -300,7 +304,7 @@ class Quiz:
     if remove_previous:
       if os.path.exists('out'): shutil.rmtree('out')
     
-    latex_quiz = None
+    question_set = None
     
     while True:
       # Pick a new random seed
@@ -313,13 +317,14 @@ class Quiz:
         self.used_seeds.append(rng_seed)
       
       # Make a quiz
-      question_set = ConcreteQuestionSet(self.questions, rng_seed=rng_seed)
+      question_set = ConcreteQuestionSet(self.questions, rng_seed=rng_seed, previous_question_set=question_set)
       
       # Check if it's interesting enough
       if question_set.interesting_score() >= self.INTEREST_THRESHOLD:
+        log.debug(f"Found a good seed: {rng_seed}")
         break
       else:
-        log.debug(f"Not interesting enough: {question_set.interesting_score()}")
+        log.debug(f"Seed {rng_seed} not interesting enough ({question_set.interesting_score()})")
     
     tmp_tex = tempfile.NamedTemporaryFile('w')
     

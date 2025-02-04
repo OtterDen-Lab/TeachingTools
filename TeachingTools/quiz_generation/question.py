@@ -309,7 +309,6 @@ class Question(abc.ABC):
     if rng_seed is None:
       random.seed(rng_seed)
     else:
-      log.debug(f"rng_seed + self.rng_seed_offset: {rng_seed + self.rng_seed_offset}")
       random.seed(rng_seed + self.rng_seed_offset)
     
 
