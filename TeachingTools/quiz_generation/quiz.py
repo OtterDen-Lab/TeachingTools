@@ -35,6 +35,8 @@ class Quiz:
     self.question_sort_order = None
     self.practice = practice
     
+    self.used_seeds = []
+    
     # Plan: right now we just take in questions and then assume they have a score and a "generate" button
   
   def __iter__(self):
@@ -138,7 +140,12 @@ class Quiz:
   
   def get_latex(self) -> str:
     
-    questions, rubric = self.get_concrete(OutputFormat.LATEX)
+    rng_seed = random.random()
+    while rng_seed in self.used_seeds:
+      rng_seed = random.randint(0, 1_000_000_000_000)
+    self.used_seeds.append(rng_seed)
+    
+    questions, rubric = self.get_concrete(OutputFormat.LATEX, rng_seed=rng_seed)
     
     text = self.get_header(OutputFormat.LATEX) + "\n\n"
     for question_number in sorted(questions.keys()):
