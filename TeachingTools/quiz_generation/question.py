@@ -314,7 +314,7 @@ class Question(abc.ABC):
 
   def generate(self, output_format: OutputFormat, rng_seed=None, *args, **kwargs) -> ConcreteQuestion:
     # Renew the problem as appropriate
-    self.instantiate(rng_seed)
+    self.instantiate(rng_seed, *args, **kwargs)
     
     # while (not self.is_interesting()):
     #   log.debug("Still not interesting...")
@@ -337,7 +337,8 @@ class Question(abc.ABC):
       answer_text=self.get_answers(),
       explanation_text=question_explanation,
       value=self.points_value,
-      interest=(1.0 if self.is_interesting() else 0.0)
+      interest=(1.0 if self.is_interesting() else 0.0),
+      question=self
     )
   
   def is_interesting(self) -> bool:
@@ -350,4 +351,5 @@ class ConcreteQuestion():
   explanation_text : str
   value: float
   interest : float
+  question: Question
   

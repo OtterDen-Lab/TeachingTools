@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import enum
-from typing import List
+from typing import List, Optional
 
 from TeachingTools.quiz_generation.question import Question, Answer, TableGenerator, QuestionRegistry
 
@@ -32,7 +32,6 @@ class CachingQuestion(MemoryQuestion):
     Belady = enum.auto()
     def __str__(self):
       return self.name
-  
   
   class Cache:
     def __init__(self, kind : CachingQuestion.Kind, cache_size: int, all_requests : List[int]=None):
@@ -100,11 +99,18 @@ class CachingQuestion(MemoryQuestion):
     
     self.instantiate()
   
-  def instantiate(self, rng_seed=None, *args, **kwargs):
+  def instantiate(self, rng_seed=None, previous : Optional[CachingQuestion]=None, *args, **kwargs):
     super().instantiate(rng_seed=rng_seed, *args, **kwargs)
     
     self.answers = []
-    self.cache_policy = random.choice(list(self.Kind))
+    if previous is None:
+      log.debug("picking new caching policy")
+      self.cache_policy = random.choice(list(self.Kind))
+    else:
+      log.debug("Reusing previous caching policy")
+      self.cache_policy = previous.cache_policy
+    
+    log.debug(f"self.caching_policy: {self.cache_policy}")
     
     self.requests = (
         list(range(self.cache_size)) # Prime the cache with the compulsory misses
