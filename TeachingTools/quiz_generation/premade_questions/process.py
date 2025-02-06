@@ -186,8 +186,6 @@ class SchedulingQuestion(ProcessQuestion):
       if len(jobs_to_run) == 0:
         break
   
-  
-  
   def __init__(self, num_jobs=3, *args, **kwargs):
     super().__init__(*args, **kwargs)
     self.num_jobs = num_jobs
@@ -488,7 +486,7 @@ class SchedulingQuestion(ProcessQuestion):
     if not os.path.exists(image_dir): os.mkdir(image_dir)
     image_path = os.path.join(image_dir, f"{self.SCHEDULER_NAME.replace(' ', '_')}-{uuid.uuid4()}.png")
     plt.savefig(image_path)
-    
+    plt.close(fig)
     self.img = image_path
     return image_path
   
