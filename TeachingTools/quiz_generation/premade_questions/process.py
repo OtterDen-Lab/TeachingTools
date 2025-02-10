@@ -32,7 +32,7 @@ class ProcessQuestion(Question):
 class SchedulingQuestion(ProcessQuestion):
   class Kind(enum.Enum):
     FIFO = enum.auto()
-    LIFO = enum.auto()
+    # LIFO = enum.auto()
     ShortestDuration = enum.auto()
     ShortestTimeRemaining = enum.auto()
     RoundRobin = enum.auto()
@@ -215,10 +215,10 @@ class SchedulingQuestion(ProcessQuestion):
       self.SCHEDULER_NAME = "Shortest Remaining Time to Completion"
       self.SELECTOR = (lambda j, curr_time: (j.time_remaining(curr_time), j.job_id))
       self.PREEMPTABLE = True
-    elif self.SCHEDULER_KIND == SchedulingQuestion.Kind.LIFO:
-      self.SCHEDULER_NAME = "LIFO"
-      self.SELECTOR = (lambda j, curr_time: (-j.arrival, j.job_id))
-      self.PREEMPTABLE = True
+    # elif self.SCHEDULER_KIND == SchedulingQuestion.Kind.LIFO:
+    #   self.SCHEDULER_NAME = "LIFO"
+    #   self.SELECTOR = (lambda j, curr_time: (-j.arrival, j.job_id))
+    #   self.PREEMPTABLE = True
     elif self.SCHEDULER_KIND == SchedulingQuestion.Kind.RoundRobin:
       self.SCHEDULER_NAME = "Round Robin"
       self.SELECTOR = (lambda j, curr_time: (j.last_run, j.job_id))
