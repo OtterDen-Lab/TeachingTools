@@ -175,9 +175,21 @@ class Question(abc.ABC):
     concrete_question = self.generate(OutputFormat.LATEX)
     return re.sub(r'\[answer.+]', r"\\answerblank{3}", concrete_question.question_text)
 
-  def get__canvas(self, course: canvasapi.course.Course, quiz : canvasapi.quiz.Quiz, *args, **kwargs):
+  def get__canvas(self, course: canvasapi.course.Course, quiz : canvasapi.quiz.Quiz, interest_threshold=1.0, *args, **kwargs):
     
-    concrete_question : ConcreteQuestion = self.generate(OutputFormat.CANVAS, course=course, quiz=quiz)
+    concrete_question = None
+    while True:
+      concrete_question : ConcreteQuestion = self.generate(
+        OutputFormat.CANVAS,
+        course=course,
+        quiz=quiz,
+        previous=(
+          None if concrete_question is None
+          else concrete_question.question
+        )
+      )
+      if concrete_question.interest >= interest_threshold:
+        break
     
     question_type, answers = self.get_answers(*args, **kwargs)
     return {

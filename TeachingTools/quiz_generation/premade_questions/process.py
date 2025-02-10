@@ -311,6 +311,7 @@ class SchedulingQuestion(ProcessQuestion):
       course: canvasapi.course.Course,
       quiz: canvasapi.quiz.Quiz,
       image_dir="imgs",
+      *args, **kwargs
   ) -> List[str]:
     
     explanation_lines = []

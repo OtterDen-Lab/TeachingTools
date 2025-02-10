@@ -32,7 +32,10 @@ class ConcreteQuestionSet:
         question.generate(
           OutputFormat.LATEX, # todo: try to remove reliance on latex here (again)
           rng_seed=rng_seed,
-          previous=(None if previous_question_set is None else previous_question_set.questions[i].question) # Keeps scheduling questions across all types
+          previous=(
+            None if previous_question_set is None
+            else previous_question_set.questions[i].question
+          ) # Keeps scheduling questions across all types
         )
       )
     
