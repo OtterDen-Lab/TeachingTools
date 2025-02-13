@@ -83,6 +83,8 @@ class TableGenerator:
       ])
       return '\n'.join(table_lines)
 
+  def __str__(self):
+    return self.generate(OutputFormat.CANVAS)
 
 class QuestionRegistry:
   _registry = {}

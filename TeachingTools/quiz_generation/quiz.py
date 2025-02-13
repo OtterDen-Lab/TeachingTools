@@ -7,6 +7,7 @@ import dataclasses
 import itertools
 import logging
 import os.path
+import pprint
 import random
 import shutil
 import subprocess
@@ -205,6 +206,8 @@ class Quiz:
             kwargs["topic"] = Question.Topic.from_string(q_data["topic"])
           elif "kind" in q_data:
             kwargs["topic"] = Question.Topic.from_string(q_data["kind"])
+          
+          log.debug(f"kwargs: {pprint.pformat(kwargs)}")
           new_question = QuestionRegistry.create(
             q_data["class"],
             **kwargs

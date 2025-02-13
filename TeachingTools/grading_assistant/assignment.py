@@ -75,7 +75,6 @@ class Assignment(abc.ABC):
     """
     pass
   
-  
   def finalize(self, *args, **kwargs):
     """
     This function is intended to finalize any grading.  This could be reloading the grading CSV and matching names,
@@ -169,6 +168,7 @@ class Assignment__ProgrammingAssignment(Assignment):
     
   def finalize(self, *args, **kwargs):
     super().finalize(*args, **kwargs)
+
 
 @AssignmentRegistry.register("Exam")
 class Assignment__Exam(Assignment):

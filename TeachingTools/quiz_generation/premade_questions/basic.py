@@ -5,9 +5,11 @@ import datetime
 import inspect
 import pprint
 import random
+import re
 
 import canvasapi.course
 import canvasapi.quiz
+import pypandoc
 
 import yaml
 from typing import List, Dict, Any, Tuple
@@ -222,9 +224,33 @@ class FromGenerator(FromText):
   
   def instantiate(self, rng_seed=None, *args, **kwargs):
     super().instantiate(rng_seed=rng_seed, *args, **kwargs)
+    output_format = kwargs.get("output_format", OutputFormat.LATEX)
     try:
-      self.text = self.generator()
-    except TypeError:
+      generated_text = self.generator()
+      if isinstance(generated_text, list):
+        parts = []
+        curr_part = ""
+        for line in generated_text:
+          if isinstance(line, TableGenerator):
+            
+            parts.append(
+              pypandoc.convert_text(
+                curr_part,
+                ('html' if output_format == OutputFormat.CANVAS else 'latex'),
+                format='md', extra_args=["-M2GB", "+RTS", "-K64m", "-RTS"]
+              )
+            )
+            curr_part = ""
+            parts.append('\n' + line.generate(output_format) + '\n')
+          else:
+            if output_format == OutputFormat.LATEX:
+              line = re.sub(r'\[answer\S+]', r"\\answerblank{3}", line)
+            curr_part += line + '\n'
+        
+        generated_text = '\n'.join(parts)
+      self.text = generated_text
+    except TypeError as e:
+      log.error(f"Error generating from text: {e}")
       log.debug(self.generator_text)
       exit(8)
   

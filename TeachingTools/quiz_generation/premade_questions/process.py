@@ -37,6 +37,14 @@ class SchedulingQuestion(ProcessQuestion):
     ShortestTimeRemaining = enum.auto()
     RoundRobin = enum.auto()
   
+  @staticmethod
+  def get_kind_from_string(kind_str: str) -> Kind:
+    try:
+      return SchedulingQuestion.Kind[kind_str]
+    except KeyError:
+      return SchedulingQuestion.Kind.FIFO  # or raise ValueError(f"Invalid Kind: {kind_str}")
+
+
   MAX_JOBS = 4
   MAX_ARRIVAL_TIME = 10
   MIN_JOB_DURATION = 2
@@ -186,19 +194,30 @@ class SchedulingQuestion(ProcessQuestion):
       if len(jobs_to_run) == 0:
         break
   
-  def __init__(self, num_jobs=3, *args, **kwargs):
+  def __init__(self, num_jobs=3, scheduler_kind=None, *args, **kwargs):
     super().__init__(*args, **kwargs)
+    log.debug(f"scheduler_kind: {scheduler_kind}")
     self.num_jobs = num_jobs
-    self.instantiate()
-  
+    
+    if scheduler_kind is None:
+      self.scheduler_kind_generator = lambda : random.choice(list(SchedulingQuestion.Kind))
+    else:
+      self.scheduler_kind_generator = lambda : SchedulingQuestion.get_kind_from_string(scheduler_kind)
+    self.instantiate(scheduler_kind=scheduler_kind)
+    
   def instantiate(self, rng_seed=None, previous : Optional[SchedulingQuestion]=None, *args, **kwargs):
     super().instantiate(rng_seed=rng_seed, *args, **kwargs)
     
     self.job_stats = {}
-    if previous is None:
-      self.SCHEDULER_KIND = random.choice(list(SchedulingQuestion.Kind))
-    else:
-      self.SCHEDULER_KIND = previous.SCHEDULER_KIND
+    # log.debug(f"scheduler_kind: {scheduler_kind}")
+    self.SCHEDULER_KIND = self.scheduler_kind_generator()
+    
+    # if scheduler_kind is not None:
+    #   self.SCHEDULER_KIND = SchedulingQuestion.get_kind_from_string(scheduler_kind)
+    # elif previous is None:
+    #   self.SCHEDULER_KIND = random.choice(list(SchedulingQuestion.Kind))
+    # else:
+    #   self.SCHEDULER_KIND = previous.SCHEDULER_KIND
     
     log.debug(f"Using a {self.SCHEDULER_KIND} scheduler")
     
