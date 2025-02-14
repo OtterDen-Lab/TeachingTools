@@ -13,7 +13,7 @@ import random
 import re
 import pypandoc
 import yaml
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 import canvasapi.course, canvasapi.quiz
 import pytablewriter
 
@@ -366,4 +366,40 @@ class ConcreteQuestion():
   value: float
   interest : float
   question: Question
+
+
+class QuestionGroup():
   
+  def __init__(self, questions_in_group: List[Question], pick_once : bool):
+    self.questions = questions_in_group
+    self.pick_once = pick_once
+  
+    self._current_question : Optional[Question] = None
+    
+  def instantiate(self, *args, **kwargs):
+    
+    # todo: Make work with rng_seed (or at least verify)
+    random.seed(kwargs.get("rng_seed", None))
+    
+    if not self.pick_once or self._current_question is None:
+      self._current_question = random.choice(self.questions)
+    
+    self._current_question.instantiate(*args, **kwargs)
+    
+    
+  def __getattr__(self, name):
+    if self._current_question is None or name == "generate":
+      self.instantiate()
+    try:
+      attr = getattr(self._current_question, name)
+    except AttributeError:
+      raise AttributeError(
+        f"Neither QuestionGroup nor Question has attribute '{name}'"
+      )
+    
+    if callable(attr):
+      def wrapped_method(*args, **kwargs):
+        return attr(*args, **kwargs)
+      return wrapped_method
+    
+    return attr

@@ -17,8 +17,7 @@ from typing import List, Dict, Optional
 import yaml
 
 from TeachingTools.quiz_generation.misc import OutputFormat
-from TeachingTools.quiz_generation.question import Question, QuestionRegistry
-from TeachingTools.quiz_generation.question import ConcreteQuestion
+from TeachingTools.quiz_generation.question import Question, QuestionRegistry, ConcreteQuestion, QuestionGroup
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -235,13 +234,17 @@ class Quiz:
           
           # Check if it is a question group
           if question_config["group"]:
-            num_to_pick = question_config["num_to_pick"]
             
-            # todo: make a QuestionGroup class that can pick one each time, or pick the same one every time
-            # Pick a random set of questions to put on the exam
-            questions_for_exam.extend(
-              make_question(name, data) for name, data in
-              random.sample(list(q_data.items()), question_config["num_to_pick"])
+            # todo: Find a way to allow for "num_to_pick" to ensure lack of duplicates when using duplicates.
+            #    It's probably going to be somewhere in the instantiate and get_attr fields, with "_current_questions"
+            #    But will require changing how we add concrete questions (but that'll just be everything returns a list
+            questions_for_exam.append(
+              QuestionGroup(
+                questions_in_group=[
+                  make_question(name, data) for name, data in q_data.items()
+                ],
+                pick_once=(not question_config["random_per_student"])
+              )
             )
             
           else: # Then this is just a single question
@@ -253,7 +256,7 @@ class Quiz:
               )
               for repeat_number in range(question_config["repeat"])
             ])
-          
+      log.debug(f"len(questions_for_exam): {len(questions_for_exam)}")
       quiz_from_yaml = Quiz(name, questions_for_exam, practice)
       quiz_from_yaml.set_sort_order(sort_order)
       quizes_loaded.append(quiz_from_yaml)
