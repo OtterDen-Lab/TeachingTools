@@ -216,17 +216,42 @@ class Quiz:
         
         for q_name, q_data in question_definitions.items():
           log.debug(f"{q_name} : {q_data}")
-          if "pick" in q_data:
-            num_to_pick = q_data["pick"]
-            del q_data["pick"]
+          
+          # Set defaults for config
+          question_config = {
+            "group" : False,
+            "num_to_pick" : 1,
+            "random_per_student" : False,
+            "repeat": 1
+          }
+          
+          # Update config if it exists
+          question_config.update(
+            q_data.get("_config", {})
+          )
+          q_data.pop("_config", None)
+          q_data.pop("pick", None) # todo: don't use this anymore
+          q_data.pop("repeat", None) # todo: don't use this anymore
+          
+          # Check if it is a question group
+          if question_config["group"]:
+            num_to_pick = question_config["num_to_pick"]
+            
+            # todo: make a QuestionGroup class that can pick one each time, or pick the same one every time
+            # Pick a random set of questions to put on the exam
             questions_for_exam.extend(
               make_question(name, data) for name, data in
-              random.sample(list(q_data.items()), num_to_pick)
+              random.sample(list(q_data.items()), question_config["num_to_pick"])
             )
-          else:
+            
+          else: # Then this is just a single question
             questions_for_exam.extend([
-              make_question(q_name, q_data, rng_seed_offset=repeat_number)
-              for repeat_number in range(q_data.get("repeat", 1))
+              make_question(
+                q_name,
+                q_data,
+                rng_seed_offset=repeat_number
+              )
+              for repeat_number in range(question_config["repeat"])
             ])
           
       quiz_from_yaml = Quiz(name, questions_for_exam, practice)
@@ -247,6 +272,13 @@ class Quiz:
         r"\usepackage{graphicx} % Required for inserting images",
         r"\usepackage{booktabs}",
         r"\usepackage[final]{listings}",
+        r"\lstset{",
+        r"  basicstyle=\ttfamily,",
+        r"columns=fullflexible,",
+        r"frame=single,",
+        r"breaklines=true,",
+        r"postbreak=\mbox{\textcolor{red}{$\hookrightarrow$}\space},",
+        r"}",
         r"\usepackage[nounderscore]{syntax}",
         r"\usepackage{caption}",
         r"\usepackage{booktabs}",
