@@ -9,6 +9,7 @@ import importlib
 import itertools
 import pathlib
 import pkgutil
+import pprint
 import random
 import re
 import pypandoc
@@ -55,12 +56,30 @@ class TableGenerator:
   
   def generate(self, output_format: OutputFormat) -> str:
     if output_format == OutputFormat.CANVAS:
-      table_writer = pytablewriter.HtmlTableWriter(
-        headers=self.headers,
-        value_matrix=self.value_matrix
-      )
-      table_writer.type_hints = ["str" for _ in range(len(self.value_matrix[0]))]
-      return table_writer.dumps()
+      html_lines = [
+        "<table border=\"1\" style=\"border-collapse: collapse; width: 100%;\">",
+      ]
+      
+      log.debug(self.headers)
+      log.debug(pprint.pformat(self.value_matrix))
+      
+      
+      html_lines.append("<tr>")
+      html_lines.extend([
+        f"<th>{header_text}</th>"
+        for header_text in self.headers
+      ])
+      html_lines.append("</tr>")
+      
+      for row in self.value_matrix:
+        html_lines.append("<tr>")
+        for val in row:
+          html_lines.append(f"<td style=\"padding: 5px;\">{val}</td>")
+        html_lines.append("</tr>")
+      
+      html_lines.append("</table>")
+      return '\n'.join(html_lines)
+      
     elif output_format == OutputFormat.LATEX:
       table_lines = [
         # r"\begin{table}[h!]",
