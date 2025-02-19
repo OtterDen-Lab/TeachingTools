@@ -1,6 +1,9 @@
 #!env python
 from __future__ import annotations
 
+import decimal
+import fractions
+from decimal import Decimal
 from typing import List, Dict
 
 import enum
@@ -22,6 +25,7 @@ class Answer():
     BINARY = enum.auto()
     HEX = enum.auto()
     BINARY_OR_HEX = enum.auto()
+    AUTOFLOAT = enum.auto()
   def __init__(
       self, key:str,
       value,
@@ -92,6 +96,30 @@ class Answer():
           "answer_weight": 100,
         }
       ]
+    elif self.variable_kind == Answer.VariableKind.AUTOFLOAT:
+      value_fraction = fractions.Fraction(self.value).limit_denominator(3*4*5) # For process questions, these are the numbers of jobs we'd have
+      
+      possible_answers = [{
+        "blank_id": self.key,
+        "answer_text": value_fraction,
+        "answer_weight": 100,
+      }]
+      if not value_fraction.is_integer():
+        possible_answers.extend([
+          {
+            "blank_id": self.key,
+            "answer_text": f"{value_fraction.numerator / value_fraction.denominator:0.6}",
+            "answer_weight": 100,
+          },
+          {
+            "blank_id": self.key,
+            "answer_text":
+              f"{value_fraction.numerator // value_fraction.denominator} {value_fraction.numerator % value_fraction.denominator}/{value_fraction.denominator}",
+            "answer_weight": 100,
+          },
+        ])
+      
+      return possible_answers
     canvas_answer = {
       "blank_id": self.key,
       "answer_text": self.value,
