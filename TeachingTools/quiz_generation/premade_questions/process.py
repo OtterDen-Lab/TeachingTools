@@ -209,15 +209,7 @@ class SchedulingQuestion(ProcessQuestion):
     super().instantiate(rng_seed=rng_seed, *args, **kwargs)
     
     self.job_stats = {}
-    # log.debug(f"scheduler_kind: {scheduler_kind}")
     self.SCHEDULER_KIND = self.scheduler_kind_generator()
-    
-    # if scheduler_kind is not None:
-    #   self.SCHEDULER_KIND = SchedulingQuestion.get_kind_from_string(scheduler_kind)
-    # elif previous is None:
-    #   self.SCHEDULER_KIND = random.choice(list(SchedulingQuestion.Kind))
-    # else:
-    #   self.SCHEDULER_KIND = previous.SCHEDULER_KIND
     
     log.debug(f"Using a {self.SCHEDULER_KIND} scheduler")
     
@@ -277,15 +269,22 @@ class SchedulingQuestion(ProcessQuestion):
     self.average_response = self.overall_stats["Response"]
     self.average_tat = self.overall_stats["TAT"]
     
-    
     for job_id in sorted(self.job_stats.keys()):
       self.answers.extend([
-        Answer(f"answer__response_time_job{job_id}", self.job_stats[job_id]["Response"], variable_kind=Answer.VariableKind.FLOAT),
-        Answer(f"answer__turnaround_time_job{job_id}", self.job_stats[job_id]["TAT"], variable_kind=Answer.VariableKind.FLOAT),
+        Answer(
+          f"answer__response_time_job{job_id}",
+          self.job_stats[job_id]["Response"],
+          variable_kind=Answer.VariableKind.AUTOFLOAT
+        ),
+        Answer(
+          f"answer__turnaround_time_job{job_id}",
+          self.job_stats[job_id]["TAT"],
+          variable_kind=Answer.VariableKind.AUTOFLOAT
+        ),
       ])
     self.answers.extend([
-      Answer("answer__average_response_time", sum([job.response_time for job in jobs]) / len(jobs), variable_kind=Answer.VariableKind.FLOAT),
-      Answer("answer__average_turnaround_time", sum([job.turnaround_time for job in jobs]) / len(jobs), variable_kind=Answer.VariableKind.FLOAT)
+      Answer("answer__average_response_time", sum([job.response_time for job in jobs]) / len(jobs), variable_kind=Answer.VariableKind.AUTOFLOAT),
+      Answer("answer__average_turnaround_time", sum([job.turnaround_time for job in jobs]) / len(jobs), variable_kind=Answer.VariableKind.AUTOFLOAT)
     ])
   
   def get_body_lines(self, output_format: OutputFormat|None = None, *args, **kwargs) -> List[str]:
@@ -296,8 +295,16 @@ class SchedulingQuestion(ProcessQuestion):
       f"Given the below information, compute the required values if using <b>{self.SCHEDULER_NAME}</b> scheduling.  Break any ties using the job number.",
     ])
     
+    lines.extend([
+      "",
+      "Please format answer as fractions, mixed numbers, or numbers rounded to a maximum of 4 digits."
+      "Examples of appropriately formatted answers would be `0`, `3/2`, `1 1/3`, `1.6667`, and `1.25`."
+    ])
+    
+    log.debug(f"get_body_lines: {output_format}")
     if output_format is not None and output_format == OutputFormat.CANVAS:
       lines.extend([
+        
         "Please round all answers to 2 decimal places (even if they are whole numbers)."
       ])
     
