@@ -206,7 +206,6 @@ class Quiz:
           elif "kind" in q_data:
             kwargs["topic"] = Question.Topic.from_string(q_data["kind"])
           
-          log.debug(f"kwargs: {pprint.pformat(kwargs)}")
           new_question = QuestionRegistry.create(
             q_data["class"],
             **kwargs

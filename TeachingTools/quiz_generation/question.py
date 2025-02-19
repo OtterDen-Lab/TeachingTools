@@ -60,10 +60,6 @@ class TableGenerator:
         "<table border=\"1\" style=\"border-collapse: collapse; width: 100%;\">",
       ]
       
-      log.debug(self.headers)
-      log.debug(pprint.pformat(self.value_matrix))
-      
-      
       html_lines.append("<tr>")
       html_lines.extend([
         f"<th>{header_text}</th>"
@@ -135,12 +131,12 @@ class QuestionRegistry:
   def load_premade_questions(cls):
     package_name = "TeachingTools.quiz_generation.premade_questions"  # Fully qualified package name
     package_path = pathlib.Path(__file__).parent / "premade_questions"
-    log.debug(f"package_path: {package_path}")
+    # log.debug(f"package_path: {package_path}")
     
     for _, module_name, _ in pkgutil.iter_modules([str(package_path)]):
       # Import the module
       module = importlib.import_module(f"{package_name}.{module_name}")
-      log.debug(f"Loaded module: {module.__name__}")
+      # log.debug(f"Loaded module: {module.__name__}")
 
 
 class Question(abc.ABC):
@@ -316,7 +312,7 @@ class Question(abc.ABC):
   
   def get_body(self, output_format:OutputFormat):
     # lines should be in markdown
-    lines = self.get_body_lines()
+    lines = self.get_body_lines(output_format=output_format)
     return self.convert_from_lines_to_text(lines, output_format)
     
   def get_explanation_lines(self, *args, **kwargs) -> List[str]:

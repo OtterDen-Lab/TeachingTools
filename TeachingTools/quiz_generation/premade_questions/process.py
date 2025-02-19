@@ -196,7 +196,6 @@ class SchedulingQuestion(ProcessQuestion):
   
   def __init__(self, num_jobs=3, scheduler_kind=None, *args, **kwargs):
     super().__init__(*args, **kwargs)
-    log.debug(f"scheduler_kind: {scheduler_kind}")
     self.num_jobs = num_jobs
     
     if scheduler_kind is None:
@@ -283,8 +282,15 @@ class SchedulingQuestion(ProcessQuestion):
         ),
       ])
     self.answers.extend([
-      Answer("answer__average_response_time", sum([job.response_time for job in jobs]) / len(jobs), variable_kind=Answer.VariableKind.AUTOFLOAT),
-      Answer("answer__average_turnaround_time", sum([job.turnaround_time for job in jobs]) / len(jobs), variable_kind=Answer.VariableKind.AUTOFLOAT)
+      Answer(
+        "answer__average_response_time",
+        sum([job.response_time for job in jobs]) / len(jobs),
+        variable_kind=Answer.VariableKind.AUTOFLOAT
+      ),
+      Answer("answer__average_turnaround_time",
+        sum([job.turnaround_time for job in jobs]) / len(jobs),
+        variable_kind=Answer.VariableKind.AUTOFLOAT
+      )
     ])
   
   def get_body_lines(self, output_format: OutputFormat|None = None, *args, **kwargs) -> List[str]:
@@ -295,18 +301,13 @@ class SchedulingQuestion(ProcessQuestion):
       f"Given the below information, compute the required values if using <b>{self.SCHEDULER_NAME}</b> scheduling.  Break any ties using the job number.",
     ])
     
-    lines.extend([
-      "",
-      "Please format answer as fractions, mixed numbers, or numbers rounded to a maximum of 4 digits."
-      "Examples of appropriately formatted answers would be `0`, `3/2`, `1 1/3`, `1.6667`, and `1.25`."
-    ])
-    
-    log.debug(f"get_body_lines: {output_format}")
     if output_format is not None and output_format == OutputFormat.CANVAS:
       lines.extend([
-        
-        "Please round all answers to 2 decimal places (even if they are whole numbers)."
+        "",
+        "Please format answer as fractions, mixed numbers, or numbers rounded to a maximum of 4 digits."
+        "Examples of appropriately formatted answers would be `0`, `3/2`, `1 1/3`, `1.6667`, and `1.25`."
       ])
+      
     
     lines.extend(
       self.get_table_generator(
