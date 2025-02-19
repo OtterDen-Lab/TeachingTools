@@ -304,7 +304,7 @@ class SchedulingQuestion(ProcessQuestion):
     if output_format is not None and output_format == OutputFormat.CANVAS:
       lines.extend([
         "",
-        "Please format answer as fractions, mixed numbers, or numbers rounded to a maximum of 4 digits."
+        "Please format answer as fractions, mixed numbers, or numbers rounded to a maximum of 4 digits.  "
         "Examples of appropriately formatted answers would be `0`, `3/2`, `1 1/3`, `1.6667`, and `1.25`."
       ])
       
