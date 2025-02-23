@@ -7,6 +7,7 @@ import importlib
 import pathlib
 import pkgutil
 import pprint
+import subprocess
 
 import docker
 import docker.errors
@@ -23,6 +24,7 @@ from collections import defaultdict
 import pandas as pd
 
 from typing import List, Tuple, Optional
+import re
 
 from TeachingTools.grading_assistant.assignment import Assignment
 from TeachingTools.lms_interface.classes import Feedback, Submission
@@ -67,6 +69,7 @@ class Grader(abc.ABC):
     :param kwargs:
     :return:
     """
+
 
 class GraderRegistry:
   _registry = {}
@@ -613,8 +616,8 @@ class Grader_stepbystep(Grader__docker):
     self.student_container.remove()
     self.student_container = None
   
-  
   def execute_grading(self, golden_lines=[], student_lines=[], rollback=True, *args, **kwargs):
+    # Set up Dictionaries to capture results
     golden_results = defaultdict(list)
     student_results = defaultdict(list)
     def add_results(results_dict, rc, stdout, stderr):
@@ -622,14 +625,20 @@ class Grader_stepbystep(Grader__docker):
       results_dict["stdout"].append(stdout)
       results_dict["stderr"].append(stderr)
     
+    # Step through each line in each of the inputs
     for i, (golden, student) in enumerate(zip(golden_lines, student_lines)):
       log.debug(f"commands: '{golden}' <-> '{student}'")
+      
+      # Execute each line appropriately
       rc_g, stdout_g, stderr_g = self.execute(container=self.golden_container, command=golden)
       rc_s, stdout_s, stderr_s = self.execute(container=self.student_container, command=student)
+      
+      # Add the outputs to each results dictionary
       add_results(golden_results, rc_g, stdout_g, stderr_g)
       add_results(student_results, rc_s, stdout_s, stderr_s)
+      
+      # If we saw a difference in outputs, set student container to a copy of the golden container
       if (not self.outputs_match(stdout_g, stdout_s, stderr_g, stderr_s, rc_g, rc_s) ) and rollback:
-        # Bring the student container up to date with our container
         self.rollback()
     
     return golden_results, student_results
@@ -663,14 +672,140 @@ class Grader_stepbystep(Grader__docker):
       comments=f"Matched {num_matches} out of {len(golden_results['stdout'])}"
     )
   
-  
   def grade_assignment(self, input_files: List[str], *args, **kwargs) -> Feedback:
     
     golden_lines = self.rubric["steps"]
     student_lines = self.parse_student_file(input_files[0])
     
-    results = self.grade_in_docker(golden_lines=golden_lines, student_lines=student_lines, *args, **kwargs)
+    results = self.grade_in_docker(
+      golden_lines=golden_lines,
+      student_lines=student_lines,
+      *args, **kwargs
+    )
     
     log.debug(f"final results: {results}")
     return results
 
+
+@GraderRegistry.register("CST338")
+class Grader_CST338(Grader):
+  pass
+
+  def grade(self, assignment, *args, **kwargs):
+    for submission in assignment.submissions:
+      
+      if submission.files is None or len(submission.files) == 0:
+        submission.feedback = Feedback(score=0.0, comments="No files submitted")
+        continue
+      
+      # Isolate jotto.java
+      target_file = None
+      while True:
+        for f in submission.files:
+          if "Jotto" in f and f.endswith(".java"):
+            target_file = f
+            break
+        if target_file is not None:
+          break
+      
+      if os.path.exists("testing"): shutil.rmtree("testing")
+      
+      # Make a testing folder
+      shutil.copytree("test_files", "testing")
+      # shutil.copy("test_files", "testing")
+      shutil.copy(target_file, os.path.join("testing", "Jotto.java"))
+      
+      # Change into testing directory
+      os.chdir("testing")
+      
+      # Compile the code
+      compile_cmd = [
+        "javac",
+        "-cp",
+        "junit-platform-console-standalone-1.3.1.jar",
+        "Jotto.java", "JottoTest.java"
+      ]
+
+      # Run the command
+      try:
+        process = subprocess.run(compile_cmd, capture_output=True, text=True, shell=False, timeout=10)
+      except subprocess.TimeoutExpired:
+        submission.feedback = Feedback(
+          score=0.0,
+          comments=f"Didn't compile.  Details: \n\n----------\n\n{stdout}\n\n----------\n\n{stderr}"
+        )
+        
+        os.chdir("..")
+        continue
+        
+      
+      log.debug(f"{' '.join(compile_cmd)}")
+      
+      # Capture outputs
+      stdout = process.stdout
+      stderr = process.stderr
+      return_code = process.returncode
+      
+      # log.debug(f"return_code: {return_code}")
+      # log.debug(f"stdout: {stdout}")
+      # log.debug(f"stderr: {stderr}")
+      
+      if return_code > 0:
+        submission.feedback = Feedback(
+          score=0.0,
+          comments=f"Execution timed out."
+        )
+      
+        os.chdir("..")
+        continue
+      
+      # Run the test
+      cmd = [
+        "java",
+        "-jar",
+        "junit-platform-console-standalone-1.3.1.jar",
+        "-details=summary",
+        # "--class-path",
+        # "out",
+        "--scan-class-path",
+        "--classpath", "."
+      ]
+      
+      # Run the command
+      try:
+        process = subprocess.run(cmd, capture_output=True, text=True, shell=False, timeout=10)
+      except subprocess.TimeoutExpired:
+        submission.feedback = Feedback(
+          score=0.0,
+          comments=f"Running timed out."
+        )
+      
+      os.chdir("..")
+      continue
+      
+      log.debug(f"{' '.join(cmd)}")
+      
+      # Capture outputs
+      stdout = process.stdout
+      stderr = process.stderr
+      return_code = process.returncode
+      
+      # log.debug(f"return_code: {return_code}")
+      # log.debug(f"stdout: {stdout}")
+      # log.debug(f"stderr: {stderr}")
+      def get_passed_percentage(output):
+        
+        # Extract the relevant numbers using regular expressions
+        successful_tests = int(re.search(r'(\d+) tests successful', output).group(1))
+        total_tests = int(re.search(r'(\d+) tests found', output).group(1))
+        
+        # Calculate the percentage of tests passed
+        if total_tests == 0:
+          return 0.0  # Avoid division by zero if no tests are found
+        return (successful_tests / total_tests) * 100
+      
+      submission.feedback = Feedback(score=get_passed_percentage(stdout), comments="Here's the feedback")
+      
+      os.chdir("..")
+      #submission.feedback = Feedback(score=100, comments=f"Foud submision: {target_file}")
+      
