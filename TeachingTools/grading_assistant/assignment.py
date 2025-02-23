@@ -61,7 +61,7 @@ class Assignment(abc.ABC):
     self.original_dir = os.getcwd()
     os.chdir(self.grading_root_dir)
     return self
-  
+    
   def __exit__(self, exc_type, exc_value, traceback):
     """Enables use as a context manager (e.g. `with [Assignment]`) by managing working directory"""
     os.chdir(self.original_dir)
@@ -83,7 +83,6 @@ class Assignment(abc.ABC):
     :param kwargs:
     :return:
     """
-    log.debug("Went to parent,..")
     if kwargs.get("push", False):
       log.debug("Pushing")
       for submission in self.submissions:
@@ -93,8 +92,8 @@ class Assignment(abc.ABC):
           comments=submission.feedback.comments,
           attachments=submission.feedback.attachments,
           user_id=submission.student.user_id,
-          keep_previous_best=False,
-          clobber_feedback=True
+          keep_previous_best=True,
+          clobber_feedback=False
         )
 
 

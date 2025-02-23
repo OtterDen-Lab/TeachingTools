@@ -60,6 +60,7 @@ class CanvasInterface:
       canvasapi_course = self.canvas.get_course(course_id)
     )
 
+
 class CanvasCourse:
   def __init__(self, *args, canvas_interface : CanvasInterface, canvasapi_course : canvasapi.course.Course, **kwargs):
     self.canvas_interface = canvas_interface
@@ -190,6 +191,7 @@ class CanvasCourse:
   def get_students(self) -> List[Student]:
     return [Student(s.name, s.id) for s in self.course.get_users(enrollment_type=["student"])]
 
+
 class CanvasAssignment:
   def __init__(self, *args, canvasapi_interface: CanvasInterface, canvasapi_course : CanvasCourse, canvasapi_assignment: canvasapi.assignment.Assignment, **kwargs):
     self.canvas_interface = canvasapi_interface
@@ -266,7 +268,7 @@ class CanvasAssignment:
     for i, attachment_buffer in enumerate(attachments):
       upload_buffer_as_file(attachment_buffer.read(), attachment_buffer.name)
   
-  def get_submissions(self, limit=None, only_ungraded=True, **kwargs) -> List[Submission]:
+  def get_submissions(self, limit=None, regrade=True, **kwargs) -> List[Submission]:
     """
     Gets submission objects (in this case Submission__Canvas objects) that have students and potentially attachments
     :param kwargs:
@@ -280,9 +282,8 @@ class CanvasAssignment:
       # Get the status.  Note: it might be changed in the near future if there are no attachments
       status = (Submission.Status.UNGRADED if canvaspai_submission.workflow_state == "submitted" else Submission.Status.GRADED)
       
-      if status is Submission.Status.GRADED and only_ungraded:
+      if status is Submission.Status.GRADED and not regrade:
         continue
-      
       
       # Get the student object for the submission
       student = Student(self.canvas_course.get_username(canvaspai_submission.user_id), user_id=canvaspai_submission.user_id)
