@@ -321,7 +321,7 @@ class Grader__docker(Grader, abc.ABC):
   
   def stop(self):
     self.container.stop(timeout=1)
-    self.container.remove()
+    self.container.remove(force=True)
     self.container = None
   
   def __enter__(self):

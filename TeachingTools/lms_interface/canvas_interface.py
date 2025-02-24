@@ -206,7 +206,7 @@ class CanvasAssignment:
     # Get the previous score to check to see if we should reuse it
     try:
       submission = self.assignment.get_submission(user_id)
-      if keep_previous_best and submission.score > score:
+      if keep_previous_best and score is not None and submission.score is not None and submission.score > score:
         log.warning(f"Current score ({submission.score}) higher than new score ({score}).  Going to use previous score.")
         score = submission.score
     except requests.exceptions.ConnectionError as e:
@@ -268,7 +268,7 @@ class CanvasAssignment:
     for i, attachment_buffer in enumerate(attachments):
       upload_buffer_as_file(attachment_buffer.read(), attachment_buffer.name)
   
-  def get_submissions(self, limit=None, regrade=True, **kwargs) -> List[Submission]:
+  def get_submissions(self, limit=None, regrade=False, **kwargs) -> List[Submission]:
     """
     Gets submission objects (in this case Submission__Canvas objects) that have students and potentially attachments
     :param kwargs:
