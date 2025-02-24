@@ -371,6 +371,9 @@ class Grader__CST334(Grader__docker):
     self.assignment_path = assignment_path
     self.image = self.build_docker_image(base_image="samogden/cst334", github_repo=github_repo)
   
+  def __del__(self):
+    self.image.remove(force=True)
+  
   def check_for_trickery(self, files_submitted) -> bool:
     for input_file in files_submitted:
       try:
