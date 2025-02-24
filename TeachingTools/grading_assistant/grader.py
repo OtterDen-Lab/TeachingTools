@@ -358,6 +358,26 @@ class Grader__docker(Grader, abc.ABC):
         continue
       submission.feedback = self.grade_assignment(submission.files, **kwargs)
 
+  def finalize(self, *args, **kwargs):
+    super().finalize()
+    
+    # todo: make this less of a nuclear option, since this will get all containers, even those that aren't ours!
+    
+    containers = self.client.containers.list(all=True)
+
+    # Remove all containers
+    for container in containers:
+      print(f"Removing container {container.id}")
+      container.remove(force=True)  # Use force=True to stop and remove running ones
+    
+    # List all images
+    images = self.client.images.list()
+    
+    # Remove all images
+    for image in images:
+      print(f"Removing image {image.id}")
+      self.client.images.remove(image.id, force=True)
+
 
 @GraderRegistry.register("CST334")
 class Grader__CST334(Grader__docker):
@@ -583,7 +603,7 @@ class Grader_stepbystep(Grader__docker):
   def rollback(self):
     # Stop and delete student container
     self.student_container.stop(timeout=1)
-    self.student_container.remove()
+    self.student_container.remove(force=True)
     self.student_container = None
     
     # Make a copy of the golden_container
@@ -610,10 +630,10 @@ class Grader_stepbystep(Grader__docker):
   
   def stop(self):
     self.golden_container.stop(timeout=1)
-    self.golden_container.remove()
+    self.golden_container.remove(force=True)
     self.golden_container = None
     self.student_container.stop(timeout=1)
-    self.student_container.remove()
+    self.student_container.remove(force=True)
     self.student_container = None
   
   
