@@ -1,5 +1,6 @@
 #!env python
 import argparse
+import fcntl
 import os
 import pprint
 
@@ -44,6 +45,16 @@ def parse_args():
 
 def main():
   
+  # First, check to make sure we are the only version running, since this can cause problems with docker and canvas otherwise
+  lockfile = "/tmp/TeachingTools.grade_assignments.lock"
+  lock_fd = open(lockfile, "w")
+  try:
+    fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+  except IOError:
+    log.warning("Early exiting because another instance is already running")
+    return
+
+  # Otherwise, continue with normal flow
   args = parse_args()
   
   # Load overall YAML
