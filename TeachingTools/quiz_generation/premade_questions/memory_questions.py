@@ -23,6 +23,97 @@ class MemoryQuestion(Question):
     super().__init__(*args, **kwargs)
 
 
+@QuestionRegistry.register("VirtualAddressParts")
+class VirtualAddress_parts(MemoryQuestion):
+  MAX_BITS = 64
+  
+  class Target(enum.Enum):
+    VA_BITS = "# VA Bits"
+    VPN_BITS = "# VPN Bits"
+    OFFSET_BITS = "# Offset Bits"
+  
+  def __init__(
+      self,
+      *args, **kwargs
+  ):
+    super().__init__(*args, **kwargs)
+    
+    self.instantiate()
+  
+  
+  def instantiate(self, rng_seed=None, *args, **kwargs):
+    super().instantiate(rng_seed=rng_seed, *args, **kwargs)
+    
+    # Generate baselines, if not given
+    self.num_va_bits = kwargs.get("num_va_bits", random.randint(2, self.MAX_BITS))
+    self.num_offset_bits = random.randint(1, self.num_va_bits-1)
+    self.num_vpn_bits = self.num_va_bits - self.num_offset_bits
+    
+    self.possible_answers = {
+      self.Target.VA_BITS : Answer("answer__num_va_bits", self.num_va_bits, variable_kind=Answer.VariableKind.INT),
+      self.Target.OFFSET_BITS : Answer("answer__num_offset_bits", self.num_offset_bits, variable_kind=Answer.VariableKind.INT),
+      self.Target.VPN_BITS : Answer("answer__num_vpn_bits", self.num_vpn_bits, variable_kind=Answer.VariableKind.INT)
+    }
+    
+    # Select what kind of question we are going to be
+    self.blank_kind = random.choice(list(self.Target))
+    
+    self.answers.append(
+      self.possible_answers[self.blank_kind] # select the appropriate kind from a new array.  It _feels_ more clean, but I might be wrong.
+    )
+    
+    return
+  
+  def get_body_lines(self, *args, **kwargs) -> List[str|TableGenerator]:
+    lines = []
+    
+    lines.extend([
+      "Given the information in the below table, please complete the table as appropriate."
+    ])
+    
+    lines.append(
+      TableGenerator(
+        headers=[t.value for t in list(self.Target)],
+        value_matrix=[[
+          f"{self.possible_answers[t].display} bits"
+          if t != self.blank_kind
+          else f"[{self.possible_answers[t].key}] bits"
+          for t in list(self.Target)
+        ]]
+      )
+    )
+    
+    return lines
+  
+  def get_explanation_lines(self, *args, **kwargs) -> List[str]:
+    
+    line_to_add = ""
+    if self.blank_kind == self.Target.VA_BITS:
+      line_to_add += f"***{self.num_va_bits}***"
+    else:
+      line_to_add += f"{self.num_va_bits}"
+    
+    line_to_add += " = "
+    
+    if self.blank_kind == self.Target.VPN_BITS:
+      line_to_add += f"***{self.num_vpn_bits}***"
+    else:
+      line_to_add += f"{self.num_vpn_bits}="
+    
+    line_to_add += " + "
+    
+    if self.blank_kind == self.Target.OFFSET_BITS:
+      line_to_add += f"***{self.num_offset_bits}***"
+    else:
+      line_to_add += f"{self.num_offset_bits}"
+    
+    return [
+      "VA = VPN + offset",
+      "\n",
+      line_to_add
+    ]
+
+
 @QuestionRegistry.register()
 class CachingQuestion(MemoryQuestion):
   
@@ -423,65 +514,6 @@ class Paging(MemoryAccessQuestion):
 # todo: below this line #
 #########################
 
-class VirtualAddress_parts(Question):
-  MAX_BITS = 64
-  
-  def __init__(
-      self,
-      num_va_bits=None,
-      num_offset_bits=None,
-      num_vpn_bits=None
-  ):
-    
-    if (num_va_bits is None) and (num_offset_bits is None) and (num_vpn_bits is None):
-      num_va_bits = random.randint(1, self.MAX_BITS)
-    
-    # If we have a VA (or have generated one)
-    if (num_offset_bits is None) and (num_vpn_bits is None):
-      num_offset_bits = random.randint(1, num_va_bits)
-    
-    if (num_vpn_bits is None):
-      num_vpn_bits = num_va_bits - num_offset_bits
-    
-    self.num_va_bits = Variable("# VA bits", num_va_bits)
-    self.num_offset_bits = Variable("# offset bits", num_offset_bits)
-    self.num_vpn_bits = Variable("# VPN bits", num_vpn_bits)
-    
-    super().__init__(
-      given_vars=[
-        self.num_va_bits,
-        self.num_offset_bits,
-        self.num_vpn_bits
-      ]
-    )
-  
-  def get_explanation(self) -> List[str]:
-    
-    line_to_add = ""
-    if self.num_va_bits in self.target_vars:
-      line_to_add += f"***{self.num_va_bits.true_value}***"
-    else:
-      line_to_add += f"{self.num_va_bits.true_value}"
-    
-    line_to_add += " = "
-    
-    if self.num_vpn_bits in self.target_vars:
-      line_to_add += f"***{self.num_vpn_bits.true_value}***"
-    else:
-      line_to_add += f"{self.num_vpn_bits.true_value}="
-    
-    line_to_add += " + "
-    
-    if self.num_offset_bits in self.target_vars:
-      line_to_add += f"***{self.num_offset_bits.true_value}***"
-    else:
-      line_to_add += f"{self.num_offset_bits.true_value}"
-    
-    return [
-      "VA = VPN + offset",
-      line_to_add
-    ]
-
 
 class BaseAndBounds(MemoryAccessQuestion):
   MAX_BITS = 32
@@ -584,7 +616,7 @@ class BaseAndBounds(MemoryAccessQuestion):
     return explanation_lines
 
 
-class Segmentation_canvas(MemoryAccessQuestion, CanvasQuestion__fill_in_the_blanks):
+class Segmentation_canvas(MemoryAccessQuestion):
   MAX_BITS = 32
   MIN_VIRTUAL_BITS = 5
   MAX_VIRTUAL_BITS = 10
