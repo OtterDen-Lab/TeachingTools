@@ -240,11 +240,9 @@ class Paging(MemoryAccessQuestion):
   MAX_OFFSET_BITS = 8
   MAX_VPN_BITS = 8
   MAX_PFN_BITS = 16
+  
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
-    self.num_elements = kwargs.get("num_elements", 5)
-    self.cache_size = kwargs.get("cache_size", 3)
-    self.num_requests = kwargs.get("num_requests", 10)
     
     self.instantiate()
   
@@ -420,4 +418,359 @@ class Paging(MemoryAccessQuestion):
       ""
     ])
     return lines
+
+#########################
+# todo: below this line #
+#########################
+
+class VirtualAddress_parts(Question):
+  MAX_BITS = 64
+  
+  def __init__(
+      self,
+      num_va_bits=None,
+      num_offset_bits=None,
+      num_vpn_bits=None
+  ):
+    
+    if (num_va_bits is None) and (num_offset_bits is None) and (num_vpn_bits is None):
+      num_va_bits = random.randint(1, self.MAX_BITS)
+    
+    # If we have a VA (or have generated one)
+    if (num_offset_bits is None) and (num_vpn_bits is None):
+      num_offset_bits = random.randint(1, num_va_bits)
+    
+    if (num_vpn_bits is None):
+      num_vpn_bits = num_va_bits - num_offset_bits
+    
+    self.num_va_bits = Variable("# VA bits", num_va_bits)
+    self.num_offset_bits = Variable("# offset bits", num_offset_bits)
+    self.num_vpn_bits = Variable("# VPN bits", num_vpn_bits)
+    
+    super().__init__(
+      given_vars=[
+        self.num_va_bits,
+        self.num_offset_bits,
+        self.num_vpn_bits
+      ]
+    )
+  
+  def get_explanation(self) -> List[str]:
+    
+    line_to_add = ""
+    if self.num_va_bits in self.target_vars:
+      line_to_add += f"***{self.num_va_bits.true_value}***"
+    else:
+      line_to_add += f"{self.num_va_bits.true_value}"
+    
+    line_to_add += " = "
+    
+    if self.num_vpn_bits in self.target_vars:
+      line_to_add += f"***{self.num_vpn_bits.true_value}***"
+    else:
+      line_to_add += f"{self.num_vpn_bits.true_value}="
+    
+    line_to_add += " + "
+    
+    if self.num_offset_bits in self.target_vars:
+      line_to_add += f"***{self.num_offset_bits.true_value}***"
+    else:
+      line_to_add += f"{self.num_offset_bits.true_value}"
+    
+    return [
+      "VA = VPN + offset",
+      line_to_add
+    ]
+
+
+class BaseAndBounds(MemoryAccessQuestion):
+  MAX_BITS = 32
+  MAX_BOUNDS_BITS = 16
+  
+  def __init__(
+      self
+  ):
+    
+    use_binary = random.randint(0,1) % 2 ==0
+    
+    bounds_bits = random.randint(1, self.MAX_BOUNDS_BITS)
+    base_bits = self.MAX_BITS - bounds_bits
+    
+    self.bounds = int(math.pow(2, bounds_bits))
+    self.base = random.randint(1, int(math.pow(2, base_bits))) * self.bounds
+    self.virtual_address = random.randint(1, int(self.bounds / self.PROBABILITY_OF_VALID))
+    
+    self.bounds_var = VariableHex("Bounds", self.bounds, default_presentation=(VariableHex.PRESENTATION.BINARY if use_binary else VariableHex.PRESENTATION.HEX))
+    self.base_var = VariableHex("Base", self.base, default_presentation=(VariableHex.PRESENTATION.BINARY if use_binary else VariableHex.PRESENTATION.HEX))
+    self.virtual_address_var = VariableHex("Virtual Address", self.virtual_address, default_presentation=(VariableHex.PRESENTATION.BINARY if use_binary else VariableHex.PRESENTATION.HEX))
+    
+    logging.debug(f"bounds: {self.bounds}")
+    logging.debug(f"base: {self.base}")
+    logging.debug(f"va: {self.virtual_address}")
+    
+    if self.virtual_address < self.bounds:
+      self.physical_address_var = VariableHex(
+        "Physical Address",
+        num_bits=math.ceil(math.log2(self.base + self.virtual_address)),
+        true_value=(self.virtual_address + self.base),
+        default_presentation=(VariableHex.PRESENTATION.BINARY if use_binary else VariableHex.PRESENTATION.HEX)
+      )
+    else:
+      self.physical_address_var = Variable("Physical Address", "INVALID")
+    
+    logging.debug(f"pa: {self.virtual_address + self.base}")
+    logging.debug(f"pa: {self.physical_address_var}")
+    
+    
+    super().__init__(
+      given_vars=[
+        self.base_var,
+        self.bounds_var,
+        self.virtual_address_var
+      ],
+      target_vars=[
+        self.physical_address_var
+      ]
+    )
+  
+  def get_explanation(self) -> List[str]:
+    explanation_lines = [
+      "There's two steps to figuring out base and bounds.",
+      "1. Are we within the bounds?",
+      "2. If so, add to our base.",
+      "",
+    ]
+    if self.virtual_address < self.bounds:
+      explanation_lines.extend([
+        f"Step 1: {self.virtual_address_var.true_value} < {self.bounds_var.true_value} --> {'***VALID***' if (self.virtual_address < self.bounds) else 'INVALID'}",
+        "",
+        f"Step 2: Since the previous check passed, we calculate {self.base_var.true_value} + {self.virtual_address_var.true_value} = ***0x{self.base + self.virtual_address:X}***.  If it had been invalid we would have simply written INVALID"
+      ]
+      )
+    else:
+      explanation_lines.extend([
+        f"Step 1: {self.virtual_address_var.true_value} < {self.bounds_var.true_value} --> {'VALID' if (self.virtual_address < self.bounds) else '***INVALID***'}",
+        "",
+        f"Step 2: Since the previous check failed, we simply write ***INVALID***.  If it had been valid, we would have calculated {self.base_var.true_value} + {self.virtual_address_var.true_value} = 0x{self.base + self.virtual_address:X}"
+      ]
+      )
+    return explanation_lines
+  
+  
+  
+  def get_explanation(self, *args, **kwargs) -> List[str]:
+    explanation_lines = [
+      "There's two steps to figuring out base and bounds.",
+      "1. Are we within the bounds?",
+      "2. If so, add to our base.",
+      "",
+    ]
+    if self.virtual_address < self.bounds:
+      explanation_lines.extend([
+        f"Step 1: {self.virtual_address_var.true_value} < {self.bounds_var.true_value} --> {'<b>>VALID</b>' if (self.virtual_address < self.bounds) else 'INVALID'}",
+        "",
+        f"Step 2: Since the previous check passed, we calculate {self.base_var.true_value} + {self.virtual_address_var.true_value} = <b>{self.physical_address_var.true_value}</b>.",
+        "If it had been invalid we would have simply written INVALID"
+      ]
+      )
+    else:
+      explanation_lines.extend([
+        f"Step 1: {self.virtual_address_var.true_value} < {self.bounds_var.true_value} --> {'VALID' if (self.virtual_address < self.bounds) else '<b>INVALID</b>'}",
+        "",
+        f"Step 2: Since the previous check failed, we simply write <b>INVALID</b>.",
+        f"If it had been valid, we would have calculated {self.base_var.true_value} + {self.virtual_address_var.true_value} = {self.physical_address_var.true_value}"
+      ]
+      )
+    return explanation_lines
+
+
+class Segmentation_canvas(MemoryAccessQuestion, CanvasQuestion__fill_in_the_blanks):
+  MAX_BITS = 32
+  MIN_VIRTUAL_BITS = 5
+  MAX_VIRTUAL_BITS = 10
+  
+  def __within_bounds(self, segment, offset, bounds):
+    if segment == "unallocated":
+      return False
+    elif bounds < offset:
+      return False
+    else:
+      return True
+  
+  def __init__(self, *args, **kwargs):
+    super().__init__(given_vars=[], target_vars=[], *args, **kwargs)
+    
+    use_binary = random.randint(0,1) % 2 ==0
+    
+    self.base = {
+      "code" : 0,
+      "heap" : 0,
+      "stack" : 0,
+    }
+    self.bounds = {
+      "code" : 0,
+      "heap" : 0,
+      "stack" : 0,
+    }
+    
+    self.virtual_bits = random.randint(self.MIN_VIRTUAL_BITS, self.MAX_VIRTUAL_BITS)
+    self.physical_bits = random.randint(self.virtual_bits+1, self.MAX_BITS)
+    
+    min_bounds = 2
+    max_bounds = int(2**(self.virtual_bits - 2))
+    
+    def segment_collision(base, bounds):
+      # lol, I think this is probably silly, but should work
+      return 0 != len(set.intersection(*[
+        set(range(base[segment], base[segment]+bounds[segment]+1))
+        for segment in base.keys()
+      ]))
+    
+    self.base["unallocated"] = 0
+    self.bounds["unallocated"] = 0
+    
+    
+    while (segment_collision(self.base, self.bounds)):
+      for segment in self.base.keys():
+        self.bounds[segment] = random.randint(min_bounds, max_bounds)
+        self.base[segment] = random.randint(0, (2**self.physical_bits - self.bounds[segment]))
+    
+    self.segment = random.choice(list(self.base.keys()) + ["unallocated"])
+    self.segment_bits = {
+      "code" : 0,
+      "heap" : 1,
+      "unallocated" : 2,
+      "stack" : 3
+    }[self.segment]
+    
+    try:
+      self.virtual_address_offset = random.randint(0,
+        min([
+          ((self.virtual_bits-2)**2)-1,
+          int(self.bounds[self.segment] / self.PROBABILITY_OF_VALID)
+        ])
+      )
+    except KeyError:
+      self.virtual_address_offset = random.randint(0, ((self.virtual_bits-2)**2)-1)
+    
+    self.virtual_address = (
+        (self.segment_bits << (self.virtual_bits - 2))
+        + self.virtual_address_offset
+    )
+    
+    self.physical_address = self.base[self.segment] + self.virtual_address_offset
+    if not self.__within_bounds(self.segment, self.virtual_address_offset, self.bounds[self.segment]):
+      self.physical_address_var = Variable("Physical Address", "INVALID")
+    else:
+      self.physical_address_var = VariableHex("Physical Address", true_value=self.physical_address, num_bits=self.physical_bits, default_presentation=(VariableHex.PRESENTATION.BINARY if use_binary else VariableHex.PRESENTATION.HEX))
+    
+    
+    self.virtual_address_var = VariableHex("Virtual Address", true_value=self.virtual_address, default_presentation=(VariableHex.PRESENTATION.BINARY if use_binary else VariableHex.PRESENTATION.HEX))
+    self.segment_var = Variable("Segment", true_value=self.segment, default_presentation=(VariableHex.PRESENTATION.BINARY if use_binary else VariableHex.PRESENTATION.HEX))
+    self.base_vars = {
+      "code" : VariableHex("Code Base", true_value=self.base["code"], default_presentation=(VariableHex.PRESENTATION.BINARY if use_binary else VariableHex.PRESENTATION.HEX)),
+      "heap" : VariableHex("Heap Base", true_value=self.base["heap"], default_presentation=(VariableHex.PRESENTATION.BINARY if use_binary else VariableHex.PRESENTATION.HEX)),
+      "stack" : VariableHex("Stack Base", true_value=self.base["stack"], default_presentation=(VariableHex.PRESENTATION.BINARY if use_binary else VariableHex.PRESENTATION.HEX)),
+    }
+    
+    self.bounds_vars = {
+      "code" : VariableHex("Code Bound", true_value=self.bounds["code"], default_presentation=(VariableHex.PRESENTATION.BINARY if use_binary else VariableHex.PRESENTATION.HEX)),
+      "heap" : VariableHex("Heap Bound", true_value=self.bounds["heap"], default_presentation=(VariableHex.PRESENTATION.BINARY if use_binary else VariableHex.PRESENTATION.HEX)),
+      "stack" : VariableHex("Stack Bound", true_value=self.bounds["stack"], default_presentation=(VariableHex.PRESENTATION.BINARY if use_binary else VariableHex.PRESENTATION.HEX)),
+    }
+    
+    self.blank_vars.update({
+      "segment_val" : self.segment_var,
+      "physical_address_val" : self.physical_address_var
+    })
+  
+  def get_question_body(self) -> List[str]:
+    question_lines = [
+      f"Given a virtual address space of {self.virtual_bits}bits, and a physical address space of {self.physical_bits}bits, what is the physical address associated with the virtual address {self.virtual_address_var}?",
+      "If it is invalid simply type INVALID.",
+      "Note: assume that the stack grows in the same way as the code and the heap."
+    ]
+    
+    question_lines.extend(
+      self.get_table_lines(
+        table_data={
+          "code": [self.base_vars["code"], self.bounds_vars["code"]],
+          "heap": [self.base_vars["heap"], self.bounds_vars["heap"]],
+          "stack": [self.base_vars["stack"], self.bounds_vars["stack"]],
+        },
+        sorted_keys=[
+          "code", "heap", "stack"
+        ],
+        headers=["base", "bounds"],
+        add_header_space=True
+      )
+    )
+    
+    question_lines.extend([
+      "Segment name: [segment_val]",
+      "Physical Address: [physical_address_val]"
+    ])
+    
+    return question_lines
+  
+  def get_explanation(self, *args, **kwargs) -> List[str]:
+    explanation_lines = [
+      "The core idea to keep in mind with segmentation is that you should always check the first two bits of the virtual address to see what segment it is in and then go from there."
+      "Keep in mind, we also may need to include padding if our virtual address has a number of leading zeros left off!",
+      ""
+    ]
+    
+    explanation_lines.extend([
+      f"In this problem our virtual address, converted to binary and including padding, is 0b{self.virtual_address:0{self.virtual_bits}b}.",
+      f"From this we know that our segment bits are 0b{self.segment_bits:02b}, meaning that we are in the <b>{self.segment_var}</b> segment.",
+      ""
+    ])
+    
+    if self.segment == "unallocated":
+      explanation_lines.extend([
+        "Since this is the unallocated segment there are no possible valid translations, so we enter <b>INVALID</b>."
+      ])
+    else:
+      explanation_lines.extend([
+        f"Since we are in the {self.segment_var} segment, we see from our table that our bounds are {self.bounds_vars[self.segment]}. "
+        f"Remember that our check for our {self.segment_var} segment is: ",
+        f"<code> if (offset > bounds({self.segment})) : INVALID</code>",
+        "which becomes"
+        f"<code> if ({self.virtual_address_offset:0b} > {self.bounds[self.segment]:0b}) : INVALID</code>"
+      ])
+      
+      if not self.__within_bounds(self.segment, self.virtual_address_offset, self.bounds[self.segment]):
+        # then we are outside of bounds
+        explanation_lines.extend([
+          "We can therefore see that we are outside of bounds so we should put <b>INVALID</b>.",
+          "If we <i>were</i> requesting a valid memory location we could use the below steps to do so."
+          "<hr>"
+        ])
+      else:
+        explanation_lines.extend([
+          "We are therefore in bounds so we can calculate our physical address, as we do below."
+        ])
+      
+      explanation_lines.append("")
+      
+      explanation_lines.extend([
+        "To find the physical address we use the formula:",
+        "<code>physical_address = base(segment) + offset</code>",
+        "which becomes",
+        f"<code>physical_address = {self.base[self.segment]:0b} + {self.virtual_address_offset:0b}</code>.",
+        ""
+      ])
+      
+      explanation_lines.extend([
+        "Lining this up for ease we can do this calculation as:",
+        "<pre><code>",
+        f"  0b{self.base[self.segment]:0{self.physical_bits}b}",
+        f"<u>+ 0b{self.virtual_address_offset:0{self.physical_bits}b}</u>",
+        f"  0b{self.physical_address:0{self.physical_bits}b}"
+        "</code></pre>"
+      ])
+    
+    
+    
+    return explanation_lines
     
