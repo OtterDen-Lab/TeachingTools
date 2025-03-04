@@ -30,6 +30,7 @@ log.setLevel(logging.DEBUG)
 class TableGenerator:
   headers : List[str] = None
   value_matrix : List[List[str]] = None
+  transpose : bool = False # todo: make actually do something
   
   @staticmethod
   def tex_escape(text):

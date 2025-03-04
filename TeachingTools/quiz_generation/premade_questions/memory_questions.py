@@ -24,7 +24,7 @@ class MemoryQuestion(Question):
 
 
 @QuestionRegistry.register("VirtualAddressParts")
-class VirtualAddress_parts(MemoryQuestion):
+class VirtualAddressParts(MemoryQuestion):
   MAX_BITS = 64
   
   class Target(enum.Enum):
@@ -39,7 +39,6 @@ class VirtualAddress_parts(MemoryQuestion):
     super().__init__(*args, **kwargs)
     
     self.instantiate()
-  
   
   def instantiate(self, rng_seed=None, *args, **kwargs):
     super().instantiate(rng_seed=rng_seed, *args, **kwargs)
@@ -514,16 +513,19 @@ class Paging(MemoryAccessQuestion):
 # todo: below this line #
 #########################
 
-
+@QuestionRegistry.register("BaseAndBounds")
 class BaseAndBounds(MemoryAccessQuestion):
   MAX_BITS = 32
   MAX_BOUNDS_BITS = 16
   
-  def __init__(
-      self
-  ):
+  def __init__(self, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+    self.instantiate(*args, **kwargs)
+  
+  
+  def instantiate(self, rng_seed=None, *args, **kwargs):
+    super().instantiate(rng_seed=rng_seed, *args, **kwargs)
     
-    use_binary = random.randint(0,1) % 2 ==0
     
     bounds_bits = random.randint(1, self.MAX_BOUNDS_BITS)
     base_bits = self.MAX_BITS - bounds_bits
@@ -532,87 +534,77 @@ class BaseAndBounds(MemoryAccessQuestion):
     self.base = random.randint(1, int(math.pow(2, base_bits))) * self.bounds
     self.virtual_address = random.randint(1, int(self.bounds / self.PROBABILITY_OF_VALID))
     
-    self.bounds_var = VariableHex("Bounds", self.bounds, default_presentation=(VariableHex.PRESENTATION.BINARY if use_binary else VariableHex.PRESENTATION.HEX))
-    self.base_var = VariableHex("Base", self.base, default_presentation=(VariableHex.PRESENTATION.BINARY if use_binary else VariableHex.PRESENTATION.HEX))
-    self.virtual_address_var = VariableHex("Virtual Address", self.virtual_address, default_presentation=(VariableHex.PRESENTATION.BINARY if use_binary else VariableHex.PRESENTATION.HEX))
-    
-    logging.debug(f"bounds: {self.bounds}")
-    logging.debug(f"base: {self.base}")
-    logging.debug(f"va: {self.virtual_address}")
     
     if self.virtual_address < self.bounds:
-      self.physical_address_var = VariableHex(
-        "Physical Address",
-        num_bits=math.ceil(math.log2(self.base + self.virtual_address)),
-        true_value=(self.virtual_address + self.base),
-        default_presentation=(VariableHex.PRESENTATION.BINARY if use_binary else VariableHex.PRESENTATION.HEX)
+      self.answers.append(
+        Answer(
+          key="answer__physical_address",
+          value=(self.base + self.virtual_address),
+          variable_kind=Answer.VariableKind.BINARY_OR_HEX,
+          length=math.ceil(math.log2(self.base + self.virtual_address))
+        )
       )
-    else:
-      self.physical_address_var = Variable("Physical Address", "INVALID")
-    
-    logging.debug(f"pa: {self.virtual_address + self.base}")
-    logging.debug(f"pa: {self.physical_address_var}")
-    
-    
-    super().__init__(
-      given_vars=[
-        self.base_var,
-        self.bounds_var,
-        self.virtual_address_var
-      ],
-      target_vars=[
-        self.physical_address_var
-      ]
-    )
+    else :
+      
+      self.answers.append(
+        Answer(
+          key="answer__physical_address",
+          value="INVALID",
+          variable_kind=Answer.VariableKind.STR
+        )
+      )
   
-  def get_explanation(self) -> List[str]:
+  def get_body_lines(self, *args, **kwargs) -> List[str|TableGenerator]:
+    lines = []
+    
+    lines.extend([
+      "Given the information in the below table, please calcuate the physical address associated with the given virtual address.",
+      "If the virtual address is invalid please simply write ***INVALID***."
+    ])
+    
+    lines.extend([
+      TableGenerator(
+        headers=["Base", "Bounds", "Virtual Address", "Physical Address"],
+        value_matrix=[[
+          f"0x{self.base:X}",
+          f"0x{self.bounds:X}",
+          f"0x{self.virtual_address:X}",
+          "[answer__physical_address]"
+        ]],
+        transpose=True
+      )
+    ])
+    
+    return lines
+  
+  def get_explanation_lines(self, *args, **kwargs) -> List[str]:
     explanation_lines = [
       "There's two steps to figuring out base and bounds.",
-      "1. Are we within the bounds?",
-      "2. If so, add to our base.",
+      "1. Are we within the bounds?\n",
+      "2. If so, add to our base.\n",
       "",
     ]
-    if self.virtual_address < self.bounds:
-      explanation_lines.extend([
-        f"Step 1: {self.virtual_address_var.true_value} < {self.bounds_var.true_value} --> {'***VALID***' if (self.virtual_address < self.bounds) else 'INVALID'}",
-        "",
-        f"Step 2: Since the previous check passed, we calculate {self.base_var.true_value} + {self.virtual_address_var.true_value} = ***0x{self.base + self.virtual_address:X}***.  If it had been invalid we would have simply written INVALID"
-      ]
-      )
-    else:
-      explanation_lines.extend([
-        f"Step 1: {self.virtual_address_var.true_value} < {self.bounds_var.true_value} --> {'VALID' if (self.virtual_address < self.bounds) else '***INVALID***'}",
-        "",
-        f"Step 2: Since the previous check failed, we simply write ***INVALID***.  If it had been valid, we would have calculated {self.base_var.true_value} + {self.virtual_address_var.true_value} = 0x{self.base + self.virtual_address:X}"
-      ]
-      )
-    return explanation_lines
-  
-  
-  
-  def get_explanation(self, *args, **kwargs) -> List[str]:
-    explanation_lines = [
-      "There's two steps to figuring out base and bounds.",
-      "1. Are we within the bounds?",
-      "2. If so, add to our base.",
+    
+    explanation_lines.extend([
+      f"Step 1: 0x{self.virtual_address:X} < 0x{self.bounds:X} --> {'***VALID***' if (self.virtual_address < self.bounds) else 'INVALID'}",
       "",
-    ]
+    ])
     if self.virtual_address < self.bounds:
       explanation_lines.extend([
-        f"Step 1: {self.virtual_address_var.true_value} < {self.bounds_var.true_value} --> {'<b>>VALID</b>' if (self.virtual_address < self.bounds) else 'INVALID'}",
-        "",
-        f"Step 2: Since the previous check passed, we calculate {self.base_var.true_value} + {self.virtual_address_var.true_value} = <b>{self.physical_address_var.true_value}</b>.",
+        f"Step 2: Since the previous check passed, we calculate "
+        f"0x{self.base:X} + 0x{self.virtual_address:X} "
+        f"= ***0x{self.base + self.virtual_address:X}***.",
         "If it had been invalid we would have simply written INVALID"
       ]
       )
     else:
       explanation_lines.extend([
-        f"Step 1: {self.virtual_address_var.true_value} < {self.bounds_var.true_value} --> {'VALID' if (self.virtual_address < self.bounds) else '<b>INVALID</b>'}",
-        "",
-        f"Step 2: Since the previous check failed, we simply write <b>INVALID</b>.",
-        f"If it had been valid, we would have calculated {self.base_var.true_value} + {self.virtual_address_var.true_value} = {self.physical_address_var.true_value}"
-      ]
-      )
+        f"Step 2: Since the previous check failed, we simply write ***INVALID***.",
+        "***If*** it had been valid, we would have calculated "
+        f"0x{self.base:X} + 0x{self.virtual_address:X} "
+        f"= 0x{self.base + self.virtual_address:X}.",
+        
+      ])
     return explanation_lines
 
 
