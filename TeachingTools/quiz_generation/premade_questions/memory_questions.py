@@ -721,7 +721,7 @@ class Segmentation(MemoryAccessQuestion):
   
   def get_body_lines(self, *args, **kwargs) -> List[str|TableGenerator]:
     question_lines = [
-      f"Given a virtual address space of {self.virtual_bits}bits, and a physical address space of {self.physical_bits}bits, what is the physical address associated with the virtual address 0b{self.virtual_address:{self.virtual_bits}b}?",
+      f"Given a virtual address space of {self.virtual_bits}bits, and a physical address space of {self.physical_bits}bits, what is the physical address associated with the virtual address 0b{self.virtual_address:0{self.virtual_bits}b}?",
       "If it is invalid simply type INVALID.",
       "Note: assume that the stack grows in the same way as the code and the heap."
     ]
@@ -729,9 +729,9 @@ class Segmentation(MemoryAccessQuestion):
     question_lines.extend(
       self.get_table_generator(
         table_data={
-          "code": [f"0b{self.base['code']:b}", f"0b{self.bounds['code']:b}"],
-          "heap": [f"0b{self.base['heap']:b}", f"0b{self.bounds['heap']:b}"],
-          "stack": [f"0b{self.base['stack']:b}", f"0b{self.bounds['stack']:b}"],
+          "code": [f"0b{self.base['code']:b}", f"0b{self.bounds['code']:0b}"],
+          "heap": [f"0b{self.base['heap']:b}", f"0b{self.bounds['heap']:0b}"],
+          "stack": [f"0b{self.base['stack']:b}", f"0b{self.bounds['stack']:0b}"],
         },
         sorted_keys=[
           "code", "heap", "stack"
