@@ -212,16 +212,15 @@ class Grader__Manual(Grader):
     log.info(f"We have graded {len(graded_submissions)} submissions!")
     assignment.submissions = graded_submissions
     self.ready_to_finalize = True
-    
+  
   def grade(self, assignment: Assignment, *args, **kwargs) -> None:
     if self.is_grading_complete():
       self.finalize(assignment, args, **kwargs)
     else:
       self.prepare(assignment, *args, **kwargs)
-
+  
   def assignment_needs_preparation(self):
     return not self.is_grading_complete()
-
 
 class Grader__docker(Grader, abc.ABC):
   client = docker.from_env()

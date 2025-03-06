@@ -135,6 +135,10 @@ def main():
           log.debug(submission)
         
         if grader.ready_to_finalize:
+          finalize_assignment = input("Would you like to finalize assignment? (y/N) ").strip().lower()
+          if finalize_assignment not in ['y', 'yes']:
+            log.info("Aborting execution based on response")
+            return
           assignment.finalize(push=push_grades)
   
 
