@@ -171,7 +171,22 @@ class Assignment__ProgrammingAssignment(Assignment):
 
 @AssignmentRegistry.register("Exam")
 class Assignment__Exam(Assignment):
-  NAME_RECT = [360,50,600,130]
+  NAME_RECT =  {
+    "x" : 360,
+    "y" : 180,
+    "width" : 600,
+    "height" : 250
+  }
+
+  def __init__(self, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+    
+    self.fitz_name_rect = fitz.Rect([
+      self.NAME_RECT["x"],
+      self.NAME_RECT["y"],
+      self.NAME_RECT["x"] + self.NAME_RECT["width"],
+      self.NAME_RECT["y"] + self.NAME_RECT["height"],
+    ])
 
   class Submission__pdf(Submission):
     def __init__(self, document_id, *args, student=None, approximate_name=None, feedback:Optional[Feedback]=None, question_scores=None, **kwargs):
@@ -397,12 +412,11 @@ class Assignment__Exam(Assignment):
       log.warning("No possible submissions to match passed in")
     return submissions_w_names, submissions_wo_names, matched_students, unmatched_students
   
-  @classmethod
-  def redact_and_split(cls, path_to_pdf: str) -> List[fitz.Document]:
+  def redact_and_split(self, path_to_pdf: str) -> List[fitz.Document]:
     pdf_document = fitz.open(path_to_pdf)
     
     # First, we redact the first page
-    pdf_document[0].draw_rect(fitz.Rect(cls.NAME_RECT), color=(0,0,0), fill=(0,0,0))
+    pdf_document[0].draw_rect(self.fitz_name_rect, color=(0,0,0), fill=(0,0,0))
     
     # Next, we break the PDF up into individual pages:
     pdf_pages = []
@@ -420,13 +434,12 @@ class Assignment__Exam(Assignment):
     
     return pdf_pages
   
-  @classmethod
-  def get_approximate_student_name(cls, path_to_pdf, use_ai=True, all_student_names=None):
+  def get_approximate_student_name(self, path_to_pdf, use_ai=True, all_student_names=None):
     
     if use_ai:
       document = fitz.open(path_to_pdf)
       page = document[0]
-      pix = page.get_pixmap(clip=cls.NAME_RECT)
+      pix = page.get_pixmap(clip=list(self.fitz_name_rect))
       image_bytes = pix.tobytes("png")
       base64_str = base64.b64encode(image_bytes).decode("utf-8")
       document.close()
@@ -452,7 +465,7 @@ class Assignment__Exam(Assignment):
     exam_pdf = fitz.open()
     
     for page_number, page_map in enumerate(page_mappings):
-      log.debug(f"Adding {page_number} from {page_mappings}")
+      # log.debug(f"Adding {page_number} from {page_mappings}")
       pdf_path = os.path.join(
         input_directory,
         f"{page_number:03}",
@@ -520,3 +533,13 @@ class Assignment__Exam(Assignment):
     ])
     
     return '\n'.join(feedback_comments_lines)
+
+@AssignmentRegistry.register("ExamCST231")
+class Assignment_ExamCST231(Assignment__Exam):
+  NAME_RECT = {
+    "x" : 210,
+    "y" : 200,
+    "width" : 350,
+    "height" : 125
+  }
+  
