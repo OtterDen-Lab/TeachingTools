@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import decimal
 import fractions
+import itertools
 import math
 from decimal import Decimal
 from typing import List, Dict
@@ -27,6 +28,9 @@ class Answer():
     HEX = enum.auto()
     BINARY_OR_HEX = enum.auto()
     AUTOFLOAT = enum.auto()
+    LIST = enum.auto()
+    
+    
   def __init__(
       self, key:str,
       value,
@@ -129,6 +133,19 @@ class Answer():
         ])
       
       return possible_answers
+    elif self.variable_kind == Answer.VariableKind.LIST:
+      
+      possible_answers = [
+        {
+          "blank_id": self.key,
+          "answer_text": ','.join(map(str, possible_state)),
+          "answer_weight": 100,
+        }
+        for possible_state in itertools.permutations(self.value)
+      ]
+      
+      return possible_answers
+    
     canvas_answer = {
       "blank_id": self.key,
       "answer_text": self.value,

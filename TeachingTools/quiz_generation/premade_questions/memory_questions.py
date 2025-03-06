@@ -1,6 +1,8 @@
 #!env python
 from __future__ import annotations
 
+import abc
+import copy
 import enum
 from typing import List, Optional
 
@@ -180,7 +182,6 @@ class CachingQuestion(MemoryQuestion):
       
       return (was_hit, evicted, self.cache_state)
   
-  
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
     self.num_elements = kwargs.get("num_elements", 5)
@@ -199,6 +200,7 @@ class CachingQuestion(MemoryQuestion):
     else:
       log.debug("Reusing previous caching policy")
       self.cache_policy = previous.cache_policy
+      self.rng_seed_offset += 1
     
     log.debug(f"self.caching_policy: {self.cache_policy}")
     
@@ -226,7 +228,7 @@ class CachingQuestion(MemoryQuestion):
       self.answers.extend([
         Answer(f"answer__hit-{request_number}",         ('hit' if was_hit else 'miss'),          Answer.AnswerKind.BLANK),
         Answer(f"answer__evicted-{request_number}",     ('-' if evicted is None else f"{evicted}"),      Answer.AnswerKind.BLANK),
-        Answer(f"answer__cache_state-{request_number}", ','.join(map(str, cache_state)),  Answer.AnswerKind.BLANK),
+        Answer(f"answer__cache_state-{request_number}", copy.copy(cache_state), variable_kind=Answer.VariableKind.LIST),
       ])
       
       # log.debug(f"{request:>2} | {'hit' if was_hit else 'miss':<4} | {evicted if evicted is not None else '':<3} | {str(cache_state):<10}")
@@ -313,16 +315,17 @@ class CachingQuestion(MemoryQuestion):
   
   def is_interesting(self) -> bool:
     # todo: interesting is more likely based on whether I can differentiate between it and another algo, so maybe rerun with a different approach but same requests?
-    return (self.hit_rate / 100.0) < 0.5
+    return (self.hit_rate / 100.0) < 0.7
 
 
-class MemoryAccessQuestion(MemoryQuestion):
+class MemoryAccessQuestion(MemoryQuestion, abc.ABC):
   PROBABILITY_OF_VALID = .875
 
 
 @QuestionRegistry.register("BaseAndBounds")
 class BaseAndBounds(MemoryAccessQuestion):
   MAX_BITS = 32
+  MIN_BOUNDS_BIT = 5
   MAX_BOUNDS_BITS = 16
   
   def __init__(self, *args, **kwargs):
@@ -333,7 +336,7 @@ class BaseAndBounds(MemoryAccessQuestion):
     super().instantiate(rng_seed=rng_seed, *args, **kwargs)
     
     
-    bounds_bits = random.randint(1, self.MAX_BOUNDS_BITS)
+    bounds_bits = random.randint(self.MIN_BOUNDS_BIT, self.MAX_BOUNDS_BITS)
     base_bits = self.MAX_BITS - bounds_bits
     
     self.bounds = int(math.pow(2, bounds_bits))
@@ -413,6 +416,208 @@ class BaseAndBounds(MemoryAccessQuestion):
       ])
     return explanation_lines
 
+
+@QuestionRegistry.register()
+class Segmentation(MemoryAccessQuestion):
+  MAX_BITS = 32
+  MIN_VIRTUAL_BITS = 5
+  MAX_VIRTUAL_BITS = 10
+  
+  def __within_bounds(self, segment, offset, bounds):
+    if segment == "unallocated":
+      return False
+    elif bounds < offset:
+      return False
+    else:
+      return True
+  
+  def __init__(self, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+    
+    return
+  
+  def instantiate(self, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+    
+    # Pick how big each of our address spaces will be
+    self.virtual_bits = random.randint(self.MIN_VIRTUAL_BITS, self.MAX_VIRTUAL_BITS)
+    self.physical_bits = random.randint(self.virtual_bits+1, self.MAX_BITS)
+    
+    # Start with blank base and bounds
+    self.base = {
+      "code" : 0,
+      "heap" : 0,
+      "stack" : 0,
+    }
+    self.bounds = {
+      "code" : 0,
+      "heap" : 0,
+      "stack" : 0,
+    }
+    
+    min_bounds = 8
+    max_bounds = int(2**(self.virtual_bits - 2))
+    
+    def segment_collision(base, bounds):
+      # lol, I think this is probably silly, but should work
+      return 0 != len(set.intersection(*[
+        set(range(base[segment], base[segment]+bounds[segment]+1))
+        for segment in base.keys()
+      ]))
+    
+    self.base["unallocated"] = 0
+    self.bounds["unallocated"] = 0
+    
+    # Make random placements and check to make sure they are not overlapping
+    while (segment_collision(self.base, self.bounds)):
+      for segment in self.base.keys():
+        self.bounds[segment] = random.randint(min_bounds, max_bounds)
+        self.base[segment] = random.randint(0, (2**self.physical_bits - self.bounds[segment]))
+    
+    # Pick a random segment for us to use
+    self.segment = random.choice(list(self.base.keys()))
+    self.segment_bits = {
+      "code" : 0,
+      "heap" : 1,
+      "unallocated" : 2,
+      "stack" : 3
+    }[self.segment]
+    
+    # Try to pick a random address within that range
+    try:
+      self.offset = random.randint(0,
+        min([
+          ((self.virtual_bits-2)**2)-1,
+          int(self.bounds[self.segment] / self.PROBABILITY_OF_VALID)
+        ])
+      )
+    except KeyError:
+      # If we are in an unallocated section, we'll get a key error (I think)
+      self.offset = random.randint(0, ((self.virtual_bits-2)**2)-1)
+    
+    # Calculate a virtual address based on the segment and the offset
+    self.virtual_address = (
+        (self.segment_bits << (self.virtual_bits - 2))
+        + self.offset
+    )
+    
+    # Calculate physical address based on offset
+    self.physical_address = self.base[self.segment] + self.offset
+    
+    # Set answers based on whether it's in bounds or not
+    if self.__within_bounds(self.segment, self.offset, self.bounds[self.segment]):
+      self.answers.append(
+        Answer(
+          key="answer__physical_address",
+          value=self.physical_address,
+          variable_kind=Answer.VariableKind.BINARY_OR_HEX,
+          length=self.physical_bits
+        )
+      )
+    else :
+      self.answers.append(
+        Answer(
+          key="answer__physical_address",
+          value="INVALID",
+          variable_kind=Answer.VariableKind.STR
+        )
+      )
+    
+    self.answers.append(
+      Answer(key="answer__segment", value=self.segment, variable_kind=Answer.VariableKind.STR)
+    )
+    
+    return
+  
+  def get_body_lines(self, *args, **kwargs) -> List[str|TableGenerator]:
+    question_lines = [
+      f"Given a virtual address space of {self.virtual_bits}bits, and a physical address space of {self.physical_bits}bits, what is the physical address associated with the virtual address 0b{self.virtual_address:0{self.virtual_bits}b}?",
+      "If it is invalid simply type INVALID.",
+      "Note: assume that the stack grows in the same way as the code and the heap."
+    ]
+    
+    question_lines.extend(
+      self.get_table_generator(
+        table_data={
+          "code": [f"0b{self.base['code']:{self.physical_bits}b}", f"0b{self.bounds['code']:0b}"],
+          "heap": [f"0b{self.base['heap']:{self.physical_bits}b}", f"0b{self.bounds['heap']:0b}"],
+          "stack": [f"0b{self.base['stack']:{self.physical_bits}b}", f"0b{self.bounds['stack']:0b}"],
+        },
+        sorted_keys=[
+          "code", "heap", "stack"
+        ],
+        headers=["base", "bounds"],
+        add_header_space=True
+      )
+    )
+    
+    question_lines.extend([
+      "Segment name: [answer__segment]\n",
+      "Physical Address: [answer__physical_address]"
+    ])
+    
+    return question_lines
+  
+  def get_explanation_lines(self, *args, **kwargs) -> List[str]:
+    explanation_lines = [
+      "The core idea to keep in mind with segmentation is that you should always check the first two bits of the virtual address to see what segment it is in and then go from there."
+      "Keep in mind, we also may need to include padding if our virtual address has a number of leading zeros left off!",
+      ""
+    ]
+    
+    explanation_lines.extend([
+      f"In this problem our virtual address, converted to binary and including padding, is 0b{self.virtual_address:0{self.virtual_bits}b}.",
+      f"From this we know that our segment bits are 0b{self.segment_bits:02b}, meaning that we are in the <b>{self.segment}</b> segment.",
+      ""
+    ])
+    
+    if self.segment == "unallocated":
+      explanation_lines.extend([
+        "Since this is the unallocated segment there are no possible valid translations, so we enter <b>INVALID</b>."
+      ])
+    else:
+      explanation_lines.extend([
+        f"Since we are in the {self.segment} segment, we see from our table that our bounds are {self.bounds[self.segment]}. "
+        f"Remember that our check for our {self.segment} segment is: ",
+        f"<code> if (offset > bounds({self.segment})) : INVALID</code>",
+        "which becomes"
+        f"<code> if ({self.offset:0b} > {self.bounds[self.segment]:0b}) : INVALID</code>"
+      ])
+      
+      if not self.__within_bounds(self.segment, self.offset, self.bounds[self.segment]):
+        # then we are outside of bounds
+        explanation_lines.extend([
+          "We can therefore see that we are outside of bounds so we should put <b>INVALID</b>.",
+          "If we <i>were</i> requesting a valid memory location we could use the below steps to do so."
+          "<hr>"
+        ])
+      else:
+        explanation_lines.extend([
+          "We are therefore in bounds so we can calculate our physical address, as we do below."
+        ])
+      
+      explanation_lines.append("")
+      
+      explanation_lines.extend([
+        "To find the physical address we use the formula:",
+        "<code>physical_address = base(segment) + offset</code>",
+        "which becomes",
+        f"<code>physical_address = {self.base[self.segment]:0b} + {self.offset:0b}</code>.",
+        ""
+      ])
+      
+      explanation_lines.extend([
+        "Lining this up for ease we can do this calculation as:",
+        "<pre><code>",
+        f"  0b{self.base[self.segment]:0{self.physical_bits}b}",
+        f"<u>+ 0b{self.offset:0{self.physical_bits}b}</u>",
+        f"  0b{self.physical_address:0{self.physical_bits}b}"
+        "</code></pre>"
+      ])
+    
+    return explanation_lines
+
+
 @QuestionRegistry.register()
 class Paging(MemoryAccessQuestion):
   
@@ -490,6 +695,7 @@ class Paging(MemoryAccessQuestion):
     
     lines.extend([
       TableGenerator(
+        headers=[],
         value_matrix=[
           ["Virtual Address", f"0b{self.virtual_address:0{self.num_vpn_bits + self.num_offset_bits}b}"],
           ["# VPN bits", f"{self.num_vpn_bits}"],
@@ -497,6 +703,8 @@ class Paging(MemoryAccessQuestion):
         ]
       )
     ])
+    
+    lines.extend(["\n\n"])
     
     # Make values for Page Table
     table_size = random.randint(5,10)
@@ -606,204 +814,3 @@ class Paging(MemoryAccessQuestion):
 # todo: below this line #
 #########################
 
-
-@QuestionRegistry.register()
-class Segmentation(MemoryAccessQuestion):
-  MAX_BITS = 32
-  MIN_VIRTUAL_BITS = 5
-  MAX_VIRTUAL_BITS = 10
-  
-  def __within_bounds(self, segment, offset, bounds):
-    if segment == "unallocated":
-      return False
-    elif bounds < offset:
-      return False
-    else:
-      return True
-  
-  def __init__(self, *args, **kwargs):
-    super().__init__(*args, **kwargs)
-    
-    return
-    
-  def instantiate(self, *args, **kwargs):
-    super().__init__(*args, **kwargs)
-    
-    # Pick how big each of our address spaces will be
-    self.virtual_bits = random.randint(self.MIN_VIRTUAL_BITS, self.MAX_VIRTUAL_BITS)
-    self.physical_bits = random.randint(self.virtual_bits+1, self.MAX_BITS)
-    
-    # Start with blank base and bounds
-    self.base = {
-      "code" : 0,
-      "heap" : 0,
-      "stack" : 0,
-    }
-    self.bounds = {
-      "code" : 0,
-      "heap" : 0,
-      "stack" : 0,
-    }
-    
-    min_bounds = 2
-    max_bounds = int(2**(self.virtual_bits - 2))
-    
-    def segment_collision(base, bounds):
-      # lol, I think this is probably silly, but should work
-      return 0 != len(set.intersection(*[
-        set(range(base[segment], base[segment]+bounds[segment]+1))
-        for segment in base.keys()
-      ]))
-    
-    self.base["unallocated"] = 0
-    self.bounds["unallocated"] = 0
-    
-    # Make random placements and check to make sure they are not overlapping
-    while (segment_collision(self.base, self.bounds)):
-      for segment in self.base.keys():
-        self.bounds[segment] = random.randint(min_bounds, max_bounds)
-        self.base[segment] = random.randint(0, (2**self.physical_bits - self.bounds[segment]))
-    
-    # Pick a random segment for us to use
-    self.segment = random.choice(list(self.base.keys()))
-    self.segment_bits = {
-      "code" : 0,
-      "heap" : 1,
-      "unallocated" : 2,
-      "stack" : 3
-    }[self.segment]
-    
-    # Try to pick a random address within that range
-    try:
-      self.offset = random.randint(0,
-        min([
-          ((self.virtual_bits-2)**2)-1,
-          int(self.bounds[self.segment] / self.PROBABILITY_OF_VALID)
-        ])
-      )
-    except KeyError:
-      # If we are in an unallocated section, we'll get a key error (I think)
-      self.offset = random.randint(0, ((self.virtual_bits-2)**2)-1)
-    
-    # Calculate a virtual address based on the segment and the offset
-    self.virtual_address = (
-        (self.segment_bits << (self.virtual_bits - 2))
-        + self.offset
-    )
-    
-    # Calculate physical address based on offset
-    self.physical_address = self.base[self.segment] + self.offset
-    
-    # Set answers based on whether it's in bounds or not
-    if self.__within_bounds(self.segment, self.offset, self.bounds[self.segment]):
-      self.answers.append(
-        Answer(
-          key="answer__physical_address",
-          value=self.physical_address,
-          variable_kind=Answer.VariableKind.BINARY_OR_HEX,
-          length=self.physical_bits
-        )
-      )
-    else :
-      self.answers.append(
-        Answer(
-          key="answer__physical_address",
-          value="INVALID",
-          variable_kind=Answer.VariableKind.STR
-        )
-      )
-    
-    self.answers.append(
-      Answer(key="answer__segment", value=self.segment, variable_kind=Answer.VariableKind.STR)
-    )
-    
-    return
-  
-  def get_body_lines(self, *args, **kwargs) -> List[str|TableGenerator]:
-    question_lines = [
-      f"Given a virtual address space of {self.virtual_bits}bits, and a physical address space of {self.physical_bits}bits, what is the physical address associated with the virtual address 0b{self.virtual_address:0{self.virtual_bits}b}?",
-      "If it is invalid simply type INVALID.",
-      "Note: assume that the stack grows in the same way as the code and the heap."
-    ]
-    
-    question_lines.extend(
-      self.get_table_generator(
-        table_data={
-          "code": [f"0b{self.base['code']:b}", f"0b{self.bounds['code']:0b}"],
-          "heap": [f"0b{self.base['heap']:b}", f"0b{self.bounds['heap']:0b}"],
-          "stack": [f"0b{self.base['stack']:b}", f"0b{self.bounds['stack']:0b}"],
-        },
-        sorted_keys=[
-          "code", "heap", "stack"
-        ],
-        headers=["base", "bounds"],
-        add_header_space=True
-      )
-    )
-    
-    question_lines.extend([
-      "Segment name: [answer__segment]\n",
-      "Physical Address: [answer__physical_address]"
-    ])
-    
-    return question_lines
-  
-  def get_explanation_lines(self, *args, **kwargs) -> List[str]:
-    explanation_lines = [
-      "The core idea to keep in mind with segmentation is that you should always check the first two bits of the virtual address to see what segment it is in and then go from there."
-      "Keep in mind, we also may need to include padding if our virtual address has a number of leading zeros left off!",
-      ""
-    ]
-    
-    explanation_lines.extend([
-      f"In this problem our virtual address, converted to binary and including padding, is 0b{self.virtual_address:0{self.virtual_bits}b}.",
-      f"From this we know that our segment bits are 0b{self.segment_bits:02b}, meaning that we are in the <b>{self.segment}</b> segment.",
-      ""
-    ])
-    
-    if self.segment == "unallocated":
-      explanation_lines.extend([
-        "Since this is the unallocated segment there are no possible valid translations, so we enter <b>INVALID</b>."
-      ])
-    else:
-      explanation_lines.extend([
-        f"Since we are in the {self.segment} segment, we see from our table that our bounds are {self.bounds[self.segment]}. "
-        f"Remember that our check for our {self.segment} segment is: ",
-        f"<code> if (offset > bounds({self.segment})) : INVALID</code>",
-        "which becomes"
-        f"<code> if ({self.offset:0b} > {self.bounds[self.segment]:0b}) : INVALID</code>"
-      ])
-      
-      if not self.__within_bounds(self.segment, self.offset, self.bounds[self.segment]):
-        # then we are outside of bounds
-        explanation_lines.extend([
-          "We can therefore see that we are outside of bounds so we should put <b>INVALID</b>.",
-          "If we <i>were</i> requesting a valid memory location we could use the below steps to do so."
-          "<hr>"
-        ])
-      else:
-        explanation_lines.extend([
-          "We are therefore in bounds so we can calculate our physical address, as we do below."
-        ])
-      
-      explanation_lines.append("")
-      
-      explanation_lines.extend([
-        "To find the physical address we use the formula:",
-        "<code>physical_address = base(segment) + offset</code>",
-        "which becomes",
-        f"<code>physical_address = {self.base[self.segment]:0b} + {self.offset:0b}</code>.",
-        ""
-      ])
-      
-      explanation_lines.extend([
-        "Lining this up for ease we can do this calculation as:",
-        "<pre><code>",
-        f"  0b{self.base[self.segment]:0{self.physical_bits}b}",
-        f"<u>+ 0b{self.offset:0{self.physical_bits}b}</u>",
-        f"  0b{self.physical_address:0{self.physical_bits}b}"
-        "</code></pre>"
-      ])
-    
-    return explanation_lines
-    

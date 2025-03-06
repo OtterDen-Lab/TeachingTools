@@ -173,7 +173,7 @@ class AverageMemoryAccessTime(MathQuestion):
     self.amat = self.hit_rate * self.hit_latency + (1 - self.hit_rate) * self.miss_latency
     
     self.answers = [
-      Answer("amat", self.amat, Answer.AnswerKind.BLANK)
+      Answer("amat", self.amat, Answer.AnswerKind.BLANK, variable_kind=Answer.VariableKind.FLOAT)
     ]
   
   def get_body_lines(self, *args, **kwargs) -> List[str]:
