@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import decimal
 import fractions
+import math
 from decimal import Decimal
 from typing import List, Dict
 
@@ -81,20 +82,28 @@ class Answer():
           "blank_id": self.key,
           "answer_text": f"{self.value:0{self.length if self.length is not None else 0}b}",
           "answer_weight": 100,
-        },{
+        },
+        {
           "blank_id": self.key,
           "answer_text": f"0b{self.value:0{self.length if self.length is not None else 0}b}",
           "answer_weight": 100,
         },
         {
           "blank_id": self.key,
-          "answer_text": f"{self.value:0{self.length if self.length is not None else 0}X}",
+          "answer_text": f"{self.value:0{math.ceil(self.length / 8) if self.length is not None else 0}X}",
           "answer_weight": 100,
-        },{
+        },
+        {
           "blank_id": self.key,
-          "answer_text": f"0x{self.value:0{self.length if self.length is not None else 0}X}",
+          "answer_text": f"0x{self.value:0{math.ceil(self.length / 8) if self.length is not None else 0}X}",
           "answer_weight": 100,
-        }
+        },
+        {
+          "blank_id": self.key,
+          "answer_text": f"{self.value}",
+          "answer_weight": 100,
+        },
+      
       ]
     elif self.variable_kind == Answer.VariableKind.AUTOFLOAT:
       value_fraction = fractions.Fraction(self.value).limit_denominator(3*4*5) # For process questions, these are the numbers of jobs we'd have
