@@ -249,7 +249,7 @@ class Assignment__Exam(Assignment):
     # It feels weird to pre-allocate, but it makes it clearer than doing it in flow I think
     pdfs_to_process = input_pdfs[:(limit if limit is not None else len(input_pdfs))]
     num_users = len(pdfs_to_process)
-    num_pages_to_expect = fitz.open(input_pdfs[0]).page_count
+    num_pages_to_expect = len(kwargs.get("page_ranges", fitz.open(input_pdfs[0])))
     page_mappings_by_user = collections.defaultdict(list)
     
     # For each page, shuffle the order so we can handle them in different orders
@@ -307,7 +307,7 @@ class Assignment__Exam(Assignment):
       shuffled_document.save(os.path.join("01-shuffled", f"{document_id:03}.pdf"))
       
       # Break up each submission into pages
-      page_docs : List[fitz.Document] = self.redact_and_split(pdf_filepath)
+      page_docs : List[fitz.Document] = self.redact_and_split(pdf_filepath, *args, **kwargs)
       for page_number, page in enumerate(page_docs):
         
         # Determine the output directory
@@ -325,28 +325,9 @@ class Assignment__Exam(Assignment):
       
     log.debug(f"assignment_submissions: {assignment_submissions}")
     
-
     self.submissions = assignment_submissions
     
     return
-    
-    #todo: migrate the below to the grader
-    log.debug(assignment_submissions)
-    # Make a dataframe
-    df = pd.DataFrame([
-      {
-        "document_id" : submission.document_id,
-        "page_mappings" : page_mappings_by_user[submission.document_id],
-        "name" : submission.student.name if submission.student is not None else "",
-        "user_id" : submission.student.user_id if submission.student is not None else "",
-        "total" : 0.0
-      }
-      for submission in assignment_submissions
-    ])
-    print(df.head())
-    df = df.sort_values(by="document_id")
-    
-    df.to_csv("grades.intermediate.csv", index=False)
   
   def finalize(self, *args, **kwargs):
     log.debug("Finalizing grades")
@@ -412,7 +393,7 @@ class Assignment__Exam(Assignment):
       log.warning("No possible submissions to match passed in")
     return submissions_w_names, submissions_wo_names, matched_students, unmatched_students
   
-  def redact_and_split(self, path_to_pdf: str) -> List[fitz.Document]:
+  def redact_and_split(self, path_to_pdf: str, page_ranges : Optional[List[Tuple[int]]] = None, *args, **kwargs) -> List[fitz.Document]:
     pdf_document = fitz.open(path_to_pdf)
     
     # First, we redact the first page
@@ -421,13 +402,23 @@ class Assignment__Exam(Assignment):
     # Next, we break the PDF up into individual pages:
     pdf_pages = []
     
+    # If no ranges are specified, simply make groups of single pages
+    if page_ranges is None:
+      num_pages_per_group = 3
+      num_total_pages = len(pdf_document)
+      page_ranges = [
+        (start, min(start + num_pages_per_group - 1, num_total_pages))
+                    for start in range(0, num_total_pages + 1, num_pages_per_group)
+      ]
+    log.debug(f"page_ranges: {page_ranges}")
+    
     # Loop through all pages
-    for page_number in range(len(pdf_document)):
+    for (start_page, end_page) in page_ranges:
       # Create a new document in memory
       single_page_pdf = fitz.open()
       
       # Insert the current page into the new document
-      single_page_pdf.insert_pdf(pdf_document, from_page=page_number, to_page=page_number)
+      single_page_pdf.insert_pdf(pdf_document, from_page=start_page, to_page=end_page)
       
       # Append the single-page document to the list
       pdf_pages.append(single_page_pdf)
@@ -480,6 +471,7 @@ class Assignment__Exam(Assignment):
     
     output_bytes = io.BytesIO()
     exam_pdf.save(output_bytes)
+    exam_pdf.save("temp.pdf")
     output_bytes.seek(0)
     return output_bytes
   
@@ -534,12 +526,12 @@ class Assignment__Exam(Assignment):
     
     return '\n'.join(feedback_comments_lines)
 
+
 @AssignmentRegistry.register("ExamCST231")
-class Assignment_ExamCST231(Assignment__Exam):
+class Assignment__JoshExam(Assignment__Exam):
   NAME_RECT = {
     "x" : 210,
     "y" : 200,
     "width" : 350,
     "height" : 125
   }
-  
