@@ -245,11 +245,20 @@ class Assignment__Exam(Assignment):
     # Shuffle inputs
     random.shuffle(input_pdfs)
     
+    # Prepare page ranges
+    num_pages_in_pdf = fitz.open(input_pdfs[0]).page_count
+    pages_to_merge = [num for start, end in kwargs.get("pages_to_merge", []) for num in range(start, end + 1)]
+    page_ranges = [
+      (p, p) for p in range(num_pages_in_pdf) if p not in pages_to_merge
+    ]
+    page_ranges.extend([tuple(r) for r in kwargs.get("pages_to_merge", [])])
+    page_ranges.sort()
+    
     # Pre-allocate page mappings
     # It feels weird to pre-allocate, but it makes it clearer than doing it in flow I think
     pdfs_to_process = input_pdfs[:(limit if limit is not None else len(input_pdfs))]
     num_users = len(pdfs_to_process)
-    num_pages_to_expect = len(kwargs.get("page_ranges", fitz.open(input_pdfs[0])))
+    num_pages_to_expect = len(page_ranges)
     page_mappings_by_user = collections.defaultdict(list)
     
     # For each page, shuffle the order so we can handle them in different orders
@@ -307,7 +316,7 @@ class Assignment__Exam(Assignment):
       shuffled_document.save(os.path.join("01-shuffled", f"{document_id:03}.pdf"))
       
       # Break up each submission into pages
-      page_docs : List[fitz.Document] = self.redact_and_split(pdf_filepath, *args, **kwargs)
+      page_docs : List[fitz.Document] = self.redact_and_split(pdf_filepath, page_ranges=page_ranges)
       for page_number, page in enumerate(page_docs):
         
         # Determine the output directory
@@ -393,7 +402,7 @@ class Assignment__Exam(Assignment):
       log.warning("No possible submissions to match passed in")
     return submissions_w_names, submissions_wo_names, matched_students, unmatched_students
   
-  def redact_and_split(self, path_to_pdf: str, page_ranges : Optional[List[Tuple[int]]] = None, *args, **kwargs) -> List[fitz.Document]:
+  def redact_and_split(self, path_to_pdf: str, page_ranges : Optional[List[Tuple[int,int]]] = None, *args, **kwargs) -> List[fitz.Document]:
     pdf_document = fitz.open(path_to_pdf)
     
     # First, we redact the first page
