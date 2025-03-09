@@ -9,10 +9,6 @@ import pkgutil
 import pprint
 import time
 
-import docker
-import docker.errors
-import docker.models.images
-import docker.models.containers
 import io
 import tarfile
 import os
@@ -27,6 +23,14 @@ from typing import List, Tuple, Optional
 
 from TeachingTools.grading_assistant.assignment import Assignment
 from TeachingTools.lms_interface.classes import Feedback, Submission
+
+docker = None
+def _import_docker():
+  global docker
+  if docker is None:
+    import docker as docker_module
+    docker = docker_module
+
 
 import logging
 logging.basicConfig()
@@ -235,6 +239,10 @@ class Grader__docker(Grader, abc.ABC):
   
   def __init__(self, image=None, *args, **kwargs):
     super().__init__(*args, **kwargs)
+    
+    
+    # Import docker if needed
+    _import_docker()
     
     # Set up docker client class-wide if it hasn't been set up yet
     if self.__class__.client is None:
