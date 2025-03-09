@@ -222,41 +222,49 @@ class Grader__Manual(Grader):
   def assignment_needs_preparation(self):
     return not self.is_grading_complete()
 
+
 class Grader__docker(Grader, abc.ABC):
-  client = docker.from_env()
+  client = None
   
   def __init__(self, image=None, *args, **kwargs):
     super().__init__(*args, **kwargs)
+    
+    # Set up docker client class-wide if it hasn't been set up yet
+    if self.__class__.client is None:
+      self.__class__.client = docker.from_env()
+    
     self.image = image if image is not None else "ubuntu"
     self.container: Optional[docker.models.containers.Container] = None
   
   @classmethod
-  def build_docker_image(cls, base_image, github_repo):
+  def build_docker_image(cls, dockerfile_str):
     log.info("Building docker image for grading...")
     
-    docker_file = io.BytesIO(f"""
-    FROM samogden/cst334
-    RUN git clone {github_repo} /tmp/grading/
-    WORKDIR /tmp/grading
-    CMD ["/bin/bash"]
-    """.encode())
+    docker_file = io.BytesIO(dockerfile_str.encode())
     
     image, logs = cls.client.images.build(
       fileobj=docker_file,
-      tag="grading",
       pull=True,
-      nocache=True
+      nocache=True,
+      rm=True,
+      forcerm=True
     )
-    # log.debug(logs)
-    log.debug("Docker image built successfully")
+    
+    log.debug(f"Successfully build docker image {image.id}")
     return image
   
-  def start(self, image : docker.models.images,):
+  def start_container(self, image : docker.models.images,):
     self.container = self.client.containers.run(
       image=image,
       detach=True,
-      tty=True
+      tty=True,
+      remove=True
     )
+    
+  def stop_container(self):
+    self.container.stop(timeout=1)
+    self.container = None
+  
   
   def add_files_to_docker(self, files_to_copy : List[Tuple[str,str]] = None):
     """
@@ -278,7 +286,7 @@ class Grader__docker(Grader, abc.ABC):
     for src_file, target_dir in files_to_copy:
       add_file_to_container(src_file, target_dir, self.container)
   
-  def execute(self, command="", container=None, workdir=None) -> Tuple[int, str, str]:
+  def execute_command_in_container(self, command="", container=None, workdir=None) -> Tuple[int, str, str]:
     log.debug(f"execute: {command}")
     if container is None:
       container = self.container
@@ -296,7 +304,7 @@ class Grader__docker(Grader, abc.ABC):
     
     return rc, stdout, stderr
   
-  def read_file(self, path_to_file) -> Optional[str]:
+  def read_file_from_container(self, path_to_file) -> Optional[str]:
     
     try:
       # Try to find the file on the system
@@ -318,18 +326,13 @@ class Grader__docker(Grader, abc.ABC):
       f.seek(0)
       return f.read().decode()
   
-  def stop(self):
-    self.container.stop(timeout=1)
-    self.container.remove(force=True)
-    self.container = None
-  
   def __enter__(self):
     log.info(f"Starting docker image {self.image} context")
-    self.start(self.image)
+    self.start_container(self.image)
   
   def __exit__(self, exc_type, exc_val, exc_tb):
     log.info(f"Exiting docker image context")
-    self.stop()
+    self.stop_container()
     if exc_type is not None:
       log.error(f"An exception occured: {exc_val}")
       log.error(exc_tb)
@@ -362,24 +365,31 @@ class Grader__docker(Grader, abc.ABC):
     
     # todo: make this less of a nuclear option, since this will get all containers, even those that aren't ours!
     
-    containers = self.client.containers.list(all=True)
-
-    # Remove all containers
-    for container in containers:
-      print(f"Removing container {container.id}")
-      container.remove(force=True)  # Use force=True to stop and remove running ones
-    
-    # List all images
-    images = self.client.images.list()
-    
-    # Remove all images
-    for image in images:
-      print(f"Removing image {image.id}")
-      self.client.images.remove(image.id, force=True)
+    # containers = self.client.containers.list(all=True)
+    #
+    # # Remove all containers
+    # for container in containers:
+    #   print(f"Removing container {container.id}")
+    #   container.remove(force=True)  # Use force=True to stop and remove running ones
+    #
+    # # List all images
+    # images = self.client.images.list()
+    #
+    # # Remove all images
+    # for image in images:
+    #   print(f"Removing image {image.id}")
+    #   self.client.images.remove(image.id, force=True)
 
 
 @GraderRegistry.register("CST334")
 class Grader__CST334(Grader__docker):
+  
+  dockerfile_str = """
+  FROM samogden/cst334
+  RUN git clone https://www.github.com/samogden/CST334-assignments.git /tmp/grading/
+  WORKDIR /tmp/grading
+  CMD ["/bin/bash"]
+  """
   
   def __init__(self, assignment_path, use_online_repo=False):
     super().__init__()
@@ -388,7 +398,7 @@ class Grader__CST334(Grader__docker):
     else:
       github_repo = "https://github.com/samogden/CST334-assignments.git"
     self.assignment_path = assignment_path
-    self.image = self.build_docker_image(base_image="samogden/cst334", github_repo=github_repo)
+    self.image = self.build_docker_image(self.dockerfile_str)
   
   def __del__(self):
     self.image.remove(force=True)
@@ -486,14 +496,14 @@ class Grader__CST334(Grader__docker):
     return '\n'.join(feedback_strs)
   
   def execute_grading(self, programming_assignment, *args, **kwargs) -> Tuple[int, str, str]:
-    rc, stdout, stderr = self.execute(
+    rc, stdout, stderr = self.execute_command_in_container(
       command="timeout 120 python ../../helpers/grader.py --output /tmp/results.json",
       workdir=f"/tmp/grading/programming-assignments/{programming_assignment}/"
     )
     return rc, stdout, stderr
   
   def score_grading(self, *args, **kwargs) -> Feedback:
-    results = self.read_file("/tmp/results.json")
+    results = self.read_file_from_container("/tmp/results.json")
     if results is None:
       # Then something went awry in reading back feedback file
       return Feedback(
@@ -579,6 +589,15 @@ class Grader__CST334(Grader__docker):
     return final_feedback
 
 
+@GraderRegistry.register("CST334online")
+class Grader__CST334online(Grader__CST334):
+  dockerfile_str = """
+  FROM samogden/cst334
+  RUN git clone https://www.github.com/samogden/CST334-assignments-online.git /tmp/grading/
+  WORKDIR /tmp/grading
+  CMD ["/bin/bash"]
+  """
+
 @GraderRegistry.register("Step-by-step")
 class Grader_stepbystep(Grader__docker):
   
@@ -627,7 +646,7 @@ class Grader_stepbystep(Grader__docker):
       tty=True
     )
   
-  def stop(self):
+  def stop_container(self):
     self.golden_container.stop(timeout=1)
     self.golden_container.remove(force=True)
     self.golden_container = None
@@ -646,8 +665,8 @@ class Grader_stepbystep(Grader__docker):
     
     for i, (golden, student) in enumerate(zip(golden_lines, student_lines)):
       log.debug(f"commands: '{golden}' <-> '{student}'")
-      rc_g, stdout_g, stderr_g = self.execute(container=self.golden_container, command=golden)
-      rc_s, stdout_s, stderr_s = self.execute(container=self.student_container, command=student)
+      rc_g, stdout_g, stderr_g = self.execute_command_in_container(container=self.golden_container, command=golden)
+      rc_s, stdout_s, stderr_s = self.execute_command_in_container(container=self.student_container, command=student)
       add_results(golden_results, rc_g, stdout_g, stderr_g)
       add_results(student_results, rc_s, stdout_s, stderr_s)
       if (not self.outputs_match(stdout_g, stdout_s, stderr_g, stderr_s, rc_g, rc_s) ) and rollback:
