@@ -233,24 +233,35 @@ class Grader__docker(Grader, abc.ABC):
     if self.__class__.client is None:
       self.__class__.client = docker.from_env()
     
+    # Default to using ubuntu image
     self.image = image if image is not None else "ubuntu"
     self.container: Optional[docker.models.containers.Container] = None
+    
+  def __del__(self):
+    try:
+      self.image.remove(force=True)
+    except AttributeError:
+      pass
   
   @classmethod
   def build_docker_image(cls, dockerfile_str):
+    """
+    Given a dockerfile as a string, creates and returns this image
+    :param dockerfile_str: dockerfile as a single string
+    :return: a docker image
+    """
     log.info("Building docker image for grading...")
     
-    docker_file = io.BytesIO(dockerfile_str.encode())
-    
     image, logs = cls.client.images.build(
-      fileobj=docker_file,
+      fileobj=io.BytesIO(dockerfile_str.encode()),
       pull=True,
       nocache=True,
+      tag=f"grading:{cls.__name__.lower()}",
       rm=True,
       forcerm=True
     )
     
-    log.debug(f"Successfully build docker image {image.id}")
+    log.debug(f"Successfully build docker image {image.tags}")
     return image
   
   def start_container(self, image : docker.models.images,):
@@ -264,7 +275,6 @@ class Grader__docker(Grader, abc.ABC):
   def stop_container(self):
     self.container.stop(timeout=1)
     self.container = None
-  
   
   def add_files_to_docker(self, files_to_copy : List[Tuple[str,str]] = None):
     """
@@ -399,9 +409,6 @@ class Grader__CST334(Grader__docker):
       github_repo = "https://github.com/samogden/CST334-assignments.git"
     self.assignment_path = assignment_path
     self.image = self.build_docker_image(self.dockerfile_str)
-  
-  def __del__(self):
-    self.image.remove(force=True)
   
   def check_for_trickery(self, files_submitted) -> bool:
     for input_file in files_submitted:
