@@ -1,5 +1,5 @@
-prod: False
-push: False
+prod: True
+push: True
 courses:
   - name: CST334
     id: 27739
