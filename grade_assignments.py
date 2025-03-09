@@ -158,7 +158,7 @@ def main():
               **yaml_assignment.get("kwargs", {})
             )
             
-          grader.grade(assignment, **assignment_grading_kwargs)
+          grader.grade_assignment(assignment, **assignment_grading_kwargs)
           
           for submission in assignment.submissions:
             log.debug(submission)

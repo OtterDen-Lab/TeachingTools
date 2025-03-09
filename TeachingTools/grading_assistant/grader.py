@@ -38,14 +38,26 @@ class Grader(abc.ABC):
     super().__init__()
     self.ready_to_finalize = True
 
-  @abc.abstractmethod
-  def grade(self, assignment: Assignment, *args, **kwargs) -> None:
+  def grade_assignment(self, assignment: Assignment, *args, **kwargs) -> None:
     """
     Takes an assignment and walks through its submissions and grades each.
     :param assignment: Takes in an assignment.Assignment object to grade
     :return:
     """
-    pass
+    for submission in assignment.submissions:
+      if submission.files is None or len(submission.files) == 0:
+        submission.feedback = Feedback(0.0, "Assignment submission files missing")
+        continue
+      submission.feedback = self.grade_submission(submission.files, **kwargs)
+
+  def grade_submission(self, submission, **kwargs) -> Feedback:
+    """
+    Takes in a submission, grades it, and returns back a Feedback
+    :param submission: A Submission object that may have files associated with it
+    :param kwargs:
+    :return: returns a Feedback object for the submission
+    """
+    return Feedback(score=0.0, comments="(grade_submission not implemented)")
 
   def assignment_needs_preparation(self):
     return True
@@ -67,6 +79,7 @@ class Grader(abc.ABC):
     :param kwargs:
     :return:
     """
+
 
 class GraderRegistry:
   _registry = {}
@@ -112,7 +125,7 @@ class GraderRegistry:
 
 @GraderRegistry.register("Dummy")
 class Grader__Dummy(Grader):
-  def grade(self, assignment: Assignment, *args, **kwargs) -> None:
+  def grade_assignment(self, assignment: Assignment, *args, **kwargs) -> None:
     for submission in assignment.submissions:
       log.info(f"Grading {submission}...")
       submission.feedback = Feedback(43.0, "(Grader not actually run.  Please contact your professor if you see this in production.)")
@@ -213,7 +226,7 @@ class Grader__Manual(Grader):
     assignment.submissions = graded_submissions
     self.ready_to_finalize = True
   
-  def grade(self, assignment: Assignment, *args, **kwargs) -> None:
+  def grade_assignment(self, assignment: Assignment, *args, **kwargs) -> None:
     if self.is_grading_complete():
       self.finalize(assignment, args, **kwargs)
     else:
@@ -238,6 +251,7 @@ class Grader__docker(Grader, abc.ABC):
     self.container: Optional[docker.models.containers.Container] = None
     
   def __del__(self):
+    # Try to remove image, and if it hasn't been set up properly delete
     try:
       self.image.remove(force=True)
     except AttributeError:
@@ -264,7 +278,7 @@ class Grader__docker(Grader, abc.ABC):
     log.debug(f"Successfully build docker image {image.tags}")
     return image
   
-  def start_container(self, image : docker.models.images,):
+  def start_container(self, image : docker.models.images):
     self.container = self.client.containers.run(
       image=image,
       detach=True,
@@ -297,7 +311,7 @@ class Grader__docker(Grader, abc.ABC):
       add_file_to_container(src_file, target_dir, self.container)
   
   def execute_command_in_container(self, command="", container=None, workdir=None) -> Tuple[int, str, str]:
-    log.debug(f"execute: {command}")
+    log.debug(f"executing: {command}")
     if container is None:
       container = self.container
     
@@ -362,13 +376,6 @@ class Grader__docker(Grader, abc.ABC):
         self.add_files_to_docker(files_to_copy)
       execution_results = self.execute_grading(*args, **kwargs)
       return self.score_grading(execution_results,*args,  **kwargs)
-  
-  def grade(self, assignment: Assignment, *args, **kwargs) -> None:
-    for submission in assignment.submissions:
-      if submission.files is None or len(submission.files) == 0:
-        submission.feedback = Feedback(0.0, "Assignment submission files missing")
-        continue
-      submission.feedback = self.grade_assignment(submission.files, **kwargs)
 
   def finalize(self, *args, **kwargs):
     super().finalize()
@@ -536,7 +543,7 @@ class Grader__CST334(Grader__docker):
     ]
     return super().grade_in_docker(files_to_copy, programming_assignment=programming_assignment, lint_bonus=lint_bonus)
   
-  def grade_assignment(self, input_files: List[str], *args, **kwargs) -> Feedback:
+  def grade_submission(self, input_files: List[str], **kwargs) -> Feedback:
     
     # Legacy settings
     use_max = "use_max" in kwargs and kwargs["use_name"]
