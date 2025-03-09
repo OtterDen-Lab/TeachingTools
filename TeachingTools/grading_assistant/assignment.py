@@ -163,7 +163,10 @@ class Assignment__ProgrammingAssignment(Assignment):
       log.warning(f"Limiting to {limit} students")
       self.submissions = self.submissions[:limit]
     for i, submission in enumerate(self.submissions):
-      log.debug(f"{i+1 : 0{math.ceil(math.log10(len(self.submissions)))}} : {submission.student.name} -> files: {submission.files}")
+      try:
+        log.debug(f"{i+1 : 0{math.ceil(math.log10(len(self.submissions)))}} : {submission.student.name} -> files: {[f.name for f in submission.files]}")
+      except:
+        log.debug(f"No files for {submission.student.name}")
     
   def finalize(self, *args, **kwargs):
     super().finalize(*args, **kwargs)
