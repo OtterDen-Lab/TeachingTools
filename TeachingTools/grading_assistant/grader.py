@@ -523,8 +523,8 @@ class Grader__CST334(Grader__docker):
     )
   
   def grade_submission(self, submission, **kwargs) -> Feedback:
-    # todo: make it flexible for programming assignments
-    path_to_programming_assignment = kwargs.get("path_to_programming_assignment", "programming-assignments/PA1")
+    
+    path_to_programming_assignment = os.path.join("programming-assignments", kwargs.get("assignment_name"))
     
     # Gather submission files in a format to copy over
     submission_files = []
@@ -564,6 +564,7 @@ class Grader__CST334(Grader__docker):
 
     feedback.comments += f"\n\n\n{full_feedback}"
     return feedback
+
 
 @GraderRegistry.register("CST334online")
 class Grader__CST334online(Grader__CST334):
