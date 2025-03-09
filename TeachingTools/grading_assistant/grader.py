@@ -542,11 +542,11 @@ class Grader__CST334(Grader__docker):
       )
     
     # Grade as many times as we're requested to, gathering results for later
-    list_of_feedback : List[Feedback] = []
+    all_feedback : List[Feedback] = []
     
     for i in range(kwargs.get("num_repeats", 3)):
       # Grade results in docker
-      list_of_feedback.append(
+      all_feedback.append(
         self.grade_in_docker(
           files_to_copy=submission_files,
           path_to_programming_assignment=path_to_programming_assignment
@@ -554,22 +554,16 @@ class Grader__CST334(Grader__docker):
       )
       
     # Select feedback and return
-    feedback = min(list_of_feedback)
+    feedback = min(all_feedback)
+    
+    full_feedback =  "##################\n"
+    full_feedback += "## All results: ##\n"
+    for i, result in enumerate(all_feedback):
+      full_feedback += f"test {i}: {result.comments} points\n"
+    full_feedback += "##################\n"
+
+    feedback.comments += f"\n\n\n{full_feedback}"
     return feedback
-    
-    # Select best feedback and add a little bit on
-    final_feedback.comments += "\n\n"
-    final_feedback.comments += "###################\n"
-    final_feedback.comments += "## Full results: ##\n"
-    for i, result in enumerate(list_of_results):
-      final_feedback.comments += f"test {i}: {result.comments} points\n"
-    final_feedback.comments += "###################\n"
-    
-    
-    log.debug(f"result: {result}")
-    
-    return Feedback(score=42, comments="Not actually graded")
-  
 
 @GraderRegistry.register("CST334online")
 class Grader__CST334online(Grader__CST334):
