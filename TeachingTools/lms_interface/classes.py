@@ -7,7 +7,7 @@ import dataclasses
 import functools
 import io
 import os
-import urllib
+import urllib.request
 from typing import Optional, List, Dict
 
 logging.basicConfig()
@@ -84,15 +84,16 @@ class Submission__Canvas(Submission):
       for attachment in self._attachments:
         
         # Generate a local file name with a number of options
-        local_file_name = f"{self.student.name.replace(' ', '-')}_{self.student.user_id}_{attachment['filename']}"
+        # todo: make this into a fake file perhaps?
+        # local_file_name = f"{self.student.name.replace(' ', '-')}_{self.student.user_id}_{attachment['filename']}"
+        local_file_name = f"{attachment['filename']}"
         local_path = os.path.join(download_dir, local_file_name)
-        urllib.request.urlretrieve(attachment['url'], local_path)
-        
-        self._files.append(local_path)
-        
-        
+        with urllib.request.urlopen(attachment['url']) as response:
+          buffer = io.BytesIO(response.read())
+          buffer.name = local_file_name
+          self._files.append(buffer)
+    
     return self._files
-
 
 
 @functools.total_ordering

@@ -7,6 +7,7 @@ import importlib
 import pathlib
 import pkgutil
 import pprint
+import time
 
 import docker
 import docker.errors
@@ -31,54 +32,6 @@ import logging
 logging.basicConfig()
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
-
-
-class Grader(abc.ABC):
-  def __init__(self, *args, **kwargs):
-    super().__init__()
-    self.ready_to_finalize = True
-
-  def grade_assignment(self, assignment: Assignment, *args, **kwargs) -> None:
-    """
-    Takes an assignment and walks through its submissions and grades each.
-    :param assignment: Takes in an assignment.Assignment object to grade
-    :return:
-    """
-    for submission in assignment.submissions:
-      if submission.files is None or len(submission.files) == 0:
-        submission.feedback = Feedback(0.0, "Assignment submission files missing")
-        continue
-      submission.feedback = self.grade_submission(submission.files, **kwargs)
-
-  def grade_submission(self, submission, **kwargs) -> Feedback:
-    """
-    Takes in a submission, grades it, and returns back a Feedback
-    :param submission: A Submission object that may have files associated with it
-    :param kwargs:
-    :return: returns a Feedback object for the submission
-    """
-    return Feedback(score=0.0, comments="(grade_submission not implemented)")
-
-  def assignment_needs_preparation(self):
-    return True
-
-  def prepare(self, *args, **kwargs):
-    """
-    Anything that is needed to take the assignment and prepare it for grading.
-    For example, making a CSV file from the submissions for manual grading
-    :param args:
-    :param kwargs:
-    :return:
-    """
-  
-  def finalize(self, *args, **kwargs):
-    """
-    anything that is needed to connect the grades/feedback to the submissions after grading.
-    For example, loading up the CSV and connecting grades to the submissions
-    :param args:
-    :param kwargs:
-    :return:
-    """
 
 
 class GraderRegistry:
@@ -124,11 +77,52 @@ class GraderRegistry:
 
 
 @GraderRegistry.register("Dummy")
-class Grader__Dummy(Grader):
+class Grader(abc.ABC):
+  def __init__(self, *args, **kwargs):
+    super().__init__()
+    self.ready_to_finalize = True
+
   def grade_assignment(self, assignment: Assignment, *args, **kwargs) -> None:
+    """
+    Takes an assignment and walks through its submissions and grades each.
+    :param assignment: Takes in an assignment.Assignment object to grade
+    :return:
+    """
     for submission in assignment.submissions:
-      log.info(f"Grading {submission}...")
-      submission.feedback = Feedback(43.0, "(Grader not actually run.  Please contact your professor if you see this in production.)")
+      if submission.files is None or len(submission.files) == 0:
+        submission.feedback = Feedback(0.0, "Assignment submission files missing")
+        continue
+      submission.feedback = self.grade_submission(submission, **kwargs)
+
+  def grade_submission(self, submission: Submission, **kwargs) -> Feedback:
+    """
+    Takes in a submission, grades it, and returns back a Feedback
+    :param submission: A Submission object that may have files associated with it
+    :param kwargs:
+    :return: returns a Feedback object for the submission
+    """
+    return Feedback(score=0.0, comments="(grade_submission not implemented)")
+
+  def assignment_needs_preparation(self):
+    return True
+
+  def prepare(self, *args, **kwargs):
+    """
+    Anything that is needed to take the assignment and prepare it for grading.
+    For example, making a CSV file from the submissions for manual grading
+    :param args:
+    :param kwargs:
+    :return:
+    """
+  
+  def finalize(self, *args, **kwargs):
+    """
+    anything that is needed to connect the grades/feedback to the submissions after grading.
+    For example, loading up the CSV and connecting grades to the submissions
+    :param args:
+    :param kwargs:
+    :return:
+    """
 
 
 @GraderRegistry.register("Manual")
@@ -296,15 +290,26 @@ class Grader__docker(Grader, abc.ABC):
     :param files_to_copy: Format is [(src, target), ...]):
     :return:
     """
-    
+  
     def add_file_to_container(src_file, target_dir, container):
-      # Prepare the files as a tarball to push into container
+      # Create a TarInfo object
+      tar_info = tarfile.TarInfo(name=src_file.name if hasattr(src_file, 'name') else 'file')
+      
+      # Get file size
+      src_file.seek(0, io.SEEK_END)
+      tar_info.size = src_file.tell()
+      src_file.seek(0)  # Reset to beginning
+      
+      # Set modification time
+      tar_info.mtime = int(time.time())
+      
+      # Prepare the tarball
       tarstream = io.BytesIO()
       with tarfile.open(fileobj=tarstream, mode="w") as tarhandle:
-        tarhandle.add(src_file, arcname=os.path.basename(src_file))
+        tarhandle.addfile(tar_info, src_file)
       tarstream.seek(0)
       
-      # Push student files to image
+      # Push to container
       container.put_archive(f"{target_dir}", tarstream)
     
     for src_file, target_dir in files_to_copy:
@@ -376,26 +381,6 @@ class Grader__docker(Grader, abc.ABC):
         self.add_files_to_docker(files_to_copy)
       execution_results = self.execute_grading(*args, **kwargs)
       return self.score_grading(execution_results,*args,  **kwargs)
-
-  def finalize(self, *args, **kwargs):
-    super().finalize()
-    
-    # todo: make this less of a nuclear option, since this will get all containers, even those that aren't ours!
-    
-    # containers = self.client.containers.list(all=True)
-    #
-    # # Remove all containers
-    # for container in containers:
-    #   print(f"Removing container {container.id}")
-    #   container.remove(force=True)  # Use force=True to stop and remove running ones
-    #
-    # # List all images
-    # images = self.client.images.list()
-    #
-    # # Remove all images
-    # for image in images:
-    #   print(f"Removing image {image.id}")
-    #   self.client.images.remove(image.id, force=True)
 
 
 @GraderRegistry.register("CST334")
@@ -509,10 +494,11 @@ class Grader__CST334(Grader__docker):
     
     return '\n'.join(feedback_strs)
   
-  def execute_grading(self, programming_assignment, *args, **kwargs) -> Tuple[int, str, str]:
+  def execute_grading(self, path_to_programming_assignment, *args, **kwargs) -> Tuple[int, str, str]:
     rc, stdout, stderr = self.execute_command_in_container(
       command="timeout 120 python ../../helpers/grader.py --output /tmp/results.json",
-      workdir=f"/tmp/grading/programming-assignments/{programming_assignment}/"
+      # command="make",
+      workdir=f"/tmp/grading/{path_to_programming_assignment}/"
     )
     return rc, stdout, stderr
   
@@ -533,66 +519,44 @@ class Grader__CST334(Grader__docker):
       comments=self.build_feedback(results_dict, results_dict["score"])
     )
   
-  def grade_in_docker(self, source_dir, programming_assignment, lint_bonus) -> Feedback:
-    files_to_copy = [
-      (
-        f,
-        f"/tmp/grading/programming-assignments/{programming_assignment}/{'src' if f.endswith('.c') else 'include'}"
+  def grade_submission(self, submission, **kwargs) -> Feedback:
+    # todo: make it flexible for programming assignments
+    path_to_programming_assignment = kwargs.get("path_to_programming_assignment", "programming-assignments/PA1")
+    
+    # Gather submission files in a format to copy over
+    submission_files = []
+    for f in submission.files:
+      log.debug(f"f: {f.__class__} {f.name}")
+      submission_files.append(
+        (f, f"/tmp/grading/{path_to_programming_assignment}/{'src' if f.name.endswith('.c') else 'include'}")
       )
-      for f in [os.path.join(source_dir, f_wo_path) for f_wo_path in os.listdir(source_dir)]
-    ]
-    return super().grade_in_docker(files_to_copy, programming_assignment=programming_assignment, lint_bonus=lint_bonus)
-  
-  def grade_submission(self, input_files: List[str], **kwargs) -> Feedback:
     
-    # Legacy settings
-    use_max = "use_max" in kwargs and kwargs["use_name"]
-    tags = ["main"] if "tags" not in kwargs else kwargs["tags"]
-    num_repeats = 10 if "num_repeats" not in kwargs else kwargs["num_repeats"]
-    
-    # Setup input files
-    # todo: convert to using a temp file since I currently have to manually delete later on
-    if os.path.exists("student_code"):
-      shutil.rmtree("student_code")
-    os.mkdir("student_code")
-    
-    # Copy the student code to the staging directory
-    files_copied = []
-    for file_extension in [".c", ".h"]:
-      try:
-        file_to_copy = list(filter(lambda f: "student_code" in f and f.endswith(file_extension), input_files))[0]
-        files_copied.append(file_to_copy)
-        shutil.copy(
-          file_to_copy,
-          f"./student_code/student_code{file_extension}"
+    # todo: reenable
+    if False:
+      # Check for trickery, per Elijah's trials (so far)
+      if self.check_for_trickery(files_copied):
+        return Feedback(
+          score=0.0,
+          comments="It was detected that you might have been trying to game the scoring via exiting early from a unit test.  Please contact your professor if you think this was in error."
         )
-      except IndexError:
-        log.warning("Single file submitted")
     
-    # Check for trickery, per Elijah's trials (so far)
-    if self.check_for_trickery(files_copied):
-      return Feedback(
-        score=0.0,
-        comments="It was detected that you might have been trying to game the scoring via exiting early from a unit test.  Please contact your professor if you think this was in error."
+    # Grade as many times as we're requested to, gathering results for later
+    list_of_feedback : List[Feedback] = []
+    
+    for i in range(kwargs.get("num_repeats", 3)):
+      # Grade results in docker
+      list_of_feedback.append(
+        self.grade_in_docker(
+          files_to_copy=submission_files,
+          path_to_programming_assignment=path_to_programming_assignment
+        )
       )
-    
-    # Set up to be able to run multiple times
-    # todo: I should probably move to the results format for this
-    
-    list_of_results : List[Feedback] = []
-    
-    for i in range(num_repeats):
-      result = self.grade_in_docker(
-        os.path.abspath("./student_code"),
-        self.assignment_path,
-        1
-      )
-      log.debug(result)
-      list_of_results.append(result)
-    shutil.rmtree("student_code")
+      
+    # Select feedback and return
+    feedback = min(list_of_feedback)
+    return feedback
     
     # Select best feedback and add a little bit on
-    final_feedback = min(list_of_results, key=(lambda f: f.score))
     final_feedback.comments += "\n\n"
     final_feedback.comments += "###################\n"
     final_feedback.comments += "## Full results: ##\n"
@@ -600,8 +564,11 @@ class Grader__CST334(Grader__docker):
       final_feedback.comments += f"test {i}: {result.comments} points\n"
     final_feedback.comments += "###################\n"
     
-    return final_feedback
-
+    
+    log.debug(f"result: {result}")
+    
+    return Feedback(score=42, comments="Not actually graded")
+  
 
 @GraderRegistry.register("CST334online")
 class Grader__CST334online(Grader__CST334):
@@ -611,6 +578,7 @@ class Grader__CST334online(Grader__CST334):
   WORKDIR /tmp/grading
   CMD ["/bin/bash"]
   """
+
 
 @GraderRegistry.register("Step-by-step")
 class Grader_stepbystep(Grader__docker):
