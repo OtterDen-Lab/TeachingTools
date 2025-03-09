@@ -402,16 +402,19 @@ class Grader__CST334(Grader__docker):
     self.assignment_path = assignment_path
     self.image = self.build_docker_image(self.dockerfile_str)
   
-  def check_for_trickery(self, files_submitted) -> bool:
-    for input_file in files_submitted:
+  def check_for_trickery(self, submission) -> bool:
+    def contains_string(str, f) -> bool:
       try:
-        with open(input_file) as f:
-          if "exit(0)" in f.read():
-            return True
-      except IsADirectoryError:
-        pass
-    if not any(map(lambda f: f.endswith(".c") and "student_code" in f, files_submitted)):
-      return True
+        if str.encode() in f.read():
+          return True
+        else:
+          return False
+      finally:
+        f.seek(0)
+      
+    for f in submission.files:
+      if contains_string("exit(0)", f):
+        return True
     return False
   
   @staticmethod
@@ -531,14 +534,12 @@ class Grader__CST334(Grader__docker):
         (f, f"/tmp/grading/{path_to_programming_assignment}/{'src' if f.name.endswith('.c') else 'include'}")
       )
     
-    # todo: reenable
-    if False:
-      # Check for trickery, per Elijah's trials (so far)
-      if self.check_for_trickery(files_copied):
-        return Feedback(
-          score=0.0,
-          comments="It was detected that you might have been trying to game the scoring via exiting early from a unit test.  Please contact your professor if you think this was in error."
-        )
+    # Check for trickery, per Elijah's trials (so far)
+    if self.check_for_trickery(submission):
+      return Feedback(
+        score=0.0,
+        comments="It was detected that you might have been trying to game the scoring via exiting early from a unit test.  Please contact your professor if you think this was in error."
+      )
     
     # Grade as many times as we're requested to, gathering results for later
     list_of_feedback : List[Feedback] = []
