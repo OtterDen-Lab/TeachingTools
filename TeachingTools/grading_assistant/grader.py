@@ -393,12 +393,8 @@ class Grader__CST334(Grader__docker):
   CMD ["/bin/bash"]
   """
   
-  def __init__(self, assignment_path, use_online_repo=False):
+  def __init__(self, assignment_path):
     super().__init__()
-    if use_online_repo:
-      github_repo = "https://github.com/samogden/CST334-assignments-online.git"
-    else:
-      github_repo = "https://github.com/samogden/CST334-assignments.git"
     self.assignment_path = assignment_path
     self.image = self.build_docker_image(self.dockerfile_str)
   
@@ -524,7 +520,7 @@ class Grader__CST334(Grader__docker):
   
   def grade_submission(self, submission, **kwargs) -> Feedback:
     
-    path_to_programming_assignment = os.path.join("programming-assignments", kwargs.get("assignment_name"))
+    path_to_programming_assignment = os.path.join("programming-assignments", self.assignment_path)
     
     # Gather submission files in a format to copy over
     submission_files = []

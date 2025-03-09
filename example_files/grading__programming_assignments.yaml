@@ -10,42 +10,42 @@ courses:
         grader: CST334
         kwargs:
           num_repeats: 1
-          assignment_name: PA1
+          assignment_path: PA1
       - name: PA2
         id: 452301
         kind: ProgrammingAssignment
         grader: CST334
         kwargs:
           num_repeats: 1
-          assignment_name: PA2
+          assignment_path: PA2
       - name: PA3
         id: 452302
         kind: ProgrammingAssignment
         grader: CST334
         kwargs:
           num_repeats: 10
-          assignment_name: PA3
+          assignment_path: PA3
       - name: PA4
         id: 452303
         kind: ProgrammingAssignment
         grader: CST334
         kwargs:
           num_repeats: 10
-          assignment_name: PA4
+          assignment_path: PA4
       - name: PA5
         id: 452304
         kind: ProgrammingAssignment
         grader: CST334
         kwargs:
           num_repeats: 10
-          assignment_name: PA5
+          assignment_path: PA5
       - name: PA6
         id: 452305
         kind: ProgrammingAssignment
         grader: CST334
         kwargs:
           num_repeats: 10
-          assignment_name: PA6
+          assignment_path: PA6
   - name: CST334-online
     id: 28716
     assignments:
@@ -55,32 +55,32 @@ courses:
         grader: CST334online
         kwargs:
           num_repeats: 10
-          assignment_name: PA1
+          assignment_path: PA1
       - name: PA2
         id: 472831
         kind: ProgrammingAssignment
         grader: CST334online
         kwargs:
           num_repeats: 10
-          assignment_name: PA2
+          assignment_path: PA2
       - name: PA3
         id: 472832
         kind: ProgrammingAssignment
         grader: CST334online
         kwargs:
           num_repeats: 10
-          assignment_name: PA3
+          assignment_path: PA3
       - name: PA4
         id: 472833
         kind: ProgrammingAssignment
         grader: CST334online
         kwargs:
           num_repeats: 10
-          assignment_name: PA4
+          assignment_path: PA4
       - name: PA5
         id: 472834
         kind: ProgrammingAssignment
         grader: CST334online
         kwargs:
           num_repeats: 10
-          assignment_name: PA5
+          assignment_path: PA5
