@@ -1,8 +1,10 @@
 #!env python
 import argparse
+import contextlib
 import fcntl
 import os
 import pprint
+import tempfile
 
 import yaml
 
@@ -43,6 +45,47 @@ def parse_args():
   return parser.parse_args()
 
 
+@contextlib.contextmanager
+def working_directory(directory=None):
+  """
+  Context manager that either:
+  1. Creates a temporary directory if no directory is provided
+  2. Uses the provided directory if one is given
+  
+  In both cases, it yields the directory path and handles cleanup only for temp dirs
+  
+  Help from Claude: https://claude.ai/share/f5dc7e5a-23ab-4b7d-bef7-e6234587956a
+  """
+  temp_dir = None
+  
+  try:
+    if directory is None:
+      # Create a temporary directory if none is provided
+      temp_dir = tempfile.TemporaryDirectory()
+      directory = temp_dir.name
+    else:
+      directory = os.path.expanduser(directory)
+      if not os.path.exists(directory):
+        os.mkdir(directory)
+    
+    # Store the original working directory to return to
+    original_dir = os.getcwd()
+    
+    # Change to the working directory
+    os.chdir(directory)
+    
+    # Yield the path of the working directory
+    yield directory
+  
+  finally:
+    # Always return to the original directory
+    os.chdir(original_dir)
+    
+    # Clean up the temporary directory if we created one
+    if temp_dir is not None:
+      temp_dir.cleanup()
+
+
 def main():
   
   # First, check to make sure we are the only version running, since this can cause problems with docker and canvas otherwise
@@ -66,7 +109,7 @@ def main():
   # Pull flags from YAML file that will be applied to all submissions
   use_prod = grader_info.get('prod', False)
   push_grades = grader_info.get('push', False)
-  root_dir = grader_info.get('root_dir') # todo: if not specified then use a temp dir
+  root_dir = grader_info.get('root_dir', None)
   
   # Create the LMS interface
   lms_interface = CanvasInterface(prod=use_prod)
@@ -107,39 +150,41 @@ def main():
         assignment_path=yaml_assignment.get('name')
       )
       
-      # Focus on the given assignment
-      with AssignmentRegistry.create(
-          yaml_assignment['kind'],
-          lms_assignment=assignment,
-          grading_root_dir=root_dir,
-          **yaml_assignment.get('assignment_kwargs', {})
-      ) as assignment:
-        
-        # If the grader doesn't need preparation (e.g. we have already graded and are just finalizing), then skip the prep step
-        if grader.assignment_needs_preparation():
-          # If manual, double check that we should clobber the files
-          if yaml_assignment.get("grader", "Dummy").lower() in ["manual"]:
-            prepare_assignment = input("Would you like to prepare assignment? (y/N) ").strip().lower()
-            if prepare_assignment not in ['y', 'yes']:
-              log.info("Aborting execution based on response")
-              return
-          assignment.prepare(
-            limit=args.limit,
-            regrade=do_regrade,
-            **yaml_assignment.get("kwargs", {})
-          )
+      with working_directory(root_dir) as working_dir:
+        # Focus on the given assignment
+        with AssignmentRegistry.create(
+            yaml_assignment['kind'],
+            lms_assignment=assignment,
+            grading_root_dir=working_dir,
+            **yaml_assignment.get('assignment_kwargs', {})
+        ) as assignment:
           
-        grader.grade(assignment, **assignment_grading_kwargs)
-        
-        for submission in assignment.submissions:
-          log.debug(submission)
-        
-        if grader.ready_to_finalize:
-          finalize_assignment = input("Would you like to finalize assignment? (y/N) ").strip().lower()
-          if finalize_assignment not in ['y', 'yes']:
-            log.info("Aborting execution based on response")
-            return
-          assignment.finalize(push=push_grades)
+          # If the grader doesn't need preparation (e.g. we have already graded and are just finalizing), then skip the prep step
+          if grader.assignment_needs_preparation():
+            # If manual, double check that we should clobber the files
+            if yaml_assignment.get("grader", "Dummy").lower() in ["manual"]:
+              prepare_assignment = input("Would you like to prepare assignment? (y/N) ").strip().lower()
+              if prepare_assignment not in ['y', 'yes']:
+                log.info("Aborting execution based on response")
+                return
+            assignment.prepare(
+              limit=args.limit,
+              regrade=do_regrade,
+              **yaml_assignment.get("kwargs", {})
+            )
+            
+          grader.grade(assignment, **assignment_grading_kwargs)
+          
+          for submission in assignment.submissions:
+            log.debug(submission)
+          
+          if grader.ready_to_finalize:
+            if yaml_assignment.get("grader", "Dummy").lower() in ["manual"]:
+              finalize_assignment = input("Would you like to finalize assignment? (y/N) ").strip().lower()
+              if finalize_assignment not in ['y', 'yes']:
+                log.info("Aborting execution based on response")
+                return
+            assignment.finalize(push=push_grades)
   
 
 
