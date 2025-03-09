@@ -9,7 +9,6 @@ courses:
         id: 452300
         kind: ProgrammingAssignment
         grader: CST334
-        regrade: True
         kwargs:
           num_repeats: 10
   #     - name: PA2

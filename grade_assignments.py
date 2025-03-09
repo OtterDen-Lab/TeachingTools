@@ -25,22 +25,7 @@ def parse_args():
   
   parser.add_argument("--yaml", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "example_files/grading__programming_assignments.yaml"))
   parser.add_argument("--limit", default=None, type=int)
-  
-  return parser.parse_args()
-  
-  parser.add_argument("--root_dir", required=True)
-  parser.add_argument("--pdf_in_dir", default="00-input")
-  parser.add_argument("--limit", default=None, type=int)
-  
-  parser.add_argument("--prepare", action="store_true")
-  parser.add_argument("--finalize", action="store_true")
-  
-  parser.add_argument("--course_id", required=True, type=int)
-  parser.add_argument("--assignment_id", required=True, type=int)
-  parser.add_argument("--push", action="store_true")
-  parser.add_argument("--prod", action="store_true")
-  
-  parser.add_argument("--skip_name_check", action="store_false", dest="use_ai")
+  parser.add_argument("--regrade", "--do_regrade", dest="do_regrade", action="store_true")
   
   return parser.parse_args()
 
@@ -142,7 +127,7 @@ def main():
       # Create assignment object if we have enough information
       assignment = course.get_assignment(assignment_id)
       assignment_grading_kwargs = yaml_assignment.get('kwargs', {})
-      do_regrade = yaml_course.get('regrade', False) or yaml_assignment.get('regrade', False)
+      do_regrade = args.do_regrade
       
       # Get the grader from the registry
       grader = GraderRegistry.create(
