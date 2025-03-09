@@ -1,12 +1,75 @@
-prod: True
-push: True
-root_dir: /Users/ssogden/scratch/grading
+prod: False
+push: False
+root_dir: /home/ssogden/scratch/grader
 courses:
   - name: CST334
     id: 27739
     assignments:
+      - name: PA1
+        id: 452300
+        kind: ProgrammingAssignment
+        grader: CST334
+        kwargs:
+          num_repeats: 10
       - name: PA2
         id: 452301
+        kind: ProgrammingAssignment
+        grader: CST334
+        kwargs:
+          num_repeats: 10
+      - name: PA3
+        id: 452302
+        kind: ProgrammingAssignment
+        grader: CST334
+        kwargs:
+          num_repeats: 10
+      - name: PA4
+        id: 452303
+        kind: ProgrammingAssignment
+        grader: CST334
+        kwargs:
+          num_repeats: 10
+      - name: PA5
+        id: 452304
+        kind: ProgrammingAssignment
+        grader: CST334
+        kwargs:
+          num_repeats: 10
+      - name: PA6
+        id: 452305
+        kind: ProgrammingAssignment
+        grader: CST334
+        kwargs:
+          num_repeats: 10
+  - name: CST334-online
+    id: 28716
+    assignments:
+      - name: PA1
+        id: 472830
+        kind: ProgrammingAssignment
+        grader: CST334
+        kwargs:
+          num_repeats: 10
+      - name: PA2
+        id: 472831
+        kind: ProgrammingAssignment
+        grader: CST334
+        kwargs:
+          num_repeats: 10
+      - name: PA3
+        id: 472832
+        kind: ProgrammingAssignment
+        grader: CST334
+        kwargs:
+          num_repeats: 10
+      - name: PA4
+        id: 472833
+        kind: ProgrammingAssignment
+        grader: CST334
+        kwargs:
+          num_repeats: 10
+      - name: PA5
+        id: 472834
         kind: ProgrammingAssignment
         grader: CST334
         kwargs:
