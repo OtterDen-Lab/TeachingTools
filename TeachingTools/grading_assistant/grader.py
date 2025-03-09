@@ -246,7 +246,19 @@ class Grader__docker(Grader, abc.ABC):
     
     # Set up docker client class-wide if it hasn't been set up yet
     if self.__class__.client is None:
-      self.__class__.client = docker.from_env()
+      try:
+        self.__class__.client = docker.from_env()
+        # Try to perform an operation that requires Docker to be running
+        self.__class__.client.ping()  # or client.containers.list()
+        print("Docker is running!")
+      except docker.errors.DockerException as e:
+        print(f"Docker isn't running: {e}")
+        # Handle the situation when Docker daemon isn't available
+        exit(8)
+      except docker.errors.APIError as e:
+        print(f"Docker API error: {e}")
+        # Handle other API-related errors
+        exit(8)
     
     # Default to using ubuntu image
     self.image = image if image is not None else "ubuntu"
@@ -257,7 +269,8 @@ class Grader__docker(Grader, abc.ABC):
     try:
       self.image.remove(force=True)
     except AttributeError:
-      pass
+      log.warning("Deleting image failed")
+      
   
   @classmethod
   def build_docker_image(cls, dockerfile_str):
