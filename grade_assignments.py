@@ -169,7 +169,7 @@ def main():
                 return
             assignment.prepare(
               limit=args.limit,
-              regrade=do_regrade,
+              do_regrade=do_regrade,
               **yaml_assignment.get("kwargs", {})
             )
             

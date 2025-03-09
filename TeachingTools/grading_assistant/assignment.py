@@ -148,14 +148,14 @@ class Assignment__ProgrammingAssignment(Assignment):
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
   
-  def prepare(self, *args, limit=None, regrade=False, only_include_latest=True, **kwargs):
+  def prepare(self, *args, limit=None, do_regrade=False, only_include_latest=True, **kwargs):
     
     # Steps:
     #  1. Get the submissions
     #  2. Filter out submissions we don't want
     #  3. possibly download proactively
-    self.submissions = self.lms_assignment.get_submissions(limit=(None if not regrade else limit))
-    if not regrade:
+    self.submissions = self.lms_assignment.get_submissions(limit=(None if not do_regrade else limit), do_regrade=do_regrade)
+    if not do_regrade:
       self.submissions = list(filter(lambda s: s.status == Submission.Status.UNGRADED, self.submissions))
     
     log.info(f"Total students to grade: {len(self.submissions)}")

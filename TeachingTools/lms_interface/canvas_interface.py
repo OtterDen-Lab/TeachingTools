@@ -268,7 +268,7 @@ class CanvasAssignment:
     for i, attachment_buffer in enumerate(attachments):
       upload_buffer_as_file(attachment_buffer.read(), attachment_buffer.name)
   
-  def get_submissions(self, limit=None, regrade=False, **kwargs) -> List[Submission]:
+  def get_submissions(self, limit=None, do_regrade=False, **kwargs) -> List[Submission]:
     """
     Gets submission objects (in this case Submission__Canvas objects) that have students and potentially attachments
     :param kwargs:
@@ -282,7 +282,8 @@ class CanvasAssignment:
       # Get the status.  Note: it might be changed in the near future if there are no attachments
       status = (Submission.Status.UNGRADED if canvaspai_submission.workflow_state == "submitted" else Submission.Status.GRADED)
       
-      if status is Submission.Status.GRADED and not regrade:
+      if status is Submission.Status.GRADED and not do_regrade:
+        log.debug(f"Skipping submission... (do_regrade: {do_regrade})")
         continue
       
       # Get the student object for the submission
