@@ -170,6 +170,8 @@ def main():
                 log.info("Aborting execution based on response")
                 return
             assignment.finalize(push=push_grades)
+      
+      grader.cleanup()
   
 
 
