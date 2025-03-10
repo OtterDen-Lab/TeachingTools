@@ -239,9 +239,13 @@ class Grader__Manual(Grader):
     log.debug("\n" + pprint.pformat(canvas_students_by_id))
     
     # If we have unmatched students, exit because they should be manually matched.
-    if grades_df[grades_df["user_id"].isna()].shape[0] > 0:
-      log.error("There were unmatched students.  Please correct and re-run.")
-      exit(2)
+    
+    if kwargs.get("merge_only"):
+      pass
+    else:
+      if grades_df[grades_df["user_id"].isna()].shape[0] > 0:
+        log.error("There were unmatched students.  Please correct and re-run.")
+        exit(2)
     
     # Now we have a list of graded submissions
     log.info(f"We have graded {len(graded_submissions)} submissions!")
@@ -256,6 +260,13 @@ class Grader__Manual(Grader):
   
   def assignment_needs_preparation(self):
     return not self.is_grading_complete()
+
+  def execute_grading(self, *args, **kwargs):
+    return NotImplemented
+  
+  def score_grading(self, execution_results, *args, **kwargs) -> Feedback:
+    return NotImplemented
+
 
 class Grader__docker(Grader, abc.ABC):
   client = None

@@ -83,6 +83,11 @@ class Assignment(abc.ABC):
     :param kwargs:
     :return:
     """
+    
+    # If we are only merging then we should exit right here
+    if kwargs.get("merge_only", False):
+      return
+    
     if kwargs.get("push", False):
       log.debug("Pushing")
       for submission in self.submissions:
@@ -344,11 +349,15 @@ class Assignment__Exam(Assignment):
   def finalize(self, *args, **kwargs):
     log.debug("Finalizing grades")
     
+    shutil.rmtree("03-finalized")
+    os.mkdir("03-finalized")
+    
     for submission in self.submissions:
+      log.debug(submission.__dict__)
       graded_exam = self.merge_pages(
         "02-redacted",
         submission.extra_info.get('page_mappings', []),
-        num_documents=len(self.submissions)
+        output_path=os.path.join("03-finalized", f"{submission.extra_info['document_id']:03}.pdf")
       )
       graded_exam.name = f"exam.pdf"
       submission.feedback.attachments.append(
@@ -464,7 +473,7 @@ class Assignment__Exam(Assignment):
       return None
 
   @classmethod
-  def merge_pages(cls, input_directory, page_mappings, num_documents) -> io.BytesIO:
+  def merge_pages(cls, input_directory, page_mappings, output_path: Optional[str]=None) -> io.BytesIO:
     exam_pdf = fitz.open()
     
     for page_number, page_map in enumerate(page_mappings):
@@ -481,9 +490,11 @@ class Assignment__Exam(Assignment):
         log.error(e)
         continue
     
+    if output_path is not None:
+      exam_pdf.save(output_path)
+    
     output_bytes = io.BytesIO()
     exam_pdf.save(output_bytes)
-    exam_pdf.save("temp.pdf")
     output_bytes.seek(0)
     return output_bytes
   
