@@ -64,6 +64,7 @@ class Submission:
   def set_extra(self, extras_dict: Dict):
     self.extra_info.update(extras_dict)
 
+
 class Submission__Canvas(Submission):
   def __init__(self, *args, attachments : Optional[List], **kwargs):
     super().__init__(*args, **kwargs)

@@ -744,6 +744,7 @@ class Paging(MemoryAccessQuestion):
       "- VPN: [answer__vpn]",
       "- Offset: [answer__offset]",
       "- PTE: [answer__pte]",
+      "- VALID or INVALID? [answer__is_valid]",
       "- PFN: [answer__pfn]",
       "- Physical Address: [answer__physical_address]",
     ])

@@ -179,7 +179,11 @@ class CanvasCourse:
     assignments : List[CanvasAssignment] = []
     for canvasapi_assignment in self.course.get_assignments(**kwargs):
       assignments.append(
-        CanvasAssignment(self, canvasapi_assignment)
+        CanvasAssignment(
+          canvasapi_interface=self.canvas_interface,
+          canvasapi_course=self,
+          canvasapi_assignment=canvasapi_assignment
+        )
       )
     
     assignments = self.course.get_assignments(**kwargs)
@@ -371,4 +375,22 @@ class CanvasHelpers:
         submission.edit(submission={"late_policy_status" : "missing"})
       log.info("")
   
- 
+  
+  @staticmethod
+  def deprecate_assignment(canvas_course: CanvasCourse, assignment_id) -> List[canvasapi.assignment.Assignment]:
+    
+    log.debug(canvas_course.__dict__)
+    
+    # for assignment in canvas_course.get_assignments():
+    #   print(assignment)
+    
+    canvas_assignment : CanvasAssignment = canvas_course.get_assignment(assignment_id=assignment_id)
+    
+    canvas_assignment.assignment.edit(
+      assignment={
+        "name": f"{canvas_assignment.assignment.name} (deprecated)",
+        "due_at": f"{datetime.now(timezone.utc).isoformat()}",
+        "lock_at": f"{datetime.now(timezone.utc).isoformat()}"
+      }
+    )
+    
