@@ -361,6 +361,7 @@ class CanvasHelpers:
       assignment.get_submissions()
     ))
     return submissions
+  
   @classmethod
   def clear_out_missing(cls, interface: CanvasCourse):
     assignments = cls.get_closed_assignments(interface)
@@ -393,4 +394,20 @@ class CanvasHelpers:
         "lock_at": f"{datetime.now(timezone.utc).isoformat()}"
       }
     )
+  
+  @staticmethod
+  def mark_future_assignments_as_ungraded(canvas_course: CanvasCourse):
+    
+    for assignment in canvas_course.get_assignments(
+        include=["all_dates"],
+        order_by="name"
+    ):
+      if assignment.unlock_at is not None:
+        if datetime.fromisoformat(assignment.unlock_at) > datetime.now(timezone.utc):
+          log.debug(assignment)
+          for submission in assignment.get_submissions(do_regrade=True):
+          #   log.debug(submission.__dict__)
+            submission.mark_unread()
+          
+        
     
