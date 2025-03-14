@@ -93,6 +93,8 @@ class Quiz:
     return iter(sorted(self.questions, key=sort_func))
     
   def describe(self):
+    for question in self:
+      log.debug(f"{question.kind} : {question.points_value} : {question.name}")
     counter = collections.Counter([q.points_value for q in self.questions])
     log.info(f"{self.name} : {sum(map(lambda q: q.points_value, self.questions))}points : {len(self.questions)} / {len(self.possible_questions)} questions picked.  {list(counter.items())}")
     
@@ -358,6 +360,10 @@ class Quiz:
       
       # Make a quiz
       question_set = ConcreteQuestionSet(self.questions, rng_seed=rng_seed, previous_question_set=question_set)
+    
+    
+      for question in question_set.questions:
+        log.debug(f"generate: {question.question.kind} : {question.question.points_value} : {question.question.name}")
       
       # Check if it's interesting enough
       if question_set.interesting_score() >= self.INTEREST_THRESHOLD:

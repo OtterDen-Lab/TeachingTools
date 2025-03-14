@@ -174,7 +174,7 @@ class Question(abc.ABC):
         return mappings.get(string.lower())
       return cls.MISC
   
-  def __init__(self, name: str = None, points_value: float = 1.0, topic: Question.Topic = Topic.MISC, *args, **kwargs):
+  def __init__(self, name: str, points_value: float, topic: Question.Topic = Topic.MISC, *args, **kwargs):
     if name is None:
       name = self.__class__.__name__
     self.name = name
