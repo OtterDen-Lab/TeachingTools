@@ -349,7 +349,7 @@ class Assignment__Exam(Assignment):
   def finalize(self, *args, **kwargs):
     log.debug("Finalizing grades")
     
-    shutil.rmtree("03-finalized")
+    shutil.rmtree("03-finalized", ignore_errors=True)
     os.mkdir("03-finalized")
     
     for submission in self.submissions:

@@ -539,9 +539,9 @@ class Segmentation(MemoryAccessQuestion):
     question_lines.extend(
       self.get_table_generator(
         table_data={
-          "code": [f"0b{self.base['code']:{self.physical_bits}b}", f"0b{self.bounds['code']:0b}"],
-          "heap": [f"0b{self.base['heap']:{self.physical_bits}b}", f"0b{self.bounds['heap']:0b}"],
-          "stack": [f"0b{self.base['stack']:{self.physical_bits}b}", f"0b{self.bounds['stack']:0b}"],
+          "code": [f"0b{self.base['code']:0{self.physical_bits}b}", f"0b{self.bounds['code']:0b}"],
+          "heap": [f"0b{self.base['heap']:0{self.physical_bits}b}", f"0b{self.bounds['heap']:0b}"],
+          "stack": [f"0b{self.base['stack']:0{self.physical_bits}b}", f"0b{self.bounds['stack']:0b}"],
         },
         sorted_keys=[
           "code", "heap", "stack"
@@ -729,14 +729,24 @@ class Paging(MemoryAccessQuestion):
       # Once we have a unique random entry, put it into the Page Table
       page_table[vpn] = pte
     
+    # Add in ellipses before and after page table entries, if appropriate
+    value_matrix = []
+    
+    if min(page_table.keys()) != 0:
+      value_matrix.append(["...", "..."])
+    
+    value_matrix.extend([
+      [f"0b{vpn:0{self.num_vpn_bits}b}", f"0b{pte:0{(self.num_pfn_bits+1)}b}"]
+      for vpn, pte in sorted(page_table.items())
+    ])
+    
+    if (max(page_table.keys()) + 1) == 2**self.num_vpn_bits:
+      value_matrix.append(["...", "..."])
     
     lines.extend([
       TableGenerator(
         headers=["VPN", "PTE"],
-        value_matrix=[
-          [f"0b{vpn:0{self.num_vpn_bits}b}", f"0b{pte:0{(self.num_pfn_bits+1)}b}"]
-          for vpn, pte in sorted(page_table.items())
-        ]
+        value_matrix=value_matrix
       )
     ])
     

@@ -224,7 +224,7 @@ class Grader__Manual(Grader):
       # todo: get PDFs and comments.
       submission.feedback = Feedback(
         score=row["total"],
-        comments="(comments_to_be_added later)",
+        comments="(Please see attached PDF)",
         attachments=[]
       )
       submission.set_extra({
