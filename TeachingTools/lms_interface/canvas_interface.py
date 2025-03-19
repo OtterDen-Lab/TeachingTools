@@ -18,7 +18,7 @@ import requests
 import io
 
 from TeachingTools.quiz_generation.quiz import Quiz
-from TeachingTools.lms_interface.classes import Student, Submission, Submission__Canvas
+from TeachingTools.lms_interface.classes import LMSWrapper, Student, Submission, Submission__Canvas
 
 import logging
 
@@ -39,9 +39,8 @@ logger.setLevel(logging.WARNING)
 
 QUESTION_VARIATIONS_TO_TRY = 1000
 
-class CanvasInterface:
+class CanvasInterface(LMSWrapper):
   def __init__(self, *, prod=False):
-    super().__init__()
     dotenv.load_dotenv(os.path.join(os.path.expanduser("~"), ".env"))
     log.debug(os.environ.get("CANVAS_API_URL"))
     if prod:
@@ -54,6 +53,8 @@ class CanvasInterface:
       self.canvas_key = os.environ.get("CANVAS_API_KEY_prod")
     self.canvas = canvasapi.Canvas(self.canvas_url, self.canvas_key)
     
+    super().__init__(_inner=self.canvas)
+    
   def get_course(self, course_id: int) -> CanvasCourse:
     return CanvasCourse(
       canvas_interface = self,
@@ -61,10 +62,11 @@ class CanvasInterface:
     )
 
 
-class CanvasCourse:
+class CanvasCourse(LMSWrapper):
   def __init__(self, *args, canvas_interface : CanvasInterface, canvasapi_course : canvasapi.course.Course, **kwargs):
     self.canvas_interface = canvas_interface
-    self.course = canvasapi_course #self.canvas.get_course(course=course_id)
+    self.course = canvasapi_course
+    super().__init__(_inner=self.course)
   
   def create_assignment_group(self, name="dev") -> canvasapi.course.AssignmentGroup:
     for assignment_group in self.course.get_assignment_groups():
@@ -193,7 +195,7 @@ class CanvasCourse:
     return self.course.get_user(user_id).name
   
   def get_students(self) -> List[Student]:
-    return [Student(s.name, s.id) for s in self.course.get_users(enrollment_type=["student"])]
+    return [Student(s.name, s.id, s) for s in self.course.get_users(enrollment_type=["student"])]
 
 
 class CanvasAssignment:
@@ -291,7 +293,7 @@ class CanvasAssignment:
         continue
       
       # Get the student object for the submission
-      student = Student(self.canvas_course.get_username(canvaspai_submission.user_id), user_id=canvaspai_submission.user_id)
+      student = Student(self.canvas_course.get_username(canvaspai_submission.user_id), user_id=canvaspai_submission.user_id, _inner=canvaspai_submission.user)
       log.info(f"Considering submission for {student} ({status})")
       
       # Try to get the attachments.  If there are none then mark the submission as missing

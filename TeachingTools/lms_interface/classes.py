@@ -10,17 +10,37 @@ import os
 import urllib.request
 from typing import Optional, List, Dict
 
+import canvasapi.canvas
+
 logging.basicConfig()
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
 
 
+class LMSWrapper():
+  def __init__(self, _inner):
+    self._inner = _inner
+  
+  def __getattr__(self, name):
+    try:
+      # Try to get the attribute from the inner instance
+      return getattr(self._inner, name)
+    except AttributeError:
+      # Handle the case where the inner instance also doesn't have the attribute
+      print(f"Warning: '{name}' not found in either wrapper or inner class")
+      # You can raise the error again, return None, or handle it however you want
+      return lambda *args, **kwargs: None  # Returns a no-op function for method calls
+
+
+
 @dataclasses.dataclass
-class Student:
+class Student(LMSWrapper):
   name : str
   user_id : int
-
+  _inner : canvasapi.canvas.User
+  
+  
 
 class Submission:
   
