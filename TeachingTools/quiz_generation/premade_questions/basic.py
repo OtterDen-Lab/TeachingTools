@@ -202,12 +202,18 @@ class FromText(Question):
 @QuestionRegistry.register()
 class FromGenerator(FromText):
   
-  def __init__(self, *args, generator, **kwargs):
+  def __init__(self, *args, generator=None, text=None, **kwargs):
+    if generator is None and text is None:
+      raise TypeError(f"Must supply either generator or text kwarg for {self.__class__.__name__}")
+    
+    if generator is None:
+      generator = text
+    
     super().__init__(*args, text="", **kwargs)
     self.possible_variations = kwargs.get("possible_variations", float('inf'))
     
     def attach_function_to_object(obj, function_code, function_name='get_body_lines'):
-      log.debug(f"\ndef {function_name}(self):\n" + "\n".join(f"    {line}" for line in function_code.splitlines()))
+      # log.debug(f"\ndef {function_name}(self):\n" + "\n".join(f"    {line}" for line in function_code.splitlines()))
       
       # Define the function dynamically using exec
       exec(f"def {function_name}(self):\n" + "\n".join(f"    {line}" for line in function_code.splitlines()), globals(), locals())
@@ -253,4 +259,7 @@ class FromGenerator(FromText):
       log.error(f"Error generating from text: {e}")
       log.debug(self.generator_text)
       exit(8)
-  
+
+
+class TrueFalse(FromText):
+  pass

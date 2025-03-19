@@ -14,13 +14,18 @@ def parse_args():
   parser = argparse.ArgumentParser()
   
   parser.add_argument("--prod", action="store_true")
-  parser.add_argument("--course_id", default=27739, type=int)
+  parser.add_argument("--course_id", type=int)
   
   parser.add_argument("--quiz_yaml", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "example_files/exam_generation.yaml"))
   parser.add_argument("--num_canvas", default=0, type=int)
   parser.add_argument("--num_pdfs", default=0, type=int)
   
   args = parser.parse_args()
+  
+  if args.num_canvas > 0 and args.course_id is None:
+    log.error("Must provide course_id when pushing to canvas")
+    exit(8)
+  
   return args
 
 def main():
@@ -30,9 +35,6 @@ def main():
   quizzes = Quiz.from_yaml(args.quiz_yaml)
   for quiz in quizzes:
     quiz.select_questions()
-    
-    for q in quiz:
-      log.debug(q.kind)
     
     for i in range(args.num_pdfs):
       quiz.generate_latex(remove_previous=(i==0))

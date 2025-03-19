@@ -436,8 +436,8 @@ class Segmentation(MemoryAccessQuestion):
     
     return
   
-  def instantiate(self, *args, **kwargs):
-    super().__init__(*args, **kwargs)
+  def instantiate(self, rng_seed=None, *args, **kwargs):
+    super().instantiate(rng_seed=rng_seed, *args, **kwargs)
     
     # Pick how big each of our address spaces will be
     self.virtual_bits = random.randint(self.MIN_VIRTUAL_BITS, self.MAX_VIRTUAL_BITS)
