@@ -1,7 +1,6 @@
 #!env python
 from __future__ import annotations
 
-import pprint
 import time
 import typing
 from datetime import datetime, timezone
@@ -422,5 +421,4 @@ class CanvasHelpers:
           #   log.debug(submission.__dict__)
             submission.mark_unread()
           
-        
     
