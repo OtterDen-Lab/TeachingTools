@@ -89,6 +89,7 @@ class Submission__Canvas(Submission):
   def __init__(self, *args, attachments : Optional[List], **kwargs):
     super().__init__(*args, **kwargs)
     self._attachments = attachments
+    self.submission_index = kwargs.get("submission_index", None)
   
   @property
   def files(self):
@@ -107,7 +108,10 @@ class Submission__Canvas(Submission):
         # Generate a local file name with a number of options
         # todo: make this into a fake file perhaps?
         # local_file_name = f"{self.student.name.replace(' ', '-')}_{self.student.user_id}_{attachment['filename']}"
-        local_file_name = f"{attachment['filename']}"
+        if self.submission_index is None:
+          local_file_name = f"{attachment['filename']}"
+        else:
+          local_file_name = f"{self.submission_index}-{attachment['filename']}"
         local_path = os.path.join(download_dir, local_file_name)
         with urllib.request.urlopen(attachment['url']) as response:
           buffer = io.BytesIO(response.read())

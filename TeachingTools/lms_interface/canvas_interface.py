@@ -5,13 +5,14 @@ import pprint
 import time
 import typing
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional
 
 import canvasapi
 import canvasapi.course
 import canvasapi.quiz
 import canvasapi.assignment
 import canvasapi.submission
+import canvasapi.exceptions
 import dotenv, os
 import sys
 import requests
@@ -38,6 +39,7 @@ logger.setLevel(logging.WARNING)
 
 
 QUESTION_VARIATIONS_TO_TRY = 1000
+
 
 class CanvasInterface(LMSWrapper):
   def __init__(self, *, prod=False):
@@ -170,12 +172,16 @@ class CanvasCourse(LMSWrapper):
         if variation_count >= question.possible_variations:
           break
   
-  def get_assignment(self, assignment_id : int) -> CanvasAssignment:
-    return CanvasAssignment(
-      canvasapi_interface=self.canvas_interface,
-      canvasapi_course=self,
-      canvasapi_assignment=self.course.get_assignment(assignment_id)
-    )
+  def get_assignment(self, assignment_id : int) -> Optional[CanvasAssignment]:
+    try:
+      return CanvasAssignment(
+        canvasapi_interface=self.canvas_interface,
+        canvasapi_course=self,
+        canvasapi_assignment=self.course.get_assignment(assignment_id)
+      )
+    except canvasapi.exceptions.ResourceDoesNotExist:
+      log.error(f"Assignment {assignment_id} not found in course \"{self.name}\"")
+      return None
     
   def get_assignments(self, **kwargs) -> List[CanvasAssignment]:
     assignments : List[CanvasAssignment] = []
@@ -274,45 +280,50 @@ class CanvasAssignment:
     for i, attachment_buffer in enumerate(attachments):
       upload_buffer_as_file(attachment_buffer.read(), attachment_buffer.name)
   
-  def get_submissions(self, limit=None, do_regrade=False, **kwargs) -> List[Submission]:
+  def get_submissions(self, only_include_most_recent: bool = True, **kwargs) -> List[Submission]:
     """
     Gets submission objects (in this case Submission__Canvas objects) that have students and potentially attachments
+    :param only_include_most_recent: Include only the most recent submission
     :param kwargs:
     :return:
     """
-    submissions : List[Submission] = []
+    limit = kwargs.get("limit", None)
+    
+    submissions: List[Submission] = []
     
     # Get all submissions and their history (which is necessary for attachments when students can resubmit)
-    for i, canvaspai_submission in enumerate(self.assignment.get_submissions(include='submission_history', **kwargs)):
+    for student_index, canvaspai_submission in enumerate(self.assignment.get_submissions(include='submission_history', **kwargs)):
       
       # Get the status.  Note: it might be changed in the near future if there are no attachments
       status = (Submission.Status.UNGRADED if canvaspai_submission.workflow_state == "submitted" else Submission.Status.GRADED)
       
-      if status is Submission.Status.GRADED and not do_regrade:
-        log.debug(f"Skipping submission... (do_regrade: {do_regrade})")
-        continue
-      
       # Get the student object for the submission
-      student = Student(self.canvas_course.get_username(canvaspai_submission.user_id), user_id=canvaspai_submission.user_id, _inner=canvaspai_submission.user)
-      log.info(f"Considering submission for {student} ({status})")
-      
-      # Try to get the attachments.  If there are none then mark the submission as missing
-      # todo: maybe report it as missing if after deadline?
-      try:
-        attachments = canvaspai_submission.submission_history[-1]["attachments"]
-      except KeyError:
-        attachments = None
-        status = Submission.Status.MISSING
-      
-      # Add submission to list
-      submissions.append(
-        Submission__Canvas(
-          student=student,
-          status=status,
-          attachments=attachments
-        )
+      student = Student(
+        self.canvas_course.get_username(canvaspai_submission.user_id),
+        user_id=canvaspai_submission.user_id,
+        _inner=self.canvas_course.get_user(canvaspai_submission.user_id)
       )
-      if limit is not None and i >= limit:
+      
+      log.info(f"Adding submissions for {student.name} ({status}) ({len(canvaspai_submission.submission_history)})")
+      
+      for student_submission_index, student_submission in (
+          enumerate(canvaspai_submission.submission_history)):
+        try:
+          attachments = student_submission["attachments"]
+        except KeyError:
+          log.warning(f"No submissions found for {student.name}")
+          continue
+        # Add submission to list
+        submissions.append(
+          Submission__Canvas(
+            student=student,
+            status=status,
+            attachments=attachments,
+            submission_index=student_submission_index
+          )
+        )
+      
+      if limit is not None and student_index >= (limit - 1):
         break
     return submissions
   
@@ -407,7 +418,7 @@ class CanvasHelpers:
       if assignment.unlock_at is not None:
         if datetime.fromisoformat(assignment.unlock_at) > datetime.now(timezone.utc):
           log.debug(assignment)
-          for submission in assignment.get_submissions(do_regrade=True):
+          for submission in assignment.get_submissions():
           #   log.debug(submission.__dict__)
             submission.mark_unread()
           
