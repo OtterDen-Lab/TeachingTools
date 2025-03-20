@@ -286,12 +286,13 @@ class CanvasAssignment:
     :param kwargs:
     :return:
     """
-    limit = kwargs.get("limit", None)
+    limit = kwargs.get("limit", 1_000_000) # magically large number
     
     submissions: List[Submission__Canvas] = []
     
     # Get all submissions and their history (which is necessary for attachments when students can resubmit)
     for student_index, canvaspai_submission in enumerate(self.assignment.get_submissions(include='submission_history', **kwargs)):
+      
       
       # Get the status.  Note: it might be changed in the near future if there are no attachments
       status = (Submission.Status.UNGRADED if canvaspai_submission.workflow_state == "submitted" else Submission.Status.GRADED)
@@ -303,7 +304,7 @@ class CanvasAssignment:
         _inner=self.canvas_course.get_user(canvaspai_submission.user_id)
       )
       
-      log.info(f"Adding submissions for {student.name} ({status}) ({len(canvaspai_submission.submission_history)})")
+      log.info(f"Checking submissions for {student.name}")
       
       for student_submission_index, student_submission in (
           enumerate(canvaspai_submission.submission_history)):
@@ -322,7 +323,7 @@ class CanvasAssignment:
           )
         )
       
-      if limit is not None and student_index >= (limit - 1):
+      if student_index >= (limit - 1):
         break
     return submissions
   
