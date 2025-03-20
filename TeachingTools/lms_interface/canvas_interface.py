@@ -237,7 +237,7 @@ class CanvasAssignment:
     except requests.exceptions.ConnectionError as e:
       log.error(e)
       log.debug(f"Failed on user_id = {user_id})")
-      log.debug(f"username: {self.course.get_user(user_id)}")
+      log.debug(f"username: {self.canvas_course.get_user(user_id)}")
       return
     
     # Push feedback to canvas
@@ -279,7 +279,7 @@ class CanvasAssignment:
     for i, attachment_buffer in enumerate(attachments):
       upload_buffer_as_file(attachment_buffer.read(), attachment_buffer.name)
   
-  def get_submissions(self, only_include_most_recent: bool = True, **kwargs) -> List[Submission]:
+  def get_submissions(self, only_include_most_recent: bool = True, **kwargs) -> List[Submission__Canvas]:
     """
     Gets submission objects (in this case Submission__Canvas objects) that have students and potentially attachments
     :param only_include_most_recent: Include only the most recent submission
@@ -288,7 +288,7 @@ class CanvasAssignment:
     """
     limit = kwargs.get("limit", None)
     
-    submissions: List[Submission] = []
+    submissions: List[Submission__Canvas] = []
     
     # Get all submissions and their history (which is necessary for attachments when students can resubmit)
     for student_index, canvaspai_submission in enumerate(self.assignment.get_submissions(include='submission_history', **kwargs)):

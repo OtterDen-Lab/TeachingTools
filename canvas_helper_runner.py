@@ -1,15 +1,12 @@
 #!env python
 import argparse
 import glob
+import logging
 import os
 import shutil
 import subprocess
-import tempfile
 
-from TeachingTools.quiz_generation.quiz import Quiz
-from TeachingTools.lms_interface.canvas_interface import CanvasInterface, CanvasCourse, CanvasHelpers
-
-import logging
+from TeachingTools.lms_interface.canvas_interface import CanvasInterface, CanvasHelpers
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -32,28 +29,36 @@ def parse_args():
   subparsers = parser.add_subparsers(dest="command", help="Command to run", required=True)
   
   # Create the parser for the "MARK_LATE" command, inheriting from parent
-  mark_late_parser = subparsers.add_parser("MARK_LATE",
+  mark_late_parser = subparsers.add_parser(
+    "MARK_LATE",
     help="Mark assignments as late",
-    parents=[parent_parser])  # Include parent arguments
+    parents=[parent_parser]
+  )  # Include parent arguments
   mark_late_parser.add_argument("--assignment_id", required=True, type=int, help="Assignment ID")
   
   # Create the parser for the "GET_STUDENTS" command, inheriting from parent
-  get_students_parser = subparsers.add_parser("GET_STUDENTS",
+  get_students_parser = subparsers.add_parser(
+    "GET_STUDENTS",
     help="Get list of students",
-    parents=[parent_parser])  # Include parent arguments
+    parents=[parent_parser]
+  )  # Include parent arguments
   get_students_parser.add_argument("--fields_to_print", nargs="+", default=["name"])
   
   # Create the parser for the "GET_STUDENTS" command, inheriting from parent
-  get_all_submissions_parser = subparsers.add_parser("GET_SUBMISSIONS",
+  get_all_submissions_parser = subparsers.add_parser(
+    "GET_SUBMISSIONS",
     help="Download submissions",
-    parents=[parent_parser])  # Include parent arguments
+    parents=[parent_parser]
+  )  # Include parent arguments
   get_all_submissions_parser.add_argument("--assignment_id", required=True, type=int, help="Assignment ID")
   get_all_submissions_parser.add_argument("--base_files", nargs="+")
   
   # Create the parser for the "GET_STUDENTS" command, inheriting from parent
-  get_all_submissions_parser = subparsers.add_parser("RUN_MOSS",
+  get_all_submissions_parser = subparsers.add_parser(
+    "RUN_MOSS",
     help="Run MOSS script on submissions",
-    parents=[parent_parser])  # Include parent arguments
+    parents=[parent_parser]
+  )  # Include parent arguments
   get_all_submissions_parser.add_argument("--assignment_id", required=True, type=int, help="Assignment ID")
   get_all_submissions_parser.add_argument("--base_files", nargs="+")
   
@@ -110,7 +115,6 @@ def submit_to_moss(language, directory, base_files=None, max_matches=3):
 
 
 def main():
-  
   args = parse_args()
   
   canvas_interface = CanvasInterface(prod=args.prod)
@@ -118,7 +122,7 @@ def main():
   
   if args.command == "MARK_LATE":
     CanvasHelpers.mark_future_assignments_as_ungraded(canvas_course)
-    
+  
   elif args.command == "GET_STUDENTS":
     
     # Get students
@@ -151,7 +155,7 @@ def main():
     
     # Download each submission, indexing them as they were updated
     for submission in assignment.get_submissions(limit=args.limit):
-      log.debug(f"{submission.student.name} ({submission.submission_index})")
+      log.debug(f"{submission.student.name} ({submission.submission_index + 1})")
       for f in submission.files:
         filename = os.path.join(
           download_dir,
@@ -159,14 +163,12 @@ def main():
         )
         with open(filename, 'wb') as fid:
           fid.write(f.read())
-  
+    
     # Running MOSS if we are running that subparser
     if args.command == "RUN_MOSS":
       moss_url = submit_to_moss("c", download_dir, base_files=args.base_files)
       print(moss_url)
-    
-    
-        
-  
+
+
 if __name__ == "__main__":
   main()
