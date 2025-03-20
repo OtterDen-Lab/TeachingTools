@@ -159,7 +159,7 @@ class Assignment__ProgrammingAssignment(Assignment):
     #  1. Get the submissions
     #  2. Filter out submissions we don't want
     #  3. possibly download proactively
-    self.submissions = self.lms_assignment.get_submissions(limit=(None if not do_regrade else limit), do_regrade=do_regrade)
+    self.submissions = self.lms_assignment.get_submissions(limit=(None if not do_regrade else limit))
     if not do_regrade:
       self.submissions = list(filter(lambda s: s.status == Submission.Status.UNGRADED, self.submissions))
     

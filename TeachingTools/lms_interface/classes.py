@@ -89,6 +89,7 @@ class Submission__Canvas(Submission):
   def __init__(self, *args, attachments : Optional[List], **kwargs):
     super().__init__(*args, **kwargs)
     self._attachments = attachments
+    self.submission_index = kwargs.get("submission_index", None)
   
   @property
   def files(self):
@@ -99,16 +100,12 @@ class Submission__Canvas(Submission):
     # If we haven't downloaded the files yet, check if we have attachments and can download them
     if self._attachments is not None:
       self._files = []
-      download_dir = "files"
-      if not os.path.exists(download_dir):
-        os.mkdir(download_dir)
       for attachment in self._attachments:
         
         # Generate a local file name with a number of options
         # todo: make this into a fake file perhaps?
         # local_file_name = f"{self.student.name.replace(' ', '-')}_{self.student.user_id}_{attachment['filename']}"
         local_file_name = f"{attachment['filename']}"
-        local_path = os.path.join(download_dir, local_file_name)
         with urllib.request.urlopen(attachment['url']) as response:
           buffer = io.BytesIO(response.read())
           buffer.name = local_file_name
