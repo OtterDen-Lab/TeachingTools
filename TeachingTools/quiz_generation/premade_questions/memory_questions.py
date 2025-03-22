@@ -707,11 +707,13 @@ class Paging(MemoryAccessQuestion):
     lines.extend(["\n\n"])
     
     # Make values for Page Table
-    table_size = random.randint(5,10)
-    table_bottom = self.vpn - random.randint(0, table_size)
-    if table_bottom < 0:
-      table_bottom = 0
-    table_top = min([table_bottom + table_size, 2**self.num_vpn_bits])
+    table_size = random.randint(5,8)
+    
+    lowest_possible_bottom = max([0, self.vpn - table_size])
+    highest_possible_bottom = min([2**self.num_vpn_bits - table_size, self.vpn])
+    
+    table_bottom = random.randint(lowest_possible_bottom, highest_possible_bottom)
+    table_top = table_bottom + table_size
     
     page_table = {}
     page_table[self.vpn] = self.pte
@@ -740,7 +742,7 @@ class Paging(MemoryAccessQuestion):
       for vpn, pte in sorted(page_table.items())
     ])
     
-    if (max(page_table.keys()) + 1) == 2**self.num_vpn_bits:
+    if (max(page_table.keys()) + 1) != 2**self.num_vpn_bits:
       value_matrix.append(["...", "..."])
     
     lines.extend([
