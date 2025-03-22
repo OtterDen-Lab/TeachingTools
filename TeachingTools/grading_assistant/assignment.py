@@ -180,10 +180,10 @@ class Assignment__ProgrammingAssignment(Assignment):
 @AssignmentRegistry.register("Exam")
 class Assignment__Exam(Assignment):
   NAME_RECT =  {
-    "x" : 360,
-    "y" : 180,
-    "width" : 600,
-    "height" : 250
+    "x" : 350,
+    "y" : 0,
+    "width" : 250,
+    "height" : 150
   }
 
   def __init__(self, *args, **kwargs):
