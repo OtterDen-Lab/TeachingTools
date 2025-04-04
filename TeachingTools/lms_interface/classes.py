@@ -45,9 +45,20 @@ class Student(LMSWrapper):
 class Submission:
   
   class Status(enum.Enum):
-    MISSING = enum.auto()
-    UNGRADED = enum.auto()
-    GRADED = enum.auto()
+    MISSING = "unsubmitted"
+    UNGRADED = ("submitted", "pending_review")
+    GRADED = "graded"
+    
+    @classmethod
+    def from_string(cls, status_string):
+      for status in cls:
+        if isinstance(status.value, tuple):
+          if status_string in status.value:
+            return status
+        elif status_string == status.value:
+          return status
+      return cls.MISSING  # Default
+    
     
   def __init__(
       self,
