@@ -600,7 +600,9 @@ class Grader__CST334(Grader__docker):
         super().grade_submission(
           submission, # Is technically superfluous
           files_to_copy=submission_files,
-          path_to_programming_assignment=path_to_programming_assignment
+          path_to_programming_assignment=path_to_programming_assignment,
+          lint_bonus=1,
+          *args, **kwargs
         )
       )
       
