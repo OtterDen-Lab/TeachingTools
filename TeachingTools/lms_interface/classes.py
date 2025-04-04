@@ -10,24 +10,55 @@ import os
 import urllib.request
 from typing import Optional, List, Dict
 
+import canvasapi.canvas
+
 logging.basicConfig()
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
 
 
+class LMSWrapper():
+  def __init__(self, _inner):
+    self._inner = _inner
+  
+  def __getattr__(self, name):
+    try:
+      # Try to get the attribute from the inner instance
+      return getattr(self._inner, name)
+    except AttributeError:
+      # Handle the case where the inner instance also doesn't have the attribute
+      print(f"Warning: '{name}' not found in either wrapper or inner class")
+      # You can raise the error again, return None, or handle it however you want
+      return lambda *args, **kwargs: None  # Returns a no-op function for method calls
+
+
+
 @dataclasses.dataclass
-class Student:
+class Student(LMSWrapper):
   name : str
   user_id : int
-
+  _inner : canvasapi.canvas.User
+  
+  
 
 class Submission:
   
   class Status(enum.Enum):
-    MISSING = enum.auto()
-    UNGRADED = enum.auto()
-    GRADED = enum.auto()
+    MISSING = "unsubmitted"
+    UNGRADED = ("submitted", "pending_review")
+    GRADED = "graded"
+    
+    @classmethod
+    def from_string(cls, status_string):
+      for status in cls:
+        if isinstance(status.value, tuple):
+          if status_string in status.value:
+            return status
+        elif status_string == status.value:
+          return status
+      return cls.MISSING  # Default
+    
     
   def __init__(
       self,
@@ -64,10 +95,12 @@ class Submission:
   def set_extra(self, extras_dict: Dict):
     self.extra_info.update(extras_dict)
 
+
 class Submission__Canvas(Submission):
   def __init__(self, *args, attachments : Optional[List], **kwargs):
     super().__init__(*args, **kwargs)
     self._attachments = attachments
+    self.submission_index = kwargs.get("submission_index", None)
   
   @property
   def files(self):
@@ -78,16 +111,12 @@ class Submission__Canvas(Submission):
     # If we haven't downloaded the files yet, check if we have attachments and can download them
     if self._attachments is not None:
       self._files = []
-      download_dir = "files"
-      if not os.path.exists(download_dir):
-        os.mkdir(download_dir)
       for attachment in self._attachments:
         
         # Generate a local file name with a number of options
         # todo: make this into a fake file perhaps?
         # local_file_name = f"{self.student.name.replace(' ', '-')}_{self.student.user_id}_{attachment['filename']}"
         local_file_name = f"{attachment['filename']}"
-        local_path = os.path.join(download_dir, local_file_name)
         with urllib.request.urlopen(attachment['url']) as response:
           buffer = io.BytesIO(response.read())
           buffer.name = local_file_name

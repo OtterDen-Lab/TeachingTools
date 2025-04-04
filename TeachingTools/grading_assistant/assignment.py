@@ -83,6 +83,11 @@ class Assignment(abc.ABC):
     :param kwargs:
     :return:
     """
+    
+    # If we are only merging then we should exit right here
+    if kwargs.get("merge_only", False):
+      return
+    
     if kwargs.get("push", False):
       log.debug("Pushing")
       for submission in self.submissions:
@@ -154,7 +159,7 @@ class Assignment__ProgrammingAssignment(Assignment):
     #  1. Get the submissions
     #  2. Filter out submissions we don't want
     #  3. possibly download proactively
-    self.submissions = self.lms_assignment.get_submissions(limit=(None if not do_regrade else limit), do_regrade=do_regrade)
+    self.submissions = self.lms_assignment.get_submissions(limit=(None if not do_regrade else limit))
     if not do_regrade:
       self.submissions = list(filter(lambda s: s.status == Submission.Status.UNGRADED, self.submissions))
     
@@ -175,10 +180,10 @@ class Assignment__ProgrammingAssignment(Assignment):
 @AssignmentRegistry.register("Exam")
 class Assignment__Exam(Assignment):
   NAME_RECT =  {
-    "x" : 360,
-    "y" : 180,
-    "width" : 600,
-    "height" : 250
+    "x" : 350,
+    "y" : 0,
+    "width" : 250,
+    "height" : 150
   }
 
   def __init__(self, *args, **kwargs):
@@ -344,11 +349,15 @@ class Assignment__Exam(Assignment):
   def finalize(self, *args, **kwargs):
     log.debug("Finalizing grades")
     
+    shutil.rmtree("03-finalized", ignore_errors=True)
+    os.mkdir("03-finalized")
+    
     for submission in self.submissions:
+      log.debug(submission.__dict__)
       graded_exam = self.merge_pages(
         "02-redacted",
         submission.extra_info.get('page_mappings', []),
-        num_documents=len(self.submissions)
+        output_path=os.path.join("03-finalized", f"{int(submission.extra_info['document_id']):03}.pdf")
       )
       graded_exam.name = f"exam.pdf"
       submission.feedback.attachments.append(
@@ -464,7 +473,7 @@ class Assignment__Exam(Assignment):
       return None
 
   @classmethod
-  def merge_pages(cls, input_directory, page_mappings, num_documents) -> io.BytesIO:
+  def merge_pages(cls, input_directory, page_mappings, output_path: Optional[str]=None) -> io.BytesIO:
     exam_pdf = fitz.open()
     
     for page_number, page_map in enumerate(page_mappings):
@@ -481,9 +490,11 @@ class Assignment__Exam(Assignment):
         log.error(e)
         continue
     
+    if output_path is not None:
+      exam_pdf.save(output_path)
+    
     output_bytes = io.BytesIO()
     exam_pdf.save(output_bytes)
-    exam_pdf.save("temp.pdf")
     output_bytes.seek(0)
     return output_bytes
   
@@ -543,7 +554,7 @@ class Assignment__Exam(Assignment):
 class Assignment__JoshExam(Assignment__Exam):
   NAME_RECT = {
     "x" : 210,
-    "y" : 200,
+    "y" : 150,
     "width" : 350,
-    "height" : 125
+    "height" : 100
   }

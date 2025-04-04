@@ -96,17 +96,41 @@ class Grader(abc.ABC):
       if submission.files is None or len(submission.files) == 0:
         submission.feedback = Feedback(0.0, "Assignment submission files missing")
         continue
+      if submission.status != Submission.Status.GRADED:
+        log.info("Skipping submission due to already being graded")
       submission.feedback = self.grade_submission(submission, **kwargs)
 
-  def grade_submission(self, submission: Submission, **kwargs) -> Feedback:
+  def grade_submission(self, submission: Submission, *args, **kwargs) -> Feedback:
     """
     Takes in a submission, grades it, and returns back a Feedback
     :param submission: A Submission object that may have files associated with it
     :param kwargs:
     :return: returns a Feedback object for the submission
     """
-    return Feedback(score=0.0, comments="(grade_submission not implemented)")
-
+    execution_results = self.execute_grading(*args, **kwargs)
+    return self.score_grading(execution_results,*args,  **kwargs)
+  
+  @abc.abstractmethod
+  def execute_grading(self, *args, **kwargs):
+    """
+    Implements the steps to actually execute the grading, such as running a make command.
+    :param args:
+    :param kwargs:
+    :return:
+    """
+    pass
+  
+  @abc.abstractmethod
+  def score_grading(self, execution_results, *args, **kwargs) -> Feedback:
+    """
+    Scores the grading based on execution results, such as stdout or stderr, but can also perform other actions
+    :param execution_results:
+    :param args:
+    :param kwargs:
+    :return:
+    """
+    pass
+  
   def assignment_needs_preparation(self):
     return True
 
@@ -127,7 +151,9 @@ class Grader(abc.ABC):
     :param kwargs:
     :return:
     """
-
+  
+  def cleanup(self):
+    pass
 
 @GraderRegistry.register("Manual")
 class Grader__Manual(Grader):
@@ -200,7 +226,7 @@ class Grader__Manual(Grader):
       # todo: get PDFs and comments.
       submission.feedback = Feedback(
         score=row["total"],
-        comments="(comments_to_be_added later)",
+        comments="(Please see attached PDF)",
         attachments=[]
       )
       submission.set_extra({
@@ -212,12 +238,16 @@ class Grader__Manual(Grader):
     
     log.info(f"There were {len(graded_submissions)} matched canvas users.")
     log.info(f"There are {len(canvas_students_by_id)} unmatched canvas users")
-    log.debug("\n" + pprint.pformat(canvas_students_by_id))
+    log.debug("\n" + pprint.pformat({id: student.name for id, student in canvas_students_by_id.items()}))
     
     # If we have unmatched students, exit because they should be manually matched.
-    if grades_df[grades_df["user_id"].isna()].shape[0] > 0:
-      log.error("There were unmatched students.  Please correct and re-run.")
-      exit(2)
+    
+    if kwargs.get("merge_only"):
+      pass
+    else:
+      if grades_df[grades_df["user_id"].isna()].shape[0] > 0:
+        log.error("There were unmatched students.  Please correct and re-run.")
+        exit(2)
     
     # Now we have a list of graded submissions
     log.info(f"We have graded {len(graded_submissions)} submissions!")
@@ -232,6 +262,12 @@ class Grader__Manual(Grader):
   
   def assignment_needs_preparation(self):
     return not self.is_grading_complete()
+
+  def execute_grading(self, *args, **kwargs):
+    return NotImplemented
+  
+  def score_grading(self, execution_results, *args, **kwargs) -> Feedback:
+    return NotImplemented
 
 
 class Grader__docker(Grader, abc.ABC):
@@ -263,15 +299,16 @@ class Grader__docker(Grader, abc.ABC):
     # Default to using ubuntu image
     self.image = image if image is not None else "ubuntu"
     self.container: Optional[docker.models.containers.Container] = None
-    
-  def __del__(self):
+  
+  def cleanup(self):
     # Try to remove image, and if it hasn't been set up properly delete
     try:
       self.image.remove(force=True)
     except AttributeError:
       log.warning("Deleting image failed")
       
-  
+      
+  # Helper functions below here
   @classmethod
   def build_docker_image(cls, dockerfile_str):
     """
@@ -388,21 +425,19 @@ class Grader__docker(Grader, abc.ABC):
       log.error(exc_tb)
     return False
   
-  @abc.abstractmethod
-  def execute_grading(self, *args, **kwargs):
-    pass
-  
-  @abc.abstractmethod
-  def score_grading(self, execution_results, *args, **kwargs) -> Feedback:
-    pass
-  
-  def grade_in_docker(self, files_to_copy=None, *args, **kwargs) -> Feedback:
+  def grade_submission(self, submission, files_to_copy=None, *args, **kwargs) -> Feedback:
+    """
+    Overrides method to add files to docker and then relies on children to implement two other required files
+    :param files_to_copy:
+    :param args:
+    :param kwargs:
+    :return:
+    """
     with self:
       if files_to_copy is not None:
         self.add_files_to_docker(files_to_copy)
-      execution_results = self.execute_grading(*args, **kwargs)
-      return self.score_grading(execution_results,*args,  **kwargs)
-
+      return super().grade_submission(submission, *args, **kwargs)
+      
 
 @GraderRegistry.register("CST334")
 class Grader__CST334(Grader__docker):
@@ -539,7 +574,7 @@ class Grader__CST334(Grader__docker):
       comments=self.build_feedback(results_dict, results_dict["score"])
     )
   
-  def grade_submission(self, submission, **kwargs) -> Feedback:
+  def grade_submission(self, submission, *args, **kwargs) -> Feedback:
     
     path_to_programming_assignment = os.path.join("programming-assignments", self.assignment_path)
     
@@ -564,9 +599,12 @@ class Grader__CST334(Grader__docker):
     for i in range(kwargs.get("num_repeats", 3)):
       # Grade results in docker
       all_feedback.append(
-        self.grade_in_docker(
+        super().grade_submission(
+          submission, # Is technically superfluous
           files_to_copy=submission_files,
-          path_to_programming_assignment=path_to_programming_assignment
+          path_to_programming_assignment=path_to_programming_assignment,
+          lint_bonus=1,
+          *args, **kwargs
         )
       )
       

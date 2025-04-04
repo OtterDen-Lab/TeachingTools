@@ -1,24 +1,24 @@
 #!env python
 from __future__ import annotations
 
-import pprint
 import time
 import typing
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional
 
 import canvasapi
 import canvasapi.course
 import canvasapi.quiz
 import canvasapi.assignment
 import canvasapi.submission
+import canvasapi.exceptions
 import dotenv, os
 import sys
 import requests
 import io
 
 from TeachingTools.quiz_generation.quiz import Quiz
-from TeachingTools.lms_interface.classes import Student, Submission, Submission__Canvas
+from TeachingTools.lms_interface.classes import LMSWrapper, Student, Submission, Submission__Canvas
 
 import logging
 
@@ -39,9 +39,9 @@ logger.setLevel(logging.WARNING)
 
 QUESTION_VARIATIONS_TO_TRY = 1000
 
-class CanvasInterface:
+
+class CanvasInterface(LMSWrapper):
   def __init__(self, *, prod=False):
-    super().__init__()
     dotenv.load_dotenv(os.path.join(os.path.expanduser("~"), ".env"))
     log.debug(os.environ.get("CANVAS_API_URL"))
     if prod:
@@ -54,6 +54,8 @@ class CanvasInterface:
       self.canvas_key = os.environ.get("CANVAS_API_KEY_prod")
     self.canvas = canvasapi.Canvas(self.canvas_url, self.canvas_key)
     
+    super().__init__(_inner=self.canvas)
+    
   def get_course(self, course_id: int) -> CanvasCourse:
     return CanvasCourse(
       canvas_interface = self,
@@ -61,10 +63,11 @@ class CanvasInterface:
     )
 
 
-class CanvasCourse:
+class CanvasCourse(LMSWrapper):
   def __init__(self, *args, canvas_interface : CanvasInterface, canvasapi_course : canvasapi.course.Course, **kwargs):
     self.canvas_interface = canvas_interface
-    self.course = canvasapi_course #self.canvas.get_course(course=course_id)
+    self.course = canvasapi_course
+    super().__init__(_inner=self.course)
   
   def create_assignment_group(self, name="dev") -> canvasapi.course.AssignmentGroup:
     for assignment_group in self.course.get_assignment_groups():
@@ -168,18 +171,26 @@ class CanvasCourse:
         if variation_count >= question.possible_variations:
           break
   
-  def get_assignment(self, assignment_id : int) -> CanvasAssignment:
-    return CanvasAssignment(
-      canvasapi_interface=self.canvas_interface,
-      canvasapi_course=self,
-      canvasapi_assignment=self.course.get_assignment(assignment_id)
-    )
+  def get_assignment(self, assignment_id : int) -> Optional[CanvasAssignment]:
+    try:
+      return CanvasAssignment(
+        canvasapi_interface=self.canvas_interface,
+        canvasapi_course=self,
+        canvasapi_assignment=self.course.get_assignment(assignment_id)
+      )
+    except canvasapi.exceptions.ResourceDoesNotExist:
+      log.error(f"Assignment {assignment_id} not found in course \"{self.name}\"")
+      return None
     
   def get_assignments(self, **kwargs) -> List[CanvasAssignment]:
     assignments : List[CanvasAssignment] = []
     for canvasapi_assignment in self.course.get_assignments(**kwargs):
       assignments.append(
-        CanvasAssignment(self, canvasapi_assignment)
+        CanvasAssignment(
+          canvasapi_interface=self.canvas_interface,
+          canvasapi_course=self,
+          canvasapi_assignment=canvasapi_assignment
+        )
       )
     
     assignments = self.course.get_assignments(**kwargs)
@@ -189,7 +200,7 @@ class CanvasCourse:
     return self.course.get_user(user_id).name
   
   def get_students(self) -> List[Student]:
-    return [Student(s.name, s.id) for s in self.course.get_users(enrollment_type=["student"])]
+    return [Student(s.name, s.id, s) for s in self.course.get_users(enrollment_type=["student"])]
 
 
 class CanvasAssignment:
@@ -226,7 +237,7 @@ class CanvasAssignment:
     except requests.exceptions.ConnectionError as e:
       log.error(e)
       log.debug(f"Failed on user_id = {user_id})")
-      log.debug(f"username: {self.course.get_user(user_id)}")
+      log.debug(f"username: {self.canvas_course.get_user(user_id)}")
       return
     
     # Push feedback to canvas
@@ -268,45 +279,52 @@ class CanvasAssignment:
     for i, attachment_buffer in enumerate(attachments):
       upload_buffer_as_file(attachment_buffer.read(), attachment_buffer.name)
   
-  def get_submissions(self, limit=None, do_regrade=False, **kwargs) -> List[Submission]:
+  def get_submissions(self, only_include_most_recent: bool = True, **kwargs) -> List[Submission__Canvas]:
     """
     Gets submission objects (in this case Submission__Canvas objects) that have students and potentially attachments
+    :param only_include_most_recent: Include only the most recent submission
     :param kwargs:
     :return:
     """
-    submissions : List[Submission] = []
+    
+    if "limit" in kwargs and kwargs["limit"] is not None:
+      limit = kwargs["limit"]
+    else:
+      limit = 1_000_000 # magically large number
+    
+    submissions: List[Submission__Canvas] = []
     
     # Get all submissions and their history (which is necessary for attachments when students can resubmit)
-    for i, canvaspai_submission in enumerate(self.assignment.get_submissions(include='submission_history', **kwargs)):
-      
-      # Get the status.  Note: it might be changed in the near future if there are no attachments
-      status = (Submission.Status.UNGRADED if canvaspai_submission.workflow_state == "submitted" else Submission.Status.GRADED)
-      
-      if status is Submission.Status.GRADED and not do_regrade:
-        log.debug(f"Skipping submission... (do_regrade: {do_regrade})")
-        continue
+    for student_index, canvaspai_submission in enumerate(self.assignment.get_submissions(include='submission_history', **kwargs)):
       
       # Get the student object for the submission
-      student = Student(self.canvas_course.get_username(canvaspai_submission.user_id), user_id=canvaspai_submission.user_id)
-      log.info(f"Considering submission for {student} ({status})")
-      
-      # Try to get the attachments.  If there are none then mark the submission as missing
-      # todo: maybe report it as missing if after deadline?
-      try:
-        attachments = canvaspai_submission.submission_history[-1]["attachments"]
-      except KeyError:
-        attachments = None
-        status = Submission.Status.MISSING
-      
-      # Add submission to list
-      submissions.append(
-        Submission__Canvas(
-          student=student,
-          status=status,
-          attachments=attachments
-        )
+      student = Student(
+        self.canvas_course.get_username(canvaspai_submission.user_id),
+        user_id=canvaspai_submission.user_id,
+        _inner=self.canvas_course.get_user(canvaspai_submission.user_id)
       )
-      if limit is not None and i >= limit:
+      
+      log.info(f"Checking submissions for {student.name}")
+      
+      for student_submission_index, student_submission in (
+          enumerate(canvaspai_submission.submission_history)):
+        try:
+          attachments = student_submission["attachments"]
+        except KeyError:
+          log.warning(f"No submissions found for {student.name}")
+          continue
+        
+        # Add submission to list
+        submissions.append(
+          Submission__Canvas(
+            student=student,
+            status=Submission.Status.from_string(student_submission["workflow_state"]),
+            attachments=attachments,
+            submission_index=student_submission_index
+          )
+        )
+      
+      if student_index >= (limit - 1):
         break
     return submissions
   
@@ -357,6 +375,7 @@ class CanvasHelpers:
       assignment.get_submissions()
     ))
     return submissions
+  
   @classmethod
   def clear_out_missing(cls, interface: CanvasCourse):
     assignments = cls.get_closed_assignments(interface)
@@ -371,4 +390,37 @@ class CanvasHelpers:
         submission.edit(submission={"late_policy_status" : "missing"})
       log.info("")
   
- 
+  
+  @staticmethod
+  def deprecate_assignment(canvas_course: CanvasCourse, assignment_id) -> List[canvasapi.assignment.Assignment]:
+    
+    log.debug(canvas_course.__dict__)
+    
+    # for assignment in canvas_course.get_assignments():
+    #   print(assignment)
+    
+    canvas_assignment : CanvasAssignment = canvas_course.get_assignment(assignment_id=assignment_id)
+    
+    canvas_assignment.assignment.edit(
+      assignment={
+        "name": f"{canvas_assignment.assignment.name} (deprecated)",
+        "due_at": f"{datetime.now(timezone.utc).isoformat()}",
+        "lock_at": f"{datetime.now(timezone.utc).isoformat()}"
+      }
+    )
+  
+  @staticmethod
+  def mark_future_assignments_as_ungraded(canvas_course: CanvasCourse):
+    
+    for assignment in canvas_course.get_assignments(
+        include=["all_dates"],
+        order_by="name"
+    ):
+      if assignment.unlock_at is not None:
+        if datetime.fromisoformat(assignment.unlock_at) > datetime.now(timezone.utc):
+          log.debug(assignment)
+          for submission in assignment.get_submissions():
+          #   log.debug(submission.__dict__)
+            submission.mark_unread()
+          
+    

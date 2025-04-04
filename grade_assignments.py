@@ -26,6 +26,8 @@ def parse_args():
   parser.add_argument("--yaml", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "example_files/grading__programming_assignments.yaml"))
   parser.add_argument("--limit", default=None, type=int)
   parser.add_argument("--regrade", "--do_regrade", dest="do_regrade", action="store_true")
+  parser.add_argument("--merge_only", dest="merge_only", action="store_true")
+  
   
   return parser.parse_args()
 
@@ -43,6 +45,8 @@ def working_directory(directory=None):
   """
   temp_dir = None
   
+  # Store the original working directory to return to
+  original_dir = os.getcwd()
   try:
     if directory is None:
       # Create a temporary directory if none is provided
@@ -52,9 +56,6 @@ def working_directory(directory=None):
       directory = os.path.expanduser(directory)
       if not os.path.exists(directory):
         os.mkdir(directory)
-    
-    # Store the original working directory to return to
-    original_dir = os.getcwd()
     
     # Change to the working directory
     os.chdir(directory)
@@ -155,10 +156,11 @@ def main():
             assignment.prepare(
               limit=args.limit,
               do_regrade=do_regrade,
+              merge_only=args.merge_only,
               **yaml_assignment.get("kwargs", {})
             )
             
-          grader.grade_assignment(assignment, **assignment_grading_kwargs)
+          grader.grade_assignment(assignment, **assignment_grading_kwargs, merge_only=args.merge_only)
           
           for submission in assignment.submissions:
             log.debug(submission)
@@ -169,7 +171,9 @@ def main():
               if finalize_assignment not in ['y', 'yes']:
                 log.info("Aborting execution based on response")
                 return
-            assignment.finalize(push=push_grades)
+            assignment.finalize(push=push_grades, merge_only=args.merge_only)
+      
+      grader.cleanup()
   
 
 

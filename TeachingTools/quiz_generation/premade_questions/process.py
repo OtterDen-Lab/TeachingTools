@@ -46,8 +46,8 @@ class SchedulingQuestion(ProcessQuestion):
 
 
   MAX_JOBS = 4
-  MAX_ARRIVAL_TIME = 10
-  MIN_JOB_DURATION = 2
+  MAX_ARRIVAL_TIME = 20
+  MIN_JOB_DURATION = 3
   MAX_JOB_DURATION = 10
   
   ANSWER_EPSILON = 1.0
@@ -113,6 +113,62 @@ class SchedulingQuestion(ProcessQuestion):
     
     def has_started(self) -> bool:
       return self.response_time is None
+  
+  
+  def get_workload(self, num_jobs, *args, **kwargs) -> List[SchedulingQuestion.Job]:
+    """Makes a guaranteed interesting workload by following rules
+    1. First job to arrive is the longest
+    2. At least 2 other jobs arrive in its runtime
+    3. Those jobs arrive in reverse length order, with the smaller arriving 2nd
+    
+    This will clearly show when jobs arrive how they are handled, since FIFO will be different than SJF, and STCF will cause interruptions
+    """
+    
+    workload = []
+    
+    # First create a job that is relatively long-running and arrives relatively early.
+    first_job : SchedulingQuestion.Job = self.Job(
+      job_id=0,
+      arrival=random.randint(0, int(0.25 * self.MAX_ARRIVAL_TIME)),
+      duration=random.randint(int(self.MAX_JOB_DURATION * 0.75), self.MAX_JOB_DURATION)
+    )
+    
+    workload.append(first_job)
+    
+    # Generate unique arrival times and durations that place the arrivals in the range of the first job
+    other_arrivals = random.sample(
+      range(
+        int(first_job.arrival + 1),
+        int(first_job.arrival + first_job.duration)
+      ),
+      k=2
+    )
+    other_durations = random.sample(
+      range(
+        1,
+        self.MAX_JOB_DURATION
+      ),
+      k=2
+    )
+    
+    # Add the two new jobs to the workload, where we are maintaining the described approach
+    workload.extend([
+      self.Job(job_id=1, arrival=min(other_arrivals), duration=max(other_durations)),
+      self.Job(job_id=2, arrival=max(other_arrivals), duration=min(other_durations)),
+    ])
+    
+    # Add more jobs as necessary, if more than 3 are requested
+    if num_jobs > 3:
+      workload.extend([
+        self.Job(
+          job_id=(3+i),
+          arrival=random.randint(0, self.MAX_ARRIVAL_TIME),
+          duration=random.randint(self.MIN_JOB_DURATION, self.MAX_JOB_DURATION)
+        )
+        for i in range(num_jobs - 3)
+      ])
+    
+    return workload
   
   def simulation(self, jobs_to_run: List[SchedulingQuestion.Job], selector, preemptable, time_quantum=None):
     curr_time = 0
@@ -238,14 +294,16 @@ class SchedulingQuestion(ProcessQuestion):
       # then we default to FIFO
       pass
     
-    jobs = [
-      SchedulingQuestion.Job(
-        job_id,
-        random.randint(0, self.MAX_ARRIVAL_TIME),
-        random.randint(self.MIN_JOB_DURATION, self.MAX_JOB_DURATION)
-      )
-      for job_id in range(self.num_jobs)
-    ]
+    # jobs = [
+    #   SchedulingQuestion.Job(
+    #     job_id,
+    #     random.randint(0, self.MAX_ARRIVAL_TIME),
+    #     random.randint(self.MIN_JOB_DURATION, self.MAX_JOB_DURATION)
+    #   )
+    #   for job_id in range(self.num_jobs)
+    # ]
+    
+    jobs = self.get_workload(self.num_jobs)
     
     self.simulation(jobs, self.SELECTOR, self.PREEMPTABLE, self.TIME_QUANTUM)
     
