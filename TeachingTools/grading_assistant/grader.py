@@ -96,6 +96,8 @@ class Grader(abc.ABC):
       if submission.files is None or len(submission.files) == 0:
         submission.feedback = Feedback(0.0, "Assignment submission files missing")
         continue
+      if submission.status != Submission.Status.GRADED:
+        log.info("Skipping submission due to already being graded")
       submission.feedback = self.grade_submission(submission, **kwargs)
 
   def grade_submission(self, submission: Submission, *args, **kwargs) -> Feedback:
