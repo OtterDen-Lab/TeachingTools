@@ -203,11 +203,12 @@ class CanvasCourse(LMSWrapper):
     return [Student(s.name, s.id, s) for s in self.course.get_users(enrollment_type=["student"])]
 
 
-class CanvasAssignment:
+class CanvasAssignment(LMSWrapper):
   def __init__(self, *args, canvasapi_interface: CanvasInterface, canvasapi_course : CanvasCourse, canvasapi_assignment: canvasapi.assignment.Assignment, **kwargs):
     self.canvas_interface = canvasapi_interface
     self.canvas_course = canvasapi_course
     self.assignment = canvasapi_assignment
+    super().__init__(_inner=canvasapi_assignment)
   
   def push_feedback(self, user_id, score: float, comments: str, attachments=None, keep_previous_best=True, clobber_feedback=False):
     log.debug(f"Adding feedback for {user_id}")
