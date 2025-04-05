@@ -113,6 +113,8 @@ def main():
     # Create course object if found
     course = lms_interface.get_course(course_id)
     
+    log.info(f"Grading Course \"{course.name}\"")
+    
     # Walk through assignments in course to grade, error if we don't have required information
     for yaml_assignment in yaml_course.get('assignments', []):
       if yaml_assignment.get('disabled', False):
@@ -129,6 +131,8 @@ def main():
       assignment = course.get_assignment(assignment_id)
       assignment_grading_kwargs = yaml_assignment.get('kwargs', {})
       do_regrade = args.do_regrade
+      
+      log.info(f"Grading assignment \"{assignment.name}\"")
       
       # Get the grader from the registry
       grader = GraderRegistry.create(
