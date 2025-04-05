@@ -305,10 +305,14 @@ class CanvasAssignment(LMSWrapper):
         _inner=self.canvas_course.get_user(canvaspai_submission.user_id)
       )
       
-      log.info(f"Checking submissions for {student.name}")
+      log.info(f"Checking submissions for {student.name} ({len(canvaspai_submission.submission_history)} submissions)")
       
+      # Walk through submissions in the reverse order, so we'll default to grabbing the most recent submission first
+      # This is important when we are going to be only including most recent
       for student_submission_index, student_submission in (
-          enumerate(canvaspai_submission.submission_history)):
+          reversed(list(enumerate(canvaspai_submission.submission_history)))):
+        log.debug(f"Submission: {student_submission['workflow_state']}")
+        
         try:
           attachments = student_submission["attachments"]
         except KeyError:
@@ -324,9 +328,15 @@ class CanvasAssignment(LMSWrapper):
             submission_index=student_submission_index
           )
         )
+        
+        # Check if we should only include the most recent
+        if only_include_most_recent: break
       
-      if student_index >= (limit - 1):
-        break
+      # Check if we are limiting how many students we are checking
+      if student_index >= (limit - 1): break
+      
+    # Reverse the submissions again so we are preserving temporal order.  This isn't necessary but makes me feel happy.
+    submissions = list(reversed(submissions))
     return submissions
   
   def get_students(self):
