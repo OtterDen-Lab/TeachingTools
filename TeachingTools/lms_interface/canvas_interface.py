@@ -311,7 +311,8 @@ class CanvasAssignment(LMSWrapper):
       # This is important when we are going to be only including most recent
       for student_submission_index, student_submission in (
           reversed(list(enumerate(canvaspai_submission.submission_history)))):
-        log.debug(f"Submission: {student_submission['workflow_state']}")
+        log.debug(f"Submission: {student_submission['workflow_state']} " +
+                  (f"{student_submission['score']:0.2f}" if student_submission['score'] is not None else "None"))
         
         try:
           attachments = student_submission["attachments"]
@@ -323,7 +324,7 @@ class CanvasAssignment(LMSWrapper):
         submissions.append(
           Submission__Canvas(
             student=student,
-            status=Submission.Status.from_string(student_submission["workflow_state"]),
+            status=Submission.Status.from_string(student_submission["workflow_state"], student_submission['score']),
             attachments=attachments,
             submission_index=student_submission_index
           )
