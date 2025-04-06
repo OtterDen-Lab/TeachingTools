@@ -50,7 +50,9 @@ class Submission:
     GRADED = "graded"
     
     @classmethod
-    def from_string(cls, status_string):
+    def from_string(cls, status_string, current_score):
+      if current_score is None:
+        return cls.UNGRADED
       for status in cls:
         if isinstance(status.value, tuple):
           if status_string in status.value:
