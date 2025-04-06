@@ -357,7 +357,7 @@ class Assignment__Exam(Assignment):
       graded_exam = self.merge_pages(
         "02-redacted",
         submission.extra_info.get('page_mappings', []),
-        output_path=os.path.join("03-finalized", f"{submission.extra_info['document_id']:03}.pdf")
+        output_path=os.path.join("03-finalized", f"{int(submission.extra_info['document_id']):03}.pdf")
       )
       graded_exam.name = f"exam.pdf"
       submission.feedback.attachments.append(
@@ -554,7 +554,7 @@ class Assignment__Exam(Assignment):
 class Assignment__JoshExam(Assignment__Exam):
   NAME_RECT = {
     "x" : 210,
-    "y" : 200,
+    "y" : 150,
     "width" : 350,
-    "height" : 125
+    "height" : 100
   }

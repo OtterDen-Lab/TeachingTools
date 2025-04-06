@@ -238,7 +238,7 @@ class Grader__Manual(Grader):
     
     log.info(f"There were {len(graded_submissions)} matched canvas users.")
     log.info(f"There are {len(canvas_students_by_id)} unmatched canvas users")
-    log.debug("\n" + pprint.pformat(canvas_students_by_id))
+    log.debug("\n" + pprint.pformat({id: student.name for id, student in canvas_students_by_id.items()}))
     
     # If we have unmatched students, exit because they should be manually matched.
     
