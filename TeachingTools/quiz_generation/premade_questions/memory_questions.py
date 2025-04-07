@@ -455,7 +455,7 @@ class Segmentation(MemoryAccessQuestion):
       "stack" : 0,
     }
     
-    min_bounds = 8
+    min_bounds = 4
     max_bounds = int(2**(self.virtual_bits - 2))
     
     def segment_collision(base, bounds):
@@ -471,7 +471,7 @@ class Segmentation(MemoryAccessQuestion):
     # Make random placements and check to make sure they are not overlapping
     while (segment_collision(self.base, self.bounds)):
       for segment in self.base.keys():
-        self.bounds[segment] = random.randint(min_bounds, max_bounds)
+        self.bounds[segment] = random.randint(min_bounds, max_bounds-1)
         self.base[segment] = random.randint(0, (2**self.physical_bits - self.bounds[segment]))
     
     # Pick a random segment for us to use
@@ -487,13 +487,13 @@ class Segmentation(MemoryAccessQuestion):
     try:
       self.offset = random.randint(0,
         min([
-          ((self.virtual_bits-2)**2)-1,
+          max_bounds-1,
           int(self.bounds[self.segment] / self.PROBABILITY_OF_VALID)
         ])
       )
     except KeyError:
       # If we are in an unallocated section, we'll get a key error (I think)
-      self.offset = random.randint(0, ((self.virtual_bits-2)**2)-1)
+      self.offset = random.randint(0, max_bounds-1)
     
     # Calculate a virtual address based on the segment and the offset
     self.virtual_address = (
@@ -822,8 +822,3 @@ class Paging(MemoryAccessQuestion):
       ""
     ])
     return lines
-
-#########################
-# todo: below this line #
-#########################
-
