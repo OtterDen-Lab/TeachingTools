@@ -51,7 +51,7 @@ class Submission:
     
     @classmethod
     def from_string(cls, status_string, current_score):
-      if current_score is None:
+      if current_score is None and status_string not in cls.MISSING:
         return cls.UNGRADED
       for status in cls:
         if isinstance(status.value, tuple):
