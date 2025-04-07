@@ -20,6 +20,10 @@ def parse_args():
   parser.add_argument("--num_canvas", default=0, type=int)
   parser.add_argument("--num_pdfs", default=0, type=int)
   
+  subparsers = parser.add_subparsers(dest='command')
+  test_parser = subparsers.add_parser("TEST")
+  
+  
   args = parser.parse_args()
   
   if args.num_canvas > 0 and args.course_id is None:
@@ -27,10 +31,17 @@ def parse_args():
     exit(8)
   
   return args
+def test():
+  log.info("Running test...")
+  pass
 
 def main():
   
   args = parse_args()
+  
+  if args.command == "TEST":
+    test()
+    return
   
   quizzes = Quiz.from_yaml(args.quiz_yaml)
   for quiz in quizzes:
