@@ -96,7 +96,9 @@ class Quiz:
     for question in self:
       log.debug(f"{question.kind} : {question.points_value} : {question.name}")
     counter = collections.Counter([q.points_value for q in self.questions])
-    log.info(f"{self.name} : {sum(map(lambda q: q.points_value, self.questions))}points : {len(self.questions)} / {len(self.possible_questions)} questions picked.  {list(counter.items())}")
+    
+    counter_results = ', '.join(f"{count}x{points}points" for points, count in counter.items())
+    log.info(f"{self.name} : {sum(map(lambda q: q.points_value, self.questions))}points total, {len(self.questions)} / {len(self.possible_questions)} questions picked, {counter_results}")
     
     sort_order = self.question_sort_order
     if sort_order is None:
