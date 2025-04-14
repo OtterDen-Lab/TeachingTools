@@ -1,13 +1,10 @@
 #!env python
 from __future__ import annotations
 
-import argparse
 import collections
-import dataclasses
 import itertools
 import logging
 import os.path
-import pprint
 import random
 import shutil
 import subprocess
@@ -93,16 +90,55 @@ class Quiz:
     return iter(sorted(self.questions, key=sort_func))
     
   def describe(self):
-    for question in self:
-      log.debug(f"{question.kind} : {question.points_value} : {question.name}")
-    counter = collections.Counter([q.points_value for q in self.questions])
-    log.info(f"{self.name} : {sum(map(lambda q: q.points_value, self.questions))}points : {len(self.questions)} / {len(self.possible_questions)} questions picked.  {list(counter.items())}")
     
+    # Print out title
+    print(f"Title: {self.name}")
+    total_points = sum(map(lambda q: q.points_value, self.questions))
+    total_questions = len(self.questions)
+    
+    # Print out overall information
+    print(f"{total_points} points total, {total_questions} / {len(self.possible_questions)} questions picked")
+    
+    # Print out the per-value information
+    points_counter = collections.Counter([q.points_value for q in self.questions])
+    for points in sorted(points_counter.keys(), reverse=True):
+      print(f"{points_counter.get(points)} x {points}points")
+    
+    # Either get the sort order or default to the order in the enum class
     sort_order = self.question_sort_order
     if sort_order is None:
       sort_order = Question.Topic
+      
+    # Build per-topic information
+    
+    topic_information = {}
+    topic_strings = {}
     for topic in sort_order:
-      log.info(f"{topic} : {sum(map(lambda q: q.points_value, filter(lambda q: q.kind == topic, self.questions)))} points")
+      topic_strings = {"name": topic.name}
+      
+      question_count = len(list(map(lambda q: q.points_value, filter(lambda q: q.kind == topic, self.questions))))
+      topic_points = sum(map(lambda q: q.points_value, filter(lambda q: q.kind == topic, self.questions)))
+      
+      # If we have questions add in some states, otherwise mark them as empty
+      if question_count != 0:
+        topic_strings["count_str"] = f"{question_count} questions ({ 100 * question_count / total_questions:0.1f}%)"
+        topic_strings["points_str"] = f"{topic_points:2} points ({ 100 * topic_points / total_points:0.1f}%)"
+      else:
+        topic_strings["count_str"] = "--"
+        topic_strings["points_str"] = "--"
+      
+      topic_information[topic] = topic_strings
+    
+    
+    # Get padding string lengths
+    paddings = collections.defaultdict(lambda: 0)
+    for field in topic_strings.keys():
+      paddings[field] = max(len(information[field]) for information in topic_information.values())
+    
+    # Print out topics information using the padding
+    for topic in sort_order:
+      topic_strings = topic_information[topic]
+      print(f"{topic_strings['name']:{paddings['name']}} : {topic_strings['count_str']:{paddings['count_str']}} : {topic_strings['points_str']:{paddings['points_str']}}")
     
   def select_questions(self, total_points=None, exam_outline: List[Dict]=None):
     # The exam_outline object should contain a description of the kinds of questions that we want.
@@ -181,7 +217,6 @@ class Quiz:
     
     with open(path_to_yaml) as fid:
       list_of_exam_dicts = list(yaml.safe_load_all(fid))
-    log.debug(list_of_exam_dicts)
     
     for exam_dict in list_of_exam_dicts:
       # Get general quiz information from the dictionary
@@ -215,8 +250,6 @@ class Quiz:
           return new_question
         
         for q_name, q_data in question_definitions.items():
-          log.debug(f"{q_name} : {q_data}")
-          
           # Set defaults for config
           question_config = {
             "group" : False,
@@ -360,10 +393,6 @@ class Quiz:
       
       # Make a quiz
       question_set = ConcreteQuestionSet(self.questions, rng_seed=rng_seed, previous_question_set=question_set)
-    
-    
-      for question in question_set.questions:
-        log.debug(f"generate: {question.question.kind} : {question.question.points_value} : {question.question.name}")
       
       # Check if it's interesting enough
       if question_set.interesting_score() >= self.INTEREST_THRESHOLD:
