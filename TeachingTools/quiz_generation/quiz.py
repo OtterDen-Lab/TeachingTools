@@ -1,18 +1,14 @@
 #!env python
 from __future__ import annotations
 
-import argparse
 import collections
-import dataclasses
 import itertools
 import logging
 import os.path
-import pprint
 import random
 import shutil
 import subprocess
 import tempfile
-import time
 from typing import List, Dict, Optional
 
 import yaml
@@ -116,9 +112,9 @@ class Quiz:
     # Build per-topic information
     
     topic_information = {}
+    topic_strings = {}
     for topic in sort_order:
-      topic_strings = {}
-      topic_strings["name"] = topic.name
+      topic_strings = {"name": topic.name}
       
       question_count = len(list(map(lambda q: q.points_value, filter(lambda q: q.kind == topic, self.questions))))
       topic_points = sum(map(lambda q: q.points_value, filter(lambda q: q.kind == topic, self.questions)))
@@ -135,7 +131,7 @@ class Quiz:
     
     
     # Get padding string lengths
-    paddings = {}
+    paddings = collections.defaultdict(lambda: 0)
     for field in topic_strings.keys():
       paddings[field] = max(len(information[field]) for information in topic_information.values())
     
@@ -221,7 +217,6 @@ class Quiz:
     
     with open(path_to_yaml) as fid:
       list_of_exam_dicts = list(yaml.safe_load_all(fid))
-    log.debug(list_of_exam_dicts)
     
     for exam_dict in list_of_exam_dicts:
       # Get general quiz information from the dictionary
@@ -255,8 +250,6 @@ class Quiz:
           return new_question
         
         for q_name, q_data in question_definitions.items():
-          log.debug(f"{q_name} : {q_data}")
-          
           # Set defaults for config
           question_config = {
             "group" : False,
@@ -400,10 +393,6 @@ class Quiz:
       
       # Make a quiz
       question_set = ConcreteQuestionSet(self.questions, rng_seed=rng_seed, previous_question_set=question_set)
-    
-    
-      for question in question_set.questions:
-        log.debug(f"generate: {question.question.kind} : {question.question.points_value} : {question.question.name}")
       
       # Check if it's interesting enough
       if question_set.interesting_score() >= self.INTEREST_THRESHOLD:
