@@ -16,6 +16,8 @@ class OutputFormat(enum.Enum):
 
 
 class Answer():
+  DEFAULT_ROUNDING_DIGITS = 6
+  
   class AnswerKind(enum.Enum):
     BLANK = "fill_in_multiple_blanks_question"
     MULTIPLE_ANSWER = "multiple_answers_question" # todo: have baffles?
@@ -52,7 +54,7 @@ class Answer():
     if self.variable_kind == Answer.VariableKind.FLOAT:
       return [{
         "blank_id": self.key,
-        "answer_text": f"{self.value:0.2f}",
+        "answer_text": f"{self.value:0.{self.DEFAULT_ROUNDING_DIGITS}f}",
         "answer_weight": 100,
       }]
     elif self.variable_kind == Answer.VariableKind.BINARY:
@@ -121,7 +123,7 @@ class Answer():
         possible_answers.extend([
           {
             "blank_id": self.key,
-            "answer_text": f"{value_fraction.numerator / value_fraction.denominator:0.6}",
+            "answer_text": f"{value_fraction.numerator / value_fraction.denominator:0.{self.DEFAULT_ROUNDING_DIGITS}f}",
             "answer_weight": 100,
           },
           {
