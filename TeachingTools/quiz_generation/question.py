@@ -62,10 +62,11 @@ class TableGenerator:
       ]
       
       html_lines.append("<tr>")
-      html_lines.extend([
-        f"<th>{header_text}</th>"
-        for header_text in self.headers
-      ])
+      if self.headers is not None:
+        html_lines.extend([
+          f"<th>{header_text}</th>"
+          for header_text in self.headers
+        ])
       html_lines.append("</tr>")
       
       for row in self.value_matrix:
