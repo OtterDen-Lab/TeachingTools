@@ -150,7 +150,7 @@ class INodeAccesses(IOQuestion):
       Answer("answer__inode_index_in_block", self.inode_index_in_block),
     ])
   
-  def get_body_lines(self, output_format : OutputFormat|None = None,  *args, **kwargs) -> List[str]:
+  def get_body_lines(self, output_format: OutputFormat|None = None, *args, **kwargs) -> List[str|TableGenerator]:
     lines = [
       "Given the information below, please calculate the following values."
     ]
