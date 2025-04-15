@@ -54,7 +54,7 @@ class HardDriveAccessTime(IOQuestion):
     ]
     if output_format is not None and output_format == OutputFormat.CANVAS:
       lines.extend([
-        "Make sure your answers are rounded to 2 decimal points (even if they are whole numbers), and do so after you finish all your calculations! (i.e. don't use your rounded answers to calculate your overall answer)"
+        f"Make sure your answers are rounded to {Answer.DEFAULT_ROUNDING_DIGITS} decimal points (even if they are whole numbers), and do so after you finish all your calculations! (i.e. don't use your rounded answers to calculate your overall answer)"
       ])
     
     lines.extend([
