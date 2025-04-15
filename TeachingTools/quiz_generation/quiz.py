@@ -9,6 +9,7 @@ import random
 import shutil
 import subprocess
 import tempfile
+from datetime import datetime
 from typing import List, Dict, Optional
 
 import yaml
@@ -220,7 +221,7 @@ class Quiz:
     
     for exam_dict in list_of_exam_dicts:
       # Get general quiz information from the dictionary
-      name = exam_dict.get("name", "Unnamed Exam")
+      name = exam_dict.get("name", "Unnamed Exam") + f" ({datetime.now().strftime("%a %b %d %H:%M%p")})"
       practice = exam_dict.get("practice", False)
       sort_order = list(map(lambda t: Question.Topic.from_string(t), exam_dict.get("sort order", [])))
       sort_order = sort_order + list(filter(lambda t: t not in sort_order, Question.Topic))
