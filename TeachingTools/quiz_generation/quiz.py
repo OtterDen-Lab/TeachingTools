@@ -232,7 +232,6 @@ class Quiz:
         log.info(f"Parsing {question_value} point questions")
         
         def make_question(q_name, q_data, **kwargs):
-          
           # Build up the kwargs that we're going to pass in
           # todo: this is currently a mess due to legacy things, so before I tell others to use this make it cleaner
           kwargs= {
@@ -241,13 +240,11 @@ class Quiz:
             **q_data.get("kwargs", {}),
             **q_data,
             **kwargs,
-            "topic": Question.Topic.from_string(
-                      q_data.get("topic",
-                        q_data.get("kind",
-                          "Misc") # todo: refactor things so this isn't just from_string perhaps?
-                      )
-            )
           }
+          
+          # If we are passed in a topic then use it, otherwise don't set it which will have it set to a default
+          if "topic" in q_data:
+            kwargs["topic"] = Question.Topic.from_string(q_data.get("topic", "Misc"))
           
           # Add in a default, where if it isn't specified we're going to simply assume it is a text
           question_class = q_data.get("class", "FromText")
@@ -264,7 +261,8 @@ class Quiz:
             "group" : False,
             "num_to_pick" : 1,
             "random_per_student" : False,
-            "repeat": 1
+            "repeat": 1,
+            "topic": "MISC"
           }
           
           # Update config if it exists
@@ -284,7 +282,7 @@ class Quiz:
             questions_for_exam.append(
               QuestionGroup(
                 questions_in_group=[
-                  make_question(name, data) for name, data in q_data.items()
+                  make_question(name, data | {"topic" : question_config["topic"]}) for name, data in q_data.items()
                 ],
                 pick_once=(not question_config["random_per_student"])
               )
