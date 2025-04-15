@@ -232,19 +232,28 @@ class Quiz:
         log.info(f"Parsing {question_value} point questions")
         
         def make_question(q_name, q_data, **kwargs):
+          
+          # Build up the kwargs that we're going to pass in
+          # todo: this is currently a mess due to legacy things, so before I tell others to use this make it cleaner
           kwargs= {
-            "name" : q_name,
-            "points_value" : question_value,
+            "name": q_name,
+            "points_value": question_value,
             **q_data.get("kwargs", {}),
-            **kwargs
+            **q_data,
+            **kwargs,
+            "topic": Question.Topic.from_string(
+                      q_data.get("topic",
+                        q_data.get("kind",
+                          "Misc") # todo: refactor things so this isn't just from_string perhaps?
+                      )
+            )
           }
-          if "topic" in q_data:
-            kwargs["topic"] = Question.Topic.from_string(q_data["topic"])
-          elif "kind" in q_data:
-            kwargs["topic"] = Question.Topic.from_string(q_data["kind"])
+          
+          # Add in a default, where if it isn't specified we're going to simply assume it is a text
+          question_class = q_data.get("class", "FromText")
           
           new_question = QuestionRegistry.create(
-            q_data["class"],
+            question_class,
             **kwargs
           )
           return new_question
