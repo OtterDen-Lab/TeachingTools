@@ -20,8 +20,9 @@ class Answer():
   
   class AnswerKind(enum.Enum):
     BLANK = "fill_in_multiple_blanks_question"
-    MULTIPLE_ANSWER = "multiple_answers_question" # todo: have baffles?
+    MULTIPLE_ANSWER = "multiple_answers_question"  # todo: have baffles?
     ESSAY = "essay_question"
+    
   class VariableKind(enum.Enum): # todo: use these for generate variations?
     STR = enum.auto()
     INT = enum.auto()
