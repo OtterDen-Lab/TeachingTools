@@ -189,26 +189,60 @@ class INodeAccesses(IOQuestion):
   def get_explanation_lines(self, *args, **kwargs) -> List[str]:
     lines = []
     
+    
     lines.extend([
       "If we are given an inode number, there are a few steps that we need to take to load the actual inode.  These consist of determining the address of the inode, which block would contain it, and then its address within the block.",
       ""
       "To find the inode address, we calculate:",
       "",
-      r"$$(\text{Inode address}) = (\text{Inode Start Location}) + (\text{inode #}) \cdot (\text{inode size}) = " + f"{self.inode_start_location} + {self.inode_number} \\cdot {self.inode_size} = {self.inode_address}" + "$$",
+      
+      self.make_block_equation__multiline_equals(
+        r"(\text{Inode address})",
+        [
+          r"(\text{Inode Start Location}) + (\text{inode #}) \cdot (\text{inode size})",
+          f"{self.inode_start_location} + {self.inode_number} \\cdot {self.inode_size}",
+          f"{self.inode_address}"
+        ]
+      ),
+      
       "",
       "Next, we us this to figure out what block the inode is in.  We do this directly so we know what block to load, thus minimizing the number of loads we have to make.",
       "",
-      r"$$\text{Block containing inode} = (\text{Inode address}) \mathbin{//} (\text{block size}) = " + f"{self.inode_address} \\mathbin{{//}} {self.block_size} = {self.inode_block}" + "$$",
+      
+      self.make_block_equation__multiline_equals(
+        r"\text{Block containing inode}",
+        [
+          r"(\text{Inode address}) \mathbin{//} (\text{block size})",
+          f"{self.inode_address} \\mathbin{{//}} {self.block_size}",
+          f"{self.inode_block}"
+        ]
+      ),
+      
       "",
       "When we load this block, we now have in our system memory (remember, blocks on the hard drive are effectively useless to us until they're in main memory!), the inode, so next we need to figure out where it is within that block."
       "This means that we'll need to find the offset into this block.  We'll calculate this both as the offset in bytes, and also in number of inodes, since we can use array indexing.",
       "",
-      r"$$\text{offset within block} = (\text{Inode address}) \% (\text{block size}) = " + f"{self.inode_address} \\% {self.block_size} = {self.inode_address_in_block}" + "$$",
-      "",
+      
+      self.make_block_equation__multiline_equals(
+        r"\text{offset within block}",
+        [
+          r"(\text{Inode address}) \bmod (\text{block size})",
+          f"{self.inode_address} \\bmod {self.block_size}",
+          f"{self.inode_address_in_block}"
+        ]
+      ),
+      
       "and",
       "",
-      r"$$\text{index within block} = \frac{\text{offset within block}}{\text{inode size}} = " + f"\\frac{{{self.inode_address_in_block}}}{{{self.inode_size}}} = {self.inode_index_in_block}" + "$$",
-      ""
+      
+      self.make_block_equation__multiline_equals(
+        r"\text{index within block}",
+        [
+          r"\dfrac{\text{offset within block}}{\text{inode size}}",
+          f"\\dfrac{{{self.inode_address_in_block}}}{{{self.inode_size}}}",
+          f"{self.inode_index_in_block}"
+        ]
+      )
     ])
     
     return lines
