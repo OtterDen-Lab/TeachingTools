@@ -360,8 +360,6 @@ class Question(abc.ABC):
       question_body += self.get_body(output_format)
     question_body += self.get_footer(output_format)
     
-    log.debug("\n" + question_explanation)
-    
     # Return question body, explanation, and answers
     return ConcreteQuestion(
       question_text=question_body,
