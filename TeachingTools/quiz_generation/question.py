@@ -9,7 +9,6 @@ import importlib
 import itertools
 import pathlib
 import pkgutil
-import pprint
 import random
 import re
 import pypandoc
@@ -342,7 +341,6 @@ class Question(abc.ABC):
     else:
       random.seed(rng_seed + self.rng_seed_offset)
     
-
   def generate(self, output_format: OutputFormat, rng_seed=None, *args, **kwargs) -> ConcreteQuestion:
     # Renew the problem as appropriate
     self.instantiate(rng_seed, *args, **kwargs)
@@ -362,6 +360,8 @@ class Question(abc.ABC):
       question_body += self.get_body(output_format)
     question_body += self.get_footer(output_format)
     
+    log.debug("\n" + question_explanation)
+    
     # Return question body, explanation, and answers
     return ConcreteQuestion(
       question_text=question_body,
@@ -374,6 +374,28 @@ class Question(abc.ABC):
   
   def is_interesting(self) -> bool:
     return True
+
+  @classmethod
+  def make_block_equation(cls, str):
+    return "\n" r"$$ \displaystyle " + str + r"\frac{}{}$$" "\n"
+
+  @classmethod
+  def make_block_equation__multiline_equals(cls, lhs : str, rhs : List[str]):
+    equation_lines = []
+    equation_lines.extend([
+      r"\begin{array}{l}",
+      f"{lhs} = {rhs[0]} \\\\",
+    ])
+    equation_lines.extend([
+      f"\\phantom{{{lhs}}} = {eq} \\\\"
+      for eq in rhs[1:]
+    ])
+    equation_lines.extend([
+      r"\end{array}",
+    ])
+    
+    return cls.make_block_equation('\n'.join(equation_lines))
+    
 
 @dataclasses.dataclass
 class ConcreteQuestion():
