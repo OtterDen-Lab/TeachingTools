@@ -31,6 +31,7 @@ def parse_args():
     exit(8)
   
   return args
+
 def test():
   log.info("Running test...")
   pass

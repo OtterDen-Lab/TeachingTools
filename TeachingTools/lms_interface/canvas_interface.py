@@ -72,12 +72,15 @@ class CanvasCourse(LMSWrapper):
   def create_assignment_group(self, name="dev") -> canvasapi.course.AssignmentGroup:
     for assignment_group in self.course.get_assignment_groups():
       if assignment_group.name == name:
+        if name == "dev":
+          assignment_group.delete()
+          break
         log.info("Found group existing, returning")
         return assignment_group
     assignment_group = self.course.create_assignment_group(
       name="dev",
       group_weight=0.0,
-      position=1,
+      position=0,
     )
     return assignment_group
   

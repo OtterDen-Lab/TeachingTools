@@ -9,6 +9,7 @@ import random
 import shutil
 import subprocess
 import tempfile
+from datetime import datetime
 from typing import List, Dict, Optional
 
 import yaml
@@ -220,7 +221,7 @@ class Quiz:
     
     for exam_dict in list_of_exam_dicts:
       # Get general quiz information from the dictionary
-      name = exam_dict.get("name", "Unnamed Exam")
+      name = exam_dict.get("name", "Unnamed Exam") + f" ({datetime.now().strftime("%a %b %d %I:%M %p")})"
       practice = exam_dict.get("practice", False)
       sort_order = list(map(lambda t: Question.Topic.from_string(t), exam_dict.get("sort order", [])))
       sort_order = sort_order + list(filter(lambda t: t not in sort_order, Question.Topic))
@@ -232,19 +233,25 @@ class Quiz:
         log.info(f"Parsing {question_value} point questions")
         
         def make_question(q_name, q_data, **kwargs):
+          # Build up the kwargs that we're going to pass in
+          # todo: this is currently a mess due to legacy things, so before I tell others to use this make it cleaner
           kwargs= {
-            "name" : q_name,
-            "points_value" : question_value,
+            "name": q_name,
+            "points_value": question_value,
             **q_data.get("kwargs", {}),
-            **kwargs
+            **q_data,
+            **kwargs,
           }
+          
+          # If we are passed in a topic then use it, otherwise don't set it which will have it set to a default
           if "topic" in q_data:
-            kwargs["topic"] = Question.Topic.from_string(q_data["topic"])
-          elif "kind" in q_data:
-            kwargs["topic"] = Question.Topic.from_string(q_data["kind"])
+            kwargs["topic"] = Question.Topic.from_string(q_data.get("topic", "Misc"))
+          
+          # Add in a default, where if it isn't specified we're going to simply assume it is a text
+          question_class = q_data.get("class", "FromText")
           
           new_question = QuestionRegistry.create(
-            q_data["class"],
+            question_class,
             **kwargs
           )
           return new_question
@@ -255,7 +262,8 @@ class Quiz:
             "group" : False,
             "num_to_pick" : 1,
             "random_per_student" : False,
-            "repeat": 1
+            "repeat": 1,
+            "topic": "MISC"
           }
           
           # Update config if it exists
@@ -275,7 +283,7 @@ class Quiz:
             questions_for_exam.append(
               QuestionGroup(
                 questions_in_group=[
-                  make_question(name, data) for name, data in q_data.items()
+                  make_question(name, data | {"topic" : question_config["topic"]}) for name, data in q_data.items()
                 ],
                 pick_once=(not question_config["random_per_student"])
               )

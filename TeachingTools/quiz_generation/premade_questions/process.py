@@ -5,7 +5,9 @@ import collections
 import dataclasses
 import enum
 import logging
+import math
 import os
+import queue
 import random
 import uuid
 from typing import List, Optional
@@ -575,4 +577,52 @@ class SchedulingQuestion(ProcessQuestion):
     plt.close(fig)
     self.img = image_path
     return image_path
+
+
+class MLFQ_Question(ProcessQuestion):
   
+  MIN_DURATION = 10
+  MAX_DURATION = 100
+  MIN_ARRIVAL = 0
+  MAX_ARRIVAL = 100
+  
+  @dataclasses.dataclass
+  class Job():
+    arrival: float
+    duration: float
+    elapsed_time: float = 0.0
+    response_time: float = None
+    turnaround_time: float = None
+    
+    def run_for_slice(self, slice_duration):
+      self.elapsed_time += slice_duration
+    
+    def is_complete(self):
+      return math.isclose(self.duration, self.elapsed_time)
+  
+  def instantiate(self, *args, **kwargs):
+    super().instantiate(*args, **kwargs)
+    
+    # Set up defaults
+    # todo: allow for per-queue specification of durations, likely through dicts
+    num_queues = kwargs.get("num_queues", 2)
+    num_jobs = kwargs.get("num_jobs", 2)
+    
+    # Set up queues that we will be using
+    mlfq_queues = {
+      priority : queue.Queue()
+      for priority in range(num_queues)
+    }
+    
+    # Set up jobs that we'll be using
+    jobs = [
+      MLFQ_Question.Job(
+        arrival=random.randint(self.MIN_ARRIVAL, self.MAX_ARRIVAL),
+        duration=random.randint(self.MIN_DURATION, self.MAX_DURATION),
+        
+      )
+    ]
+    
+    curr_time = -1.0
+    while True:
+      pass
