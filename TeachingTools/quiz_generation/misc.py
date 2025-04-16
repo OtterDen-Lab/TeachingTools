@@ -16,7 +16,7 @@ class OutputFormat(enum.Enum):
 
 
 class Answer():
-  DEFAULT_ROUNDING_DIGITS = 6
+  DEFAULT_ROUNDING_DIGITS = 4
   
   class AnswerKind(enum.Enum):
     BLANK = "fill_in_multiple_blanks_question"

@@ -178,7 +178,7 @@ class AverageMemoryAccessTime(MathQuestion):
   
   def get_body_lines(self, *args, **kwargs) -> List[str]:
     lines = [
-      "Please calculate the Average Memory Access Time given the below information.  Please round your answer to 2 decimal points.",
+      f"Please calculate the Average Memory Access Time given the below information.  Please round your answer to {Answer.DEFAULT_ROUNDING_DIGITS} decimal points.",
       "",
     ]
     
