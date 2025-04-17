@@ -420,6 +420,19 @@ class ContentAST:
         
       return content
     
+  class Answer(Element):
+    def __init__(self, answer : Answer):
+      super().__init__()
+      self.answer = answer
+    
+    def render_markdown(self):
+      return f"[{self.answer.key}]"
+    
+    def render_html(self):
+      return self.render_markdown()
+    
+    def render_latex(self):
+      return r"\answerblank{5}"
   
   class Document(Element):
     """Root document class that adds document-level rendering"""
