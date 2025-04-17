@@ -168,7 +168,7 @@ class AverageMemoryAccessTime(MathQuestion):
     self.hit_latency = random.randint(1,9)
     self.miss_latency = int(random.randint(1, 9) * math.pow(10, orders_of_magnitude_different))
     
-    
+    # Add in a complication of making it sometimes very, very close
     if self.rng.random() < self.CHANCE_OF_99TH_PERCENTILE:
       # Then let's make it very close to 99%
       self.hit_rate = (99 + self.rng.random()) / 100
@@ -181,9 +181,9 @@ class AverageMemoryAccessTime(MathQuestion):
     # Calculate the AverageMemoryAccessTime (which is the answer itself)
     self.amat = self.hit_rate * self.hit_latency + (1 - self.hit_rate) * self.miss_latency
     
-    self.answers = [
-      Answer("answer__amat", self.amat, Answer.AnswerKind.BLANK, variable_kind=Answer.VariableKind.FLOAT)
-    ]
+    self.answers = {
+      "amat": Answer("answer__amat", self.amat, Answer.AnswerKind.BLANK, variable_kind=Answer.VariableKind.FLOAT)
+    }
     
     # Finally, do the randomizing of the question, to avoid these being non-deterministic
     self.show_miss_rate = self.rng.random() > 0.5
@@ -202,11 +202,14 @@ class AverageMemoryAccessTime(MathQuestion):
     body = ContentAST.Section()
     
     # Add in background information
-    body.add_text_element([
-      "Please calculate the Average Memory Access Time given the below information. "
-      f"Please round your answer to {Answer.DEFAULT_ROUNDING_DIGITS} decimal points. ",
-      f"- Hit Latency: {self.hit_latency} cycles",
-      f"- Miss Latency: {self.miss_latency} cycles"
+    body.add_elements([
+      ContentAST.Text("Please calculate the Average Memory Access Time given the below information. "),
+      ContentAST.Text(
+        f"Please round your answer to {Answer.DEFAULT_ROUNDING_DIGITS} decimal points. ",
+        hide_from_latex=True
+      ),
+      ContentAST.Text(f"- Hit Latency: {self.hit_latency} cycles"),
+        ContentAST.Text(f"- Miss Latency: {self.miss_latency} cycles")
     ])
     
     # Add in either miss rate or hit rate -- we only need one of them
@@ -216,7 +219,13 @@ class AverageMemoryAccessTime(MathQuestion):
       body.add_text_element(f"- Hit Rate: {100 * self.hit_rate: 0.2f}%")
     
     # Add in answer line
-    body.add_text_element("Average Memory Access Time: [answer__amat]cycles", new_paragraph=True)
+    body.add_elements([
+        ContentAST.Text("Average Memory Access Time:"),
+        ContentAST.Answer(self.answers["amat"]),
+        ContentAST.Text("cycles")
+      ],
+      new_paragraph=True
+    )
     
     return body
   
