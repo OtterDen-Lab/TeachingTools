@@ -176,6 +176,16 @@ class ContentAST:
     def add_element(self, element):
       self.elements.append(element)
     
+    def add_text_element(self, content: str|List[str], new_paragraph=False):
+      """Helper function to add text to reduce the amount of boilerplate"""
+      if new_paragraph:
+        self.add_element(ContentAST.Text(""))
+      if isinstance(content, str):
+        self.add_element(ContentAST.Text(content))
+      else:
+        for c in content:
+          self.add_element(ContentAST.Text(c))
+          
     def convert_markdown(self, str_to_convert, output_format):
       try:
         return pypandoc.convert_text(
@@ -209,7 +219,7 @@ class ContentAST:
     pass
   
   class Text(Element):
-    def __init__(self, content):
+    def __init__(self, content : str):
       super().__init__()
       self.content = content
     
@@ -237,7 +247,6 @@ class ContentAST:
     def render_latex(self):
       return f"\\begin{{equation}}\n{self.latex}\n\\end{{equation}}"
   
-  
     @classmethod
     def make_block_equation__multiline_equals(cls, lhs : str, rhs : List[str]):
       equation_lines = []
@@ -253,7 +262,7 @@ class ContentAST:
         r"\end{array}",
       ])
       
-      return cls.make_block_equation('\n'.join(equation_lines))
+      return cls('\n'.join(equation_lines))
     
   class Table(Element):
     def __init__(self, data, headers=None, alignments=None):
