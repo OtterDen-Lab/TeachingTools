@@ -167,11 +167,11 @@ class Answer():
     return [canvas_answer]
 
 
-class TextAST:
+class ContentAST:
   
   class Element:
     def __init__(self, elements=None):
-      self.elements = elements or []
+      self.elements : List[ContentAST.Element] = elements or []
     
     def add_element(self, element):
       self.elements.append(element)
@@ -203,6 +203,10 @@ class TextAST:
     
     def render_latex(self):
       return "\n".join(element.render("latex") for element in self.elements)
+  
+  class Section(Element):
+    """A child class representing a specific section of a question"""
+    pass
   
   class Text(Element):
     def __init__(self, content):
@@ -251,8 +255,6 @@ class TextAST:
       
       return cls.make_block_equation('\n'.join(equation_lines))
     
-    
-  
   class Table(Element):
     def __init__(self, data, headers=None, alignments=None):
       super().__init__()
@@ -378,8 +380,8 @@ class TextAST:
   class Question(Element):
     def __init__(
         self,
-        body: TextAST.Element,
-        explanation: TextAST.Element,
+        body: ContentAST.Section,
+        explanation: ContentAST.Section,
         name=None,
         value=1,
         interest=1.0
@@ -408,6 +410,7 @@ class TextAST:
         content = '\n'.join(latex_lines)
         
       return content
+    
   
   class Document(Element):
     """Root document class that adds document-level rendering"""

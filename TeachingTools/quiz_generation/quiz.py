@@ -14,7 +14,7 @@ from typing import List, Dict, Optional
 
 import yaml
 
-from TeachingTools.quiz_generation.misc import OutputFormat, TextAST
+from TeachingTools.quiz_generation.misc import OutputFormat, ContentAST
 from TeachingTools.quiz_generation.question import Question, QuestionRegistry, QuestionGroup
 
 logging.basicConfig()
@@ -24,7 +24,7 @@ log.setLevel(logging.DEBUG)
 
 class ConcreteQuestionSet:
   def __init__(self, questions: List[Question], rng_seed, previous_question_set : Optional[ConcreteQuestionSet]= None):
-    self.questions : List[TextAST.Question] = []
+    self.questions : List[ContentAST.Question] = []
     for i, question in enumerate(questions):
       self.questions.append(
         question.get_question(

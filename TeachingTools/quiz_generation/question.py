@@ -15,7 +15,7 @@ import pypandoc
 import yaml
 from typing import List, Dict, Any, Tuple, Optional
 
-from TeachingTools.quiz_generation.misc import OutputFormat, Answer, TextAST
+from TeachingTools.quiz_generation.misc import OutputFormat, Answer, ContentAST
 
 import logging
 logging.basicConfig()
@@ -217,7 +217,7 @@ class Question(abc.ABC):
       question_dicts = yaml.safe_load_all(fid)
   
   @abc.abstractmethod
-  def get_question(self, **kwargs) -> TextAST.Question:
+  def get_question(self, **kwargs) -> ContentAST.Question:
     pass
   
   def get_answers(self, *args, **kwargs) -> Tuple[Answer.AnswerKind, List[Dict[str,Any]]]:
@@ -238,6 +238,7 @@ class Question(abc.ABC):
     
   def is_interesting(self) -> bool:
     return True
+
 
 class QuestionGroup():
   

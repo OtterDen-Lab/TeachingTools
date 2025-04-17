@@ -17,7 +17,7 @@ import jinja2
 
 import logging
 
-from TeachingTools.quiz_generation.misc import OutputFormat, TextAST
+from TeachingTools.quiz_generation.misc import OutputFormat, ContentAST
 from TeachingTools.quiz_generation.question import Question, QuestionRegistry, Answer, TableGenerator
 from TeachingTools.quiz_generation.premade_questions.exam_generation_functions import QuickFunctions
 
@@ -192,10 +192,10 @@ class FromText(Question):
     self.answers = []
     self.possible_variations = 1
   
-  def get_question(self, **kwargs) -> TextAST.Question:
-    question = TextAST.Question(
-      body=TextAST.Text(self.text),
-      explanation=TextAST.Text("[no explanation given]]"),
+  def get_question(self, **kwargs) -> ContentAST.Question:
+    question = ContentAST.Question(
+      body=ContentAST.Section([ContentAST.Text(self.text)]),
+      explanation=ContentAST.Section([ContentAST.Text("[no explanation given]]")]),
       value=kwargs.get("value", 1)
     )
     return question
