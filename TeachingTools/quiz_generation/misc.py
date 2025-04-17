@@ -381,24 +381,22 @@ class TextAST:
         body: TextAST.Element,
         explanation: TextAST.Element,
         name=None,
-        value=1
+        value=1,
+        interest=1.0
     ):
       super().__init__()
       self.name = name
       self.explanation = explanation
       self.body = body
       self.value = value
+      self.interest = interest
       
     def render(self, output_format):
       # Generate content from all elements
-      content = super().render(output_format)
+      content = self.body.render(output_format)
       
-      # Add title if present
-      if self.title and output_format == "markdown":
-        content = f"# {self.name}\n\n{content}"
-      elif self.title and output_format == "html":
-        content = f"<h1>{self.name}</h1>\n{content}"
-      elif self.title and output_format == "latex":
+      # If output format is latex, add in minipage and question environments
+      if output_format == "latex":
         latex_lines = [
           r"\noindent\begin{minipage}{\textwidth}",
           r"\question{" + str(int(self.value)) + r"}",
