@@ -182,7 +182,7 @@ class Question(abc.ABC):
     
     self.extra_attrs = kwargs # clear page, etc.
     
-    self.answers = []
+    self.answers = {}
     self.possible_variations = float('inf')
     
     self.rng_seed_offset = kwargs.get("rng_seed_offset", 0)
@@ -225,15 +225,16 @@ class Question(abc.ABC):
   
   def get_answers(self, *args, **kwargs) -> Tuple[Answer.AnswerKind, List[Dict[str,Any]]]:
     # log.warning("get_answers using default implementation!  Consider implementing!")
-    return Answer.AnswerKind.BLANK, list(itertools.chain(*[a.get_for_canvas() for a in self.answers]))
+    return Answer.AnswerKind.BLANK, list(itertools.chain(*[a.get_for_canvas() for a in self.answers.values()]))
 
   def instantiate(self, rng_seed=None, *args, **kwargs):
-    """If it is necessary to regenerate aspects between usages, this is the time to do it
+    """If it is necessary to regenerate aspects between usages, this is the time to do it.
+    This base implementation simply resets everything.
     :param rng_seed: random number generator seed to use when regenerating question
     :param *args:
     :param **kwargs:
     """
-    self.answers = []
+    self.answers = {}
     self.rng.seed(self.rng_seed_offset + (rng_seed or 0))
     
   def is_interesting(self) -> bool:
