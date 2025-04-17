@@ -20,6 +20,7 @@ import logging
 from TeachingTools.quiz_generation.misc import OutputFormat
 from TeachingTools.quiz_generation.question import Question, QuestionRegistry, Answer, TableGenerator
 from TeachingTools.quiz_generation.premade_questions.exam_generation_functions import QuickFunctions
+from quiz_generation.misc import TextAST
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -192,8 +193,8 @@ class FromText(Question):
     self.answers = []
     self.possible_variations = 1
   
-  def get_body_lines(self, *args, **kwargs) -> List[str|TableGenerator]:
-    return [self.text]
+  def get_question(self) -> TextAST.Question:
+    return TextAST.Text(self.text)
   
   def get_answers(self, *args, **kwargs) -> Tuple[Answer.AnswerKind, List[Dict[str,Any]]]:
     return Answer.AnswerKind.ESSAY, []
