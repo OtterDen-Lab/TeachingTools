@@ -5,6 +5,7 @@ import random
 from typing import List
 
 from TeachingTools.quiz_generation.question import Question, QuestionRegistry, Answer
+from TeachingTools.quiz_generation.misc import ContentAST
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -153,6 +154,8 @@ class HexAndBinary(MathQuestion):
 @QuestionRegistry.register()
 class AverageMemoryAccessTime(MathQuestion):
   
+  CHANCE_OF_99TH_PERCENTILE = 0.75
+  
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
     self.instantiate()
@@ -160,53 +163,81 @@ class AverageMemoryAccessTime(MathQuestion):
   def instantiate(self, rng_seed=None, *args, **kwargs):
     super().instantiate(rng_seed=rng_seed, *args, **kwargs)
     
-    orders_of_magnitude_different = random.randint(1,4)
+    # Figure out how many orders of magnitude different we are
+    orders_of_magnitude_different = self.rng.randint(1,4)
     self.hit_latency = random.randint(1,9)
     self.miss_latency = int(random.randint(1, 9) * math.pow(10, orders_of_magnitude_different))
     
-    if random.random() > 0.5:
+    
+    if self.rng.random() < self.CHANCE_OF_99TH_PERCENTILE:
       # Then let's make it very close to 99%
-      self.hit_rate = (99 + random.random()) / 100
+      self.hit_rate = (99 + self.rng.random()) / 100
     else:
       self.hit_rate = random.random()
+      
+    # Calculate the hit rate
     self.hit_rate = round(self.hit_rate, 4)
+    
+    # Calculate the AverageMemoryAccessTime (which is the answer itself)
     self.amat = self.hit_rate * self.hit_latency + (1 - self.hit_rate) * self.miss_latency
     
     self.answers = [
       Answer("answer__amat", self.amat, Answer.AnswerKind.BLANK, variable_kind=Answer.VariableKind.FLOAT)
     ]
+    
+    # Finally, do the randomizing of the question, to avoid these being non-deterministic
+    self.show_miss_rate = self.rng.random() > 0.5
+    
+    # At this point, everything in the question should be set.
+    pass
   
-  def get_body_lines(self, *args, **kwargs) -> List[str]:
-    lines = [
-      f"Please calculate the Average Memory Access Time given the below information.  Please round your answer to {Answer.DEFAULT_ROUNDING_DIGITS} decimal points.",
-      "",
-    ]
+  def get_question(self, **kwargs) -> ContentAST.Question:
+    # todo: this is a BAD way to do this because we might be missing out on equations and the like.
+    return ContentAST.Question(
+      body=self.get_body(),
+      explanation=self.get_explanation()
+    )
+  
+  def get_body(self, **kwargs) -> ContentAST.Section:
+    body = ContentAST.Section()
     
-    info_lines = [
+    # Add in background information
+    body.add_text_element([
+      "Please calculate the Average Memory Access Time given the below information. "
+      f"Please round your answer to {Answer.DEFAULT_ROUNDING_DIGITS} decimal points. ",
       f"- Hit Latency: {self.hit_latency} cycles",
-      f"- Miss Latency: {self.miss_latency} cycles",
-    ]
-    if random.random() > 0.5:
-      info_lines.append(f"- Hit Rate: {100 * self.hit_rate: 0.2f}%")
-    else:
-      info_lines.append(f"- Miss Rate: {100 * (1 - self.hit_rate): 0.2f}%")
-    
-    lines.extend(random.sample(info_lines, len(info_lines)))
-    lines.append("")
-    
-    lines.extend([
-      "",
-      "Average Memory Access Time: [answer__amat]cycles"
+      f"- Miss Latency: {self.miss_latency} cycles"
     ])
     
-    return lines
+    # Add in either miss rate or hit rate -- we only need one of them
+    if self.show_miss_rate:
+      body.add_text_element(f"- Miss Rate: {100 * (1 - self.hit_rate): 0.2f}%")
+    else:
+      body.add_text_element(f"- Hit Rate: {100 * self.hit_rate: 0.2f}%")
+    
+    # Add in answer line
+    body.add_text_element("Average Memory Access Time: [answer__amat]cycles", new_paragraph=True)
+    
+    return body
   
-  def get_explanation_lines(self, *args, **kwargs) -> List[str]:
-    lines = [
-      "Remember that to calculate the Average Memory Access Time we weight both the hit and miss times by their relative likelihood.",
-      "That is, we calculate `(hit_rate)*(hit_cost) + (1 - hit_rate)*(miss_cost)`."
-      "",
-      "In this case, that calculation becomes:",
-      f"$({self.hit_rate: 0.4f})*({self.hit_latency}) + ({1 - self.hit_rate: 0.4f})*({self.miss_latency}) = {self.amat:0.2f}\\text{{cycles}}$"
-    ]
-    return lines
+  def get_explanation(self, **kwargs) -> ContentAST.Section:
+    explanation = ContentAST.Section()
+    
+    # Add in General explanation
+    explanation.add_text_element([
+      "Remember that to calculate the Average Memory Access Time "
+      "we weight both the hit and miss times by their relative likelihood.",
+      "That is, we calculate:"
+    ])
+    
+    # Add in equations
+    ContentAST.Equation.make_block_equation__multiline_equals(
+      lhs="AMAT",
+      rhs=[
+        r"(hit\_rate)*(hit\_cost) + (1 - hit\_rate)*(miss\_cost)",
+        f"$({self.hit_rate: 0.4f})*({self.hit_latency}) + ({1 - self.hit_rate: 0.4f})*({self.miss_latency}) = {self.amat: {Answer.DEFAULT_ROUNDING_DIGITS}f}\\text{{cycles}}$"
+      ]
+    )
+    
+    return explanation
+  
