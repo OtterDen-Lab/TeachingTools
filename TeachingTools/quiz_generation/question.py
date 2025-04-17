@@ -217,7 +217,7 @@ class Question(abc.ABC):
       question_dicts = yaml.safe_load_all(fid)
   
   @abc.abstractmethod
-  def get_question(self) -> TextAST.Question:
+  def get_question(self, **kwargs) -> TextAST.Question:
     pass
   
   def get_answers(self, *args, **kwargs) -> Tuple[Answer.AnswerKind, List[Dict[str,Any]]]:
