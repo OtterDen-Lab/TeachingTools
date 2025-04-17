@@ -273,11 +273,12 @@ class ContentAST:
       return cls('\n'.join(equation_lines))
     
   class Table(Element):
-    def __init__(self, data, headers=None, alignments=None):
+    def __init__(self, data, headers=None, alignments=None, padding=False):
       super().__init__()
       self.data = data
       self.headers = headers
-      self.alignments = alignments
+      self.alignments = alignments,
+      self.padding = padding
     
     def render_markdown(self):
       # Basic markdown table implementation
@@ -301,12 +302,12 @@ class ContentAST:
       
       for row in self.data:
         result.append("| " + " | ".join(str(cell) for cell in row) + " |")
-      
+        
       return "\n".join(result)
     
     def render_html(self):
       # HTML table implementation
-      result = ["<table>"]
+      result = ["<table border=\"1\" style=\"border-collapse: collapse; width: 100%;\">"]
       
       if self.headers:
         result.append("  <thead>")
@@ -326,11 +327,12 @@ class ContentAST:
           align_attr = ""
           if self.alignments and i < len(self.alignments):
             align_attr = f' align="{self.alignments[i]}"'
-          result.append(f"      <td{align_attr}>{cell}</td>")
+          result.append(f"      <td  style=\"padding: {'5px' if self.padding else '0x'} ; {align_attr};\">{cell}</td>")
         result.append("    </tr>")
       result.append("  </tbody>")
       result.append("</table>")
       
+      log.debug("\n".join(result))
       return "\n".join(result)
     
     def render_latex(self):

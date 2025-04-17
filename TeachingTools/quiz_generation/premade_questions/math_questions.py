@@ -152,6 +152,9 @@ class HexAndBinary(MathQuestion):
           ["0b"] + [binary_str[i:i+4] for i in range(0, len(binary_str), 4)],
           ["0x"] + list(hex_str)
         ],
+        # alignments='center', #['center' for _ in range(0, 1+len(hex_str))],
+        padding=False
+        
       )
     )
     
