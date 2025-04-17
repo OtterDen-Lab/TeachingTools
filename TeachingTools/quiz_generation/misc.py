@@ -176,6 +176,11 @@ class ContentAST:
     def add_element(self, element):
       self.elements.append(element)
     
+    def add_elements(self, elements, new_paragraph=False):
+      if new_paragraph:
+        self.elements.append(ContentAST.Text(""))
+      self.elements.extend(elements)
+    
     def add_text_element(self, content: str|List[str], new_paragraph=False):
       """Helper function to add text to reduce the amount of boilerplate"""
       if new_paragraph:
@@ -183,8 +188,7 @@ class ContentAST:
       if isinstance(content, str):
         self.add_element(ContentAST.Text(content))
       else:
-        for c in content:
-          self.add_element(ContentAST.Text(c))
+        self.add_elements(map(lambda c: ContentAST.Text(c), content))
           
     def convert_markdown(self, str_to_convert, output_format):
       try:
@@ -219,9 +223,10 @@ class ContentAST:
     pass
   
   class Text(Element):
-    def __init__(self, content : str):
+    def __init__(self, content : str, hide_from_latex=False):
       super().__init__()
       self.content = content
+      self.hide_from_latex = hide_from_latex
     
     def render_markdown(self):
       return self.content
@@ -231,7 +236,10 @@ class ContentAST:
       return super().convert_markdown(self.content, "html") or self.content
     
     def render_latex(self):
-      return super().convert_markdown(self.content, "latex") or self.content
+      if self.hide_from_latex:
+        return ""
+      content = super().convert_markdown(self.content, "latex") or self.content
+      return content.strip()
   
   class Equation(Element):
     def __init__(self, latex):
