@@ -14,10 +14,8 @@ import re
 import pypandoc
 import yaml
 from typing import List, Dict, Any, Tuple, Optional
-import canvasapi.course, canvasapi.quiz
-import pytablewriter
 
-from TeachingTools.quiz_generation.misc import OutputFormat, Answer
+from TeachingTools.quiz_generation.misc import OutputFormat, Answer, TextAST
 
 import logging
 logging.basicConfig()
@@ -189,61 +187,6 @@ class Question(abc.ABC):
     
     self.rng_seed_offset = kwargs.get("rng_seed_offset", 0)
   
-  def get__latex(self, *args, **kwargs):
-    concrete_question = self.generate(OutputFormat.LATEX)
-    return re.sub(r'\[answer.+]', r"\\answerblank{3}", concrete_question.question_text)
-
-  def get__canvas(self, course: canvasapi.course.Course, quiz : canvasapi.quiz.Quiz, interest_threshold=1.0, *args, **kwargs):
-    
-    concrete_question = None
-    while True:
-      concrete_question : ConcreteQuestion = self.generate(
-        OutputFormat.CANVAS,
-        course=course,
-        quiz=quiz,
-        previous=(
-          None if concrete_question is None
-          else concrete_question.question
-        )
-      )
-      if concrete_question.interest >= interest_threshold:
-        break
-    
-    question_type, answers = self.get_answers(*args, **kwargs)
-    return {
-      "question_name": f"{self.name} ({datetime.datetime.now().strftime('%m/%d/%y %H:%M:%S.%f')})",
-      "question_text": concrete_question.question_text,
-      "question_type": question_type.value, #e.g. "fill_in_multiple_blanks"
-      "points_possible": self.points_value,
-      "answers": answers,
-      "neutral_comments_html": concrete_question.explanation_text
-    }
-  
-  def get_header(self, output_format : OutputFormat, *args, **kwargs) -> str:
-    lines = []
-    if output_format == OutputFormat.LATEX:
-      lines.extend([
-        r"\noindent\begin{minipage}{\textwidth}",
-        r"\question{" + str(int(self.points_value)) + r"}",
-        r"\noindent\begin{minipage}{0.9\textwidth}",
-      ])
-    elif output_format == OutputFormat.CANVAS:
-      pass
-    return '\n'.join(lines)
-
-  def get_footer(self, output_format : OutputFormat, *args, **kwargs) -> str:
-    lines = []
-    if output_format == OutputFormat.LATEX:
-      if self.spacing is not None:
-        lines.append(f"\\vspace{{{self.spacing}cm}}")
-      lines.extend([
-        r"\end{minipage}",
-        r"\end{minipage}"
-      ])
-    elif output_format == OutputFormat.CANVAS:
-      pass
-    return '\n'.join(lines)
-
   @staticmethod
   def get_table_generator(
       table_data: Dict[str,List[str]],
@@ -274,56 +217,8 @@ class Question(abc.ABC):
       question_dicts = yaml.safe_load_all(fid)
   
   @abc.abstractmethod
-  def get_body_lines(self, *args, **kwargs) -> List[str|TableGenerator]:
+  def get_question(self) -> TextAST.Question:
     pass
-  
-  @staticmethod
-  def convert_from_lines_to_text(lines, output_format: OutputFormat):
-    
-    parts = []
-    curr_part = ""
-    for line in lines:
-      if isinstance(line, TableGenerator):
-        
-        parts.append(
-          pypandoc.convert_text(
-            curr_part,
-            ('html' if output_format == OutputFormat.CANVAS else 'latex'),
-            format='md', extra_args=["-M2GB", "+RTS", "-K64m", "-RTS"]
-          )
-        )
-        curr_part = ""
-        parts.append('\n' + line.generate(output_format) + '\n')
-      else:
-        if output_format == OutputFormat.LATEX:
-          line = re.sub(r'\[answer\S+]', r"\\answerblank{3}", line)
-        curr_part += line + '\n'
-    
-    parts.append(
-      pypandoc.convert_text(
-        curr_part,
-        ('html' if output_format == OutputFormat.CANVAS else 'latex'),
-        format='md', extra_args=["-M2GB", "+RTS", "-K64m", "-RTS"]
-      )
-    )
-    body = '\n'.join(parts)
-    if output_format == OutputFormat.LATEX:
-      body = re.sub(r'\[answer\S+]', r"\\answerblank{3}", body)
-    return body
-  
-  def get_body(self, output_format:OutputFormat):
-    # lines should be in markdown
-    lines = self.get_body_lines(output_format=output_format)
-    return self.convert_from_lines_to_text(lines, output_format)
-    
-  def get_explanation_lines(self, *args, **kwargs) -> List[str]:
-    log.warning("get_explanation using default implementation!  Consider implementing!")
-    return []
-  
-  def get_explanation(self, output_format:OutputFormat, *args, **kwargs):
-    # lines should be in markdown
-    lines = self.get_explanation_lines(*args, **kwargs)
-    return self.convert_from_lines_to_text(lines, output_format)
   
   def get_answers(self, *args, **kwargs) -> Tuple[Answer.AnswerKind, List[Dict[str,Any]]]:
     # log.warning("get_answers using default implementation!  Consider implementing!")
@@ -341,69 +236,8 @@ class Question(abc.ABC):
     else:
       random.seed(rng_seed + self.rng_seed_offset)
     
-  def generate(self, output_format: OutputFormat, rng_seed=None, *args, **kwargs) -> ConcreteQuestion:
-    # Renew the problem as appropriate
-    self.instantiate(rng_seed, *args, **kwargs)
-    
-    # while (not self.is_interesting()):
-    #   log.debug("Still not interesting...")
-    #   self.instantiate()
-    
-    question_body = self.get_header(output_format)
-    question_explanation = ""
-    
-    # Generation body and explanation based on the output format
-    if output_format == OutputFormat.CANVAS:
-      question_body += self.get_body(output_format)
-      question_explanation = pypandoc.convert_text(self.get_explanation(output_format, *args, **kwargs), 'html', format='md', extra_args=["-M2GB", "+RTS", "-K64m", "-RTS"])
-    elif output_format == OutputFormat.LATEX:
-      question_body += self.get_body(output_format)
-    question_body += self.get_footer(output_format)
-    
-    # Return question body, explanation, and answers
-    return ConcreteQuestion(
-      question_text=question_body,
-      answer_text=self.get_answers(),
-      explanation_text=question_explanation,
-      value=self.points_value,
-      interest=(1.0 if self.is_interesting() else 0.0),
-      question=self
-    )
-  
   def is_interesting(self) -> bool:
     return True
-
-  @classmethod
-  def make_block_equation(cls, str):
-    return "\n" r"$$ \displaystyle " + str + r"\frac{}{}$$" "\n"
-
-  @classmethod
-  def make_block_equation__multiline_equals(cls, lhs : str, rhs : List[str]):
-    equation_lines = []
-    equation_lines.extend([
-      r"\begin{array}{l}",
-      f"{lhs} = {rhs[0]} \\\\",
-    ])
-    equation_lines.extend([
-      f"\\phantom{{{lhs}}} = {eq} \\\\"
-      for eq in rhs[1:]
-    ])
-    equation_lines.extend([
-      r"\end{array}",
-    ])
-    
-    return cls.make_block_equation('\n'.join(equation_lines))
-    
-
-@dataclasses.dataclass
-class ConcreteQuestion():
-  question_text : str
-  answer_text : str
-  explanation_text : str
-  value: float
-  interest : float
-  question: Question
-
 
 class QuestionGroup():
   
