@@ -14,6 +14,7 @@ import re
 import pypandoc
 import yaml
 from typing import List, Dict, Any, Tuple, Optional
+import canvasapi.course, canvasapi.quiz
 
 from TeachingTools.quiz_generation.misc import OutputFormat, Answer, ContentAST
 
@@ -239,7 +240,27 @@ class Question(abc.ABC):
     
   def is_interesting(self) -> bool:
     return True
-
+  
+  def get__canvas(self, course: canvasapi.course.Course, quiz : canvasapi.quiz.Quiz, interest_threshold=1.0, *args, **kwargs):
+    
+    # Get an interesting enough version of the question
+    while True:
+      questionAST = self.get_question()
+      if questionAST.interest >= interest_threshold:
+        break
+    
+    # Get the answers and type of question
+    question_type, answers = self.get_answers(*args, **kwargs)
+    
+    # Build appropriate dictionary to send to canvas
+    return {
+      "question_name": f"{self.name} ({datetime.datetime.now().strftime('%m/%d/%y %H:%M:%S.%f')})",
+      "question_text": questionAST.render("html"), # todo: this will not work for images currently
+      "question_type": question_type.value,
+      "points_possible": self.points_value,
+      "answers": answers,
+      "neutral_comments_html": questionAST.explanation.render("html") # todo: Don't break this boundary?
+    }
 
 class QuestionGroup():
   
