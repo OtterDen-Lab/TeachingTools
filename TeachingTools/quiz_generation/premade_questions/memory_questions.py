@@ -40,10 +40,10 @@ class VirtualAddressParts(MemoryQuestion):
   ):
     super().__init__(*args, **kwargs)
     
-    self.instantiate()
+    self.refresh()
   
-  def instantiate(self, rng_seed=None, *args, **kwargs):
-    super().instantiate(rng_seed=rng_seed, *args, **kwargs)
+  def refresh(self, rng_seed=None, *args, **kwargs):
+    super().refresh(rng_seed=rng_seed, *args, **kwargs)
     
     # Generate baselines, if not given
     self.num_va_bits = kwargs.get("num_va_bits", random.randint(2, self.MAX_BITS))
@@ -188,10 +188,10 @@ class CachingQuestion(MemoryQuestion):
     self.cache_size = kwargs.get("cache_size", 3)
     self.num_requests = kwargs.get("num_requests", 10)
     
-    self.instantiate()
+    self.refresh()
   
-  def instantiate(self, rng_seed=None, previous : Optional[CachingQuestion]=None, *args, **kwargs):
-    super().instantiate(rng_seed=rng_seed, *args, **kwargs)
+  def refresh(self, rng_seed=None, previous : Optional[CachingQuestion]=None, *args, **kwargs):
+    super().refresh(rng_seed=rng_seed, *args, **kwargs)
     
     self.answers = []
     if previous is None:
@@ -330,10 +330,10 @@ class BaseAndBounds(MemoryAccessQuestion):
   
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
-    self.instantiate(*args, **kwargs)
+    self.refresh(*args, **kwargs)
   
-  def instantiate(self, rng_seed=None, *args, **kwargs):
-    super().instantiate(rng_seed=rng_seed, *args, **kwargs)
+  def refresh(self, rng_seed=None, *args, **kwargs):
+    super().refresh(rng_seed=rng_seed, *args, **kwargs)
     
     
     bounds_bits = random.randint(self.MIN_BOUNDS_BIT, self.MAX_BOUNDS_BITS)
@@ -436,8 +436,8 @@ class Segmentation(MemoryAccessQuestion):
     
     return
   
-  def instantiate(self, rng_seed=None, *args, **kwargs):
-    super().instantiate(rng_seed=rng_seed, *args, **kwargs)
+  def refresh(self, rng_seed=None, *args, **kwargs):
+    super().refresh(rng_seed=rng_seed, *args, **kwargs)
     
     # Pick how big each of our address spaces will be
     self.virtual_bits = random.randint(self.MIN_VIRTUAL_BITS, self.MAX_VIRTUAL_BITS)
@@ -632,10 +632,10 @@ class Paging(MemoryAccessQuestion):
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
     
-    self.instantiate()
+    self.refresh()
   
-  def instantiate(self, rng_seed=None, *args, **kwargs):
-    super().instantiate(rng_seed=rng_seed, *args, **kwargs)
+  def refresh(self, rng_seed=None, *args, **kwargs):
+    super().refresh(rng_seed=rng_seed, *args, **kwargs)
     
     self.num_offset_bits = random.randint(self.MIN_OFFSET_BITS, self.MAX_OFFSET_BITS)
     self.num_vpn_bits = random.randint(self.MIN_VPN_BITS, self.MAX_VPN_BITS)

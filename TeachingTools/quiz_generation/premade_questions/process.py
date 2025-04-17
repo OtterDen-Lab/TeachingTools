@@ -260,10 +260,10 @@ class SchedulingQuestion(ProcessQuestion):
       self.scheduler_kind_generator = lambda : random.choice(list(SchedulingQuestion.Kind))
     else:
       self.scheduler_kind_generator = lambda : SchedulingQuestion.get_kind_from_string(scheduler_kind)
-    self.instantiate(scheduler_kind=scheduler_kind)
+    self.refresh(scheduler_kind=scheduler_kind)
     
-  def instantiate(self, rng_seed=None, previous : Optional[SchedulingQuestion]=None, *args, **kwargs):
-    super().instantiate(rng_seed=rng_seed, *args, **kwargs)
+  def refresh(self, rng_seed=None, previous : Optional[SchedulingQuestion]=None, *args, **kwargs):
+    super().refresh(rng_seed=rng_seed, *args, **kwargs)
     
     self.job_stats = {}
     self.SCHEDULER_KIND = self.scheduler_kind_generator()
@@ -600,8 +600,8 @@ class MLFQ_Question(ProcessQuestion):
     def is_complete(self):
       return math.isclose(self.duration, self.elapsed_time)
   
-  def instantiate(self, *args, **kwargs):
-    super().instantiate(*args, **kwargs)
+  def refresh(self, *args, **kwargs):
+    super().refresh(*args, **kwargs)
     
     # Set up defaults
     # todo: allow for per-queue specification of durations, likely through dicts

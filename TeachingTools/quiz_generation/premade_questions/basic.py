@@ -192,13 +192,8 @@ class FromText(Question):
     self.answers = []
     self.possible_variations = 1
   
-  def get_question(self, **kwargs) -> ContentAST.Question:
-    question = ContentAST.Question(
-      body=ContentAST.Section([ContentAST.Text(self.text)]),
-      explanation=ContentAST.Section([ContentAST.Text("[no explanation given]]")]),
-      value=kwargs.get("value", 1)
-    )
-    return question
+  def get_body(self, **kwargs) -> ContentAST.Section:
+    return ContentAST.Section([ContentAST.Text(self.text)])
   
   def get_answers(self, *args, **kwargs) -> Tuple[Answer.AnswerKind, List[Dict[str,Any]]]:
     return Answer.AnswerKind.ESSAY, []
@@ -233,8 +228,8 @@ class FromGenerator(FromText):
     
     self.answers = []
   
-  def instantiate(self, rng_seed=None, *args, **kwargs):
-    super().instantiate(rng_seed=rng_seed, *args, **kwargs)
+  def refresh(self, rng_seed=None, *args, **kwargs):
+    super().refresh(rng_seed=rng_seed, *args, **kwargs)
     output_format = kwargs.get("output_format", OutputFormat.LATEX)
     try:
       generated_text = self.generator()

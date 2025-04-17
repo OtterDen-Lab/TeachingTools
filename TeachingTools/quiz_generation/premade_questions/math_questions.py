@@ -26,10 +26,10 @@ class BitsAndBytes(MathQuestion):
   
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
-    self.instantiate()
+    self.refresh()
   
-  def instantiate(self, rng_seed=None, *args, **kwargs):
-    super().instantiate(rng_seed=rng_seed, *args, **kwargs)
+  def refresh(self, rng_seed=None, *args, **kwargs):
+    super().refresh(rng_seed=rng_seed, *args, **kwargs)
     
     self.from_binary = 0 == random.randint(0,1)
     self.num_bits = random.randint(self.MIN_BITS, self.MAX_BITS)
@@ -86,10 +86,10 @@ class HexAndBinary(MathQuestion):
   
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
-    self.instantiate()
+    self.refresh()
   
-  def instantiate(self, rng_seed=None, *args, **kwargs):
-    super().instantiate(rng_seed=rng_seed, *args, **kwargs)
+  def refresh(self, rng_seed=None, *args, **kwargs):
+    super().refresh(rng_seed=rng_seed, *args, **kwargs)
     
     self.from_binary = random.choice([True, False])
     self.number_of_hexits = random.randint(1, 8)
@@ -158,10 +158,10 @@ class AverageMemoryAccessTime(MathQuestion):
   
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
-    self.instantiate()
+    self.refresh()
   
-  def instantiate(self, rng_seed=None, *args, **kwargs):
-    super().instantiate(rng_seed=rng_seed, *args, **kwargs)
+  def refresh(self, rng_seed=None, *args, **kwargs):
+    super().refresh(rng_seed=rng_seed, *args, **kwargs)
     
     # Figure out how many orders of magnitude different we are
     orders_of_magnitude_different = self.rng.randint(1,4)
@@ -190,13 +190,6 @@ class AverageMemoryAccessTime(MathQuestion):
     
     # At this point, everything in the question should be set.
     pass
-  
-  def get_question(self, **kwargs) -> ContentAST.Question:
-    # todo: this is a BAD way to do this because we might be missing out on equations and the like.
-    return ContentAST.Question(
-      body=self.get_body(),
-      explanation=self.get_explanation()
-    )
   
   def get_body(self, **kwargs) -> ContentAST.Section:
     body = ContentAST.Section()

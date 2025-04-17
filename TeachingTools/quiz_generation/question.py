@@ -220,15 +220,43 @@ class Question(abc.ABC):
     with open(path_to_yaml) as fid:
       question_dicts = yaml.safe_load_all(fid)
   
-  @abc.abstractmethod
   def get_question(self, **kwargs) -> ContentAST.Question:
+    """
+    Gets the question in AST format
+    :param kwargs:
+    :return: (ContentAST.Question) Containing question.
+    """
+    # todo: would it make sense to refresh here?
+    return ContentAST.Question(
+      body=self.get_body(),
+      explanation=self.get_explanation(),
+      value=kwargs.get("value", 1)
+    )
+  
+  @abc.abstractmethod
+  def get_body(self, **kwargs) -> ContentAST.Section:
+    """
+    Gets the body of the question during generation
+    :param kwargs:
+    :return: (ContentAST.Section) Containing question body
+    """
     pass
+  
+  def get_explanation(self) -> ContentAST.Section:
+    """
+    Gets the body of the question during generation
+    :param kwargs:
+    :return: (ContentAST.Section) Containing question explanation or None
+    """
+    return ContentAST.Section(
+      [ContentAST.Text("[Please reach out to your professor for clarification]")]
+    )
   
   def get_answers(self, *args, **kwargs) -> Tuple[Answer.AnswerKind, List[Dict[str,Any]]]:
     # log.warning("get_answers using default implementation!  Consider implementing!")
     return Answer.AnswerKind.BLANK, list(itertools.chain(*[a.get_for_canvas() for a in self.answers.values()]))
 
-  def instantiate(self, rng_seed=None, *args, **kwargs):
+  def refresh(self, rng_seed=None, *args, **kwargs):
     """If it is necessary to regenerate aspects between usages, this is the time to do it.
     This base implementation simply resets everything.
     :param rng_seed: random number generator seed to use when regenerating question
@@ -236,6 +264,7 @@ class Question(abc.ABC):
     :param **kwargs:
     """
     self.answers = {}
+    # todo: maybe have it randomly generate a seed every time, or use the time, and return this
     self.rng.seed(self.rng_seed_offset + (rng_seed or 0))
     
   def is_interesting(self) -> bool:
@@ -278,7 +307,7 @@ class QuestionGroup():
     if not self.pick_once or self._current_question is None:
       self._current_question = random.choice(self.questions)
     
-    self._current_question.instantiate(*args, **kwargs)
+    self._current_question.refresh(*args, **kwargs)
     
     
   def __getattr__(self, name):
