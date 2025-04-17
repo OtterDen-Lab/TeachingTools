@@ -1,7 +1,6 @@
 #!env python
 import logging
 import math
-import random
 from typing import List
 
 from TeachingTools.quiz_generation.question import Question, QuestionRegistry, Answer
@@ -28,55 +27,65 @@ class BitsAndBytes(MathQuestion):
     super().__init__(*args, **kwargs)
     self.refresh()
   
-  def refresh(self, rng_seed=None, *args, **kwargs):
-    super().refresh(rng_seed=rng_seed, *args, **kwargs)
+  def refresh(self, *args, **kwargs):
+    super().refresh(*args, **kwargs)
     
-    self.from_binary = 0 == random.randint(0,1)
-    self.num_bits = random.randint(self.MIN_BITS, self.MAX_BITS)
+    # Generate the important parts of the problem
+    self.from_binary = (0 == self.rng.randint(0,1))
+    self.num_bits = self.rng.randint(self.MIN_BITS, self.MAX_BITS)
     self.num_bytes = int(math.pow(2, self.num_bits))
     
     if self.from_binary:
-      self.answers = [Answer("num_bytes", self.num_bytes, Answer.AnswerKind.BLANK)]
+      self.answers = {"answer" : Answer("num_bytes", self.num_bytes, Answer.AnswerKind.BLANK)}
     else:
-      self.answers = [Answer("num_bits", self.num_bits, Answer.AnswerKind.BLANK)]
+      self.answers = {"answer" : Answer("num_bits", self.num_bits, Answer.AnswerKind.BLANK)}
   
-  def get_body_lines(self, *args, **kwargs) -> List[str]:
-    lines = []
-    
-    lines = [
+  def get_body(self, **kwargs) -> ContentAST.Section:
+    body = ContentAST.Section()
+    body.add_text_element([
       f"Given that we have {self.num_bits if self.from_binary else self.num_bytes} {'bits' if self.from_binary else 'bytes'}, "
       f"how many {'bits' if not self.from_binary else 'bytes'} "
       f"{'do we need to address our memory' if not self.from_binary else 'of memory can be addressed'}?"
-    ]
-    
-    lines.extend([
-      "",
-      f"{'Address space size' if self.from_binary else 'Number of bits in address'}: [{self.answers[0].key}] {'bits' if not self.from_binary else 'bytes'}"
     ])
     
-    return lines
-  
-  def get_explanation_lines(self, *args, **kwargs) -> List[str]:
-    explanation_lines = [
-      "Remember that for these problems we use one of these two equations (which are equivalent)",
-      "",
-      r"- $log_{2}(\text{#bytes}) = \text{#bits}$",
-      r"- $2^{(\text{#bits})} = \text{#bytes}$",
-      "",
-      "Therefore, we calculate:",
-    ]
-    
     if self.from_binary:
-      explanation_lines.extend([
-        f"$2 ^ {{{self.num_bits}bits}} = \\textbf{{{self.num_bytes}}}\\text{{bytes}}$"
+      body.add_elements([
+        ContentAST.Text("Address space size: "),
+        ContentAST.Answer(self.answers['answer']),
+        ContentAST.Text("Bytes")
       ])
     else:
-      explanation_lines.extend([
-        f"$log_{{2}}({self.num_bytes} \\text{{bytes}}) = \\textbf{{{self.num_bits}}}\\text{{bits}}$"
+      body.add_elements([
+        ContentAST.Text("Number of bits in address: "),
+        ContentAST.Answer(self.answers['answer']),
+        ContentAST.Text("bits")
       ])
+      
+    return body
+  
+  def get_explanation(self, **kwargs) -> ContentAST.Section:
+    explanation = ContentAST.Section()
     
-    return explanation_lines
-
+    explanation.add_text_element(
+      "Remember that for these problems we use one of these two equations (which are equivalent)"
+    )
+    explanation.add_elements([
+      ContentAST.Equation(r"log_{2}(\text{#bytes}) = \text{#bits}"),
+      ContentAST.Equation(r"2^{(\text{#bits})} = \text{#bytes}")
+    ])
+    
+    explanation.add_text_element("Therefore, we calculate:")
+    
+    if self.from_binary:
+      explanation.add_element(
+        ContentAST.Equation(f"2 ^ {{{self.num_bits}bits}} = \\textbf{{{self.num_bytes}}}\\text{{bytes}}")
+      )
+    else:
+      explanation.add_element(
+        ContentAST.Equation(f"log_{{2}}({self.num_bytes} \\text{{bytes}}) = \\textbf{{{self.num_bits}}}\\text{{bits}}")
+      )
+    
+    return explanation
 
 @QuestionRegistry.register()
 class HexAndBinary(MathQuestion):
@@ -88,67 +97,75 @@ class HexAndBinary(MathQuestion):
     super().__init__(*args, **kwargs)
     self.refresh()
   
-  def refresh(self, rng_seed=None, *args, **kwargs):
-    super().refresh(rng_seed=rng_seed, *args, **kwargs)
+  def refresh(self, **kwargs):
+    super().refresh(**kwargs)
     
-    self.from_binary = random.choice([True, False])
-    self.number_of_hexits = random.randint(1, 8)
-    self.value = random.randint(1, 16**self.number_of_hexits)
+    self.from_binary = self.rng.choice([True, False])
+    self.number_of_hexits = self.rng.randint(1, 8)
+    self.value = self.rng.randint(1, 16**self.number_of_hexits)
     
     self.hex_val = f"0x{self.value:0{self.number_of_hexits}X}"
     self.binary_val = f"0b{self.value:0{4*self.number_of_hexits}b}"
     
     if self.from_binary:
-      self.answers = [Answer("hex_val", self.hex_val, Answer.AnswerKind.BLANK)]
+      self.answers['answer'] = Answer("hex_val", self.hex_val, Answer.AnswerKind.BLANK)
     else:
-      self.answers = [Answer("binary_val", self.binary_val, Answer.AnswerKind.BLANK)]
+      self.answers['answer'] = Answer("binary_val", self.binary_val, Answer.AnswerKind.BLANK)
   
-  def get_body_lines(self, *args, **kwargs) -> List[str]:
-    lines = [
+  def get_body(self, **kwargs) -> ContentAST.Section:
+    body = ContentAST.Section()
+    
+    body.add_text_element([
       f"Given the number {self.hex_val if not self.from_binary else self.binary_val} please convert it to {'hex' if self.from_binary else 'binary'}.",
       "Please include base indicator all padding zeros as appropriate (e.g. 0x01 should be 0b00000001",
       "",
-      f"Value in {'hex' if self.from_binary else 'binary'}: [{self.answers[0].key}]"
-    ]
-    return lines
+      f"Value in {'hex' if self.from_binary else 'binary'}: "
+    ])
+    
+    body.add_element(ContentAST.Answer(self.answers['answer']))
+    
+    return body
   
-  def get_explanation_lines(self, *args, **kwargs) -> List[str]:
-    explanation_lines = [
+  def get_explanation(self, **kwargs) -> ContentAST.Section:
+    explanation = ContentAST.Section()
+    
+    explanation.add_text_element([
       "The core idea for converting between binary and hex is to divide and conquer.  "
       "Specifically, each hexit (hexadecimal digit) is equivalent to 4 bits.  "
-    ]
+    ])
     
     if self.from_binary:
-      explanation_lines.extend([
+      explanation.add_text_element(
         "Therefore, we need to consider each group of 4 bits together and convert them to the appropriate hexit."
-      ])
+      )
     else:
-      explanation_lines.extend([
+      explanation.add_text_element(
         "Therefore, we need to consider each hexit and convert it to the appropriate 4 bits."
-      ])
+      )
     
     binary_str = f"{self.value:0{4*self.number_of_hexits}b}"
     hex_str = f"{self.value:0{self.number_of_hexits}X}"
-    explanation_lines.extend(
-      self.get_table_generator(
-        table_data={
-          "0b" : [binary_str[i:i+4] for i in range(0, len(binary_str), 4)],
-          "0x" : hex_str
-        },
-        sorted_keys=["0b", "0x"][::(1 if self.from_binary else -1)],
-        add_header_space=False
+    
+    explanation.add_element(
+      ContentAST.Table(
+        data=[
+          ["0b"] + [binary_str[i:i+4] for i in range(0, len(binary_str), 4)],
+          ["0x"] + list(hex_str)
+        ],
       )
     )
-    if self.from_binary:
-      explanation_lines.extend([
-        f"Which gives us our hex value of: 0x{hex_str}"
-      ])
-    else:
-      explanation_lines.extend([
-        f"Which gives us our binary value of: 0b{binary_str}"
-      ])
     
-    return explanation_lines
+    if self.from_binary:
+      explanation.add_text_element(
+        f"Which gives us our hex value of: 0x{hex_str}"
+      )
+    else:
+      explanation.add_text_element(
+        f"Which gives us our binary value of: 0b{binary_str}"
+      )
+      
+    return explanation
+  
 
 
 @QuestionRegistry.register()
@@ -165,15 +182,15 @@ class AverageMemoryAccessTime(MathQuestion):
     
     # Figure out how many orders of magnitude different we are
     orders_of_magnitude_different = self.rng.randint(1,4)
-    self.hit_latency = random.randint(1,9)
-    self.miss_latency = int(random.randint(1, 9) * math.pow(10, orders_of_magnitude_different))
+    self.hit_latency = self.rng.randint(1,9)
+    self.miss_latency = int(self.rng.randint(1, 9) * math.pow(10, orders_of_magnitude_different))
     
     # Add in a complication of making it sometimes very, very close
-    if self.rng.random() < self.CHANCE_OF_99TH_PERCENTILE:
+    if self.rng.self.rng() < self.CHANCE_OF_99TH_PERCENTILE:
       # Then let's make it very close to 99%
-      self.hit_rate = (99 + self.rng.random()) / 100
+      self.hit_rate = (99 + self.rng.self.rng()) / 100
     else:
-      self.hit_rate = random.random()
+      self.hit_rate = self.rng.self.rng()
       
     # Calculate the hit rate
     self.hit_rate = round(self.hit_rate, 4)
@@ -185,8 +202,8 @@ class AverageMemoryAccessTime(MathQuestion):
       "amat": Answer("answer__amat", self.amat, Answer.AnswerKind.BLANK, variable_kind=Answer.VariableKind.FLOAT)
     }
     
-    # Finally, do the randomizing of the question, to avoid these being non-deterministic
-    self.show_miss_rate = self.rng.random() > 0.5
+    # Finally, do the self.rngizing of the question, to avoid these being non-deterministic
+    self.show_miss_rate = self.rng.self.rng() > 0.5
     
     # At this point, everything in the question should be set.
     pass

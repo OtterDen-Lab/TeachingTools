@@ -242,7 +242,7 @@ class Question(abc.ABC):
     """
     pass
   
-  def get_explanation(self) -> ContentAST.Section:
+  def get_explanation(self, **kwargs) -> ContentAST.Section:
     """
     Gets the body of the question during generation
     :param kwargs:
