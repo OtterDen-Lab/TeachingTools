@@ -186,6 +186,9 @@ class Question(abc.ABC):
     self.possible_variations = float('inf')
     
     self.rng_seed_offset = kwargs.get("rng_seed_offset", 0)
+    
+    # To be used throughout when generating random things
+    self.rng = random.Random()
   
   @staticmethod
   def get_table_generator(
@@ -231,10 +234,7 @@ class Question(abc.ABC):
     :param **kwargs:
     """
     self.answers = []
-    if rng_seed is None:
-      random.seed(rng_seed)
-    else:
-      random.seed(rng_seed + self.rng_seed_offset)
+    self.rng.seed(self.rng_seed_offset + (rng_seed or 0))
     
   def is_interesting(self) -> bool:
     return True
