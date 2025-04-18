@@ -6,13 +6,15 @@ import copy
 import enum
 from typing import List, Optional
 
-from TeachingTools.quiz_generation.question import Question, Answer, TableGenerator, QuestionRegistry
 
 import random
 import math
 import collections
 
 import logging
+
+from TeachingTools.quiz_generation.question import Question, Answer, TableGenerator, QuestionRegistry
+from TeachingTools.quiz_generation.misc import ContentAST
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -46,8 +48,8 @@ class VirtualAddressParts(MemoryQuestion):
     super().refresh(rng_seed=rng_seed, *args, **kwargs)
     
     # Generate baselines, if not given
-    self.num_va_bits = kwargs.get("num_va_bits", random.randint(2, self.MAX_BITS))
-    self.num_offset_bits = random.randint(1, self.num_va_bits-1)
+    self.num_va_bits = kwargs.get("num_va_bits", self.rng.randint(2, self.MAX_BITS))
+    self.num_offset_bits = self.rng.randint(1, self.num_va_bits-1)
     self.num_vpn_bits = self.num_va_bits - self.num_offset_bits
     
     self.possible_answers = {
@@ -57,63 +59,48 @@ class VirtualAddressParts(MemoryQuestion):
     }
     
     # Select what kind of question we are going to be
-    self.blank_kind = random.choice(list(self.Target))
+    self.blank_kind = self.rng.choice(list(self.Target))
     
-    self.answers.append(
-      self.possible_answers[self.blank_kind] # select the appropriate kind from a new array.  It _feels_ more clean, but I might be wrong.
-    )
+    self.answers['answer'] = self.possible_answers[self.blank_kind]
     
     return
   
-  def get_body_lines(self, *args, **kwargs) -> List[str|TableGenerator]:
-    lines = []
+  def get_body(self, **kwargs) -> ContentAST.Section:
+    body = ContentAST.Section()
     
-    lines.extend([
+    body.add_text_element(
       "Given the information in the below table, please complete the table as appropriate."
-    ])
+    )
     
-    lines.append(
-      TableGenerator(
+    body.add_element(
+      ContentAST.Table(
         headers=[t.value for t in list(self.Target)],
-        value_matrix=[[
+        data=[[
           f"{self.possible_answers[t].display} bits"
           if t != self.blank_kind
-          else f"[{self.possible_answers[t].key}] bits"
+          else ContentAST.Element([
+            ContentAST.Answer(self.possible_answers[t], " bits")
+          ])
           for t in list(self.Target)
         ]]
       )
     )
     
-    return lines
+    return body
   
-  def get_explanation_lines(self, *args, **kwargs) -> List[str]:
+  def get_explanation(self, **kwargs) -> ContentAST.Section:
+    explanation = ContentAST.Section()
     
-    line_to_add = ""
-    if self.blank_kind == self.Target.VA_BITS:
-      line_to_add += f"***{self.num_va_bits}***"
-    else:
-      line_to_add += f"{self.num_va_bits}"
+    explanation.add_elements([
+      ContentAST.Text(f"{self.num_va_bits}", emphasis=(self.blank_kind == self.Target.VA_BITS)),
+      ContentAST.Text(" = "),
+      ContentAST.Text(f"{self.num_vpn_bits}", emphasis=(self.blank_kind == self.Target.VPN_BITS)),
+      ContentAST.Text(" + "),
+      ContentAST.Text(f"{self.num_offset_bits}", emphasis=(self.blank_kind == self.Target.OFFSET_BITS))
+    ])
     
-    line_to_add += " = "
+    return explanation
     
-    if self.blank_kind == self.Target.VPN_BITS:
-      line_to_add += f"***{self.num_vpn_bits}***"
-    else:
-      line_to_add += f"{self.num_vpn_bits}="
-    
-    line_to_add += " + "
-    
-    if self.blank_kind == self.Target.OFFSET_BITS:
-      line_to_add += f"***{self.num_offset_bits}***"
-    else:
-      line_to_add += f"{self.num_offset_bits}"
-    
-    return [
-      "VA = VPN + offset",
-      "\n",
-      line_to_add
-    ]
-
 
 @QuestionRegistry.register()
 class CachingQuestion(MemoryQuestion):
@@ -196,7 +183,7 @@ class CachingQuestion(MemoryQuestion):
     self.answers = []
     if previous is None:
       log.debug("picking new caching policy")
-      self.cache_policy = random.choice(list(self.Kind))
+      self.cache_policy = self.rng.choice(list(self.Kind))
     else:
       log.debug("Reusing previous caching policy")
       self.cache_policy = previous.cache_policy
@@ -206,9 +193,9 @@ class CachingQuestion(MemoryQuestion):
     
     self.requests = (
         list(range(self.cache_size)) # Prime the cache with the compulsory misses
-        + random.choices(population=list(range(self.cache_size-1)), k=1) # Add in one request to an earlier  that will differentiate clearly between FIFO and LRU
-        + random.choices(population=list(range(self.cache_size, self.num_elements)), k=1) ## Add in the rest of the requests
-        + random.choices(population=list(range(self.num_elements)), k=(self.num_requests-2)) ## Add in the rest of the requests
+        + self.rng.choices(population=list(range(self.cache_size-1)), k=1) # Add in one request to an earlier  that will differentiate clearly between FIFO and LRU
+        + self.rng.choices(population=list(range(self.cache_size, self.num_elements)), k=1) ## Add in the rest of the requests
+        + self.rng.choices(population=list(range(self.num_elements)), k=(self.num_requests-2)) ## Add in the rest of the requests
     )
     
     self.cache = CachingQuestion.Cache(self.cache_policy, self.cache_size, self.requests)
@@ -336,12 +323,12 @@ class BaseAndBounds(MemoryAccessQuestion):
     super().refresh(rng_seed=rng_seed, *args, **kwargs)
     
     
-    bounds_bits = random.randint(self.MIN_BOUNDS_BIT, self.MAX_BOUNDS_BITS)
+    bounds_bits = self.rng.randint(self.MIN_BOUNDS_BIT, self.MAX_BOUNDS_BITS)
     base_bits = self.MAX_BITS - bounds_bits
     
     self.bounds = int(math.pow(2, bounds_bits))
-    self.base = random.randint(1, int(math.pow(2, base_bits))) * self.bounds
-    self.virtual_address = random.randint(1, int(self.bounds / self.PROBABILITY_OF_VALID))
+    self.base = self.rng.randint(1, int(math.pow(2, base_bits))) * self.bounds
+    self.virtual_address = self.rng.randint(1, int(self.bounds / self.PROBABILITY_OF_VALID))
     
     
     if self.virtual_address < self.bounds:
@@ -440,8 +427,8 @@ class Segmentation(MemoryAccessQuestion):
     super().refresh(rng_seed=rng_seed, *args, **kwargs)
     
     # Pick how big each of our address spaces will be
-    self.virtual_bits = random.randint(self.MIN_VIRTUAL_BITS, self.MAX_VIRTUAL_BITS)
-    self.physical_bits = random.randint(self.virtual_bits+1, self.MAX_BITS)
+    self.virtual_bits = self.rng.randint(self.MIN_VIRTUAL_BITS, self.MAX_VIRTUAL_BITS)
+    self.physical_bits = self.rng.randint(self.virtual_bits+1, self.MAX_BITS)
     
     # Start with blank base and bounds
     self.base = {
@@ -471,11 +458,11 @@ class Segmentation(MemoryAccessQuestion):
     # Make random placements and check to make sure they are not overlapping
     while (segment_collision(self.base, self.bounds)):
       for segment in self.base.keys():
-        self.bounds[segment] = random.randint(min_bounds, max_bounds-1)
-        self.base[segment] = random.randint(0, (2**self.physical_bits - self.bounds[segment]))
+        self.bounds[segment] = self.rng.randint(min_bounds, max_bounds-1)
+        self.base[segment] = self.rng.randint(0, (2**self.physical_bits - self.bounds[segment]))
     
     # Pick a random segment for us to use
-    self.segment = random.choice(list(self.base.keys()))
+    self.segment = self.rng.choice(list(self.base.keys()))
     self.segment_bits = {
       "code" : 0,
       "heap" : 1,
@@ -485,7 +472,7 @@ class Segmentation(MemoryAccessQuestion):
     
     # Try to pick a random address within that range
     try:
-      self.offset = random.randint(0,
+      self.offset = self.rng.randint(0,
         min([
           max_bounds-1,
           int(self.bounds[self.segment] / self.PROBABILITY_OF_VALID)
@@ -493,7 +480,7 @@ class Segmentation(MemoryAccessQuestion):
       )
     except KeyError:
       # If we are in an unallocated section, we'll get a key error (I think)
-      self.offset = random.randint(0, max_bounds-1)
+      self.offset = self.rng.randint(0, max_bounds-1)
     
     # Calculate a virtual address based on the segment and the offset
     self.virtual_address = (
@@ -637,23 +624,23 @@ class Paging(MemoryAccessQuestion):
   def refresh(self, rng_seed=None, *args, **kwargs):
     super().refresh(rng_seed=rng_seed, *args, **kwargs)
     
-    self.num_offset_bits = random.randint(self.MIN_OFFSET_BITS, self.MAX_OFFSET_BITS)
-    self.num_vpn_bits = random.randint(self.MIN_VPN_BITS, self.MAX_VPN_BITS)
-    self.num_pfn_bits = random.randint(max([self.MIN_PFN_BITS, self.num_vpn_bits]), self.MAX_PFN_BITS)
+    self.num_offset_bits = self.rng.randint(self.MIN_OFFSET_BITS, self.MAX_OFFSET_BITS)
+    self.num_vpn_bits = self.rng.randint(self.MIN_VPN_BITS, self.MAX_VPN_BITS)
+    self.num_pfn_bits = self.rng.randint(max([self.MIN_PFN_BITS, self.num_vpn_bits]), self.MAX_PFN_BITS)
     
-    self.virtual_address = random.randint(0, 2**(self.num_vpn_bits + self.num_offset_bits))
+    self.virtual_address = self.rng.randint(0, 2**(self.num_vpn_bits + self.num_offset_bits))
     
     # Calculate these two
     self.offset = self.virtual_address % (2**(self.num_offset_bits))
     self.vpn = self.virtual_address // (2**(self.num_offset_bits))
     
     # Generate this randomly
-    self.pfn = random.randint(0, 2**(self.num_pfn_bits))
+    self.pfn = self.rng.randint(0, 2**(self.num_pfn_bits))
     
     # Calculate this
     self.physical_address = self.pfn * (2**self.num_offset_bits) + self.offset
     
-    if random.choices([True, False], weights=[(self.PROBABILITY_OF_VALID), (1-self.PROBABILITY_OF_VALID)], k=1)[0]:
+    if self.rng.choices([True, False], weights=[(self.PROBABILITY_OF_VALID), (1-self.PROBABILITY_OF_VALID)], k=1)[0]:
       self.is_valid = True
       # Set our actual entry to be in the table and valid
       self.pte = self.pfn + (2**(self.num_pfn_bits))
@@ -707,12 +694,12 @@ class Paging(MemoryAccessQuestion):
     lines.extend(["\n\n"])
     
     # Make values for Page Table
-    table_size = random.randint(5,8)
+    table_size = self.rng.randint(5,8)
     
     lowest_possible_bottom = max([0, self.vpn - table_size])
     highest_possible_bottom = min([2**self.num_vpn_bits - table_size, self.vpn])
     
-    table_bottom = random.randint(lowest_possible_bottom, highest_possible_bottom)
+    table_bottom = self.rng.randint(lowest_possible_bottom, highest_possible_bottom)
     table_top = table_bottom + table_size
     
     page_table = {}
@@ -724,8 +711,8 @@ class Paging(MemoryAccessQuestion):
       if vpn == self.vpn: continue
       pte = page_table[self.vpn]
       while pte in page_table.values():
-        pte = random.randint(0, 2**self.num_pfn_bits-1)
-        if random.choices([True, False], weights=[(1-self.PROBABILITY_OF_VALID), self.PROBABILITY_OF_VALID], k=1)[0]:
+        pte = self.rng.randint(0, 2**self.num_pfn_bits-1)
+        if self.rng.choices([True, False], weights=[(1-self.PROBABILITY_OF_VALID), self.PROBABILITY_OF_VALID], k=1)[0]:
           # Randomly set it to be valid
           pte += (2**(self.num_pfn_bits))
       # Once we have a unique random entry, put it into the Page Table
