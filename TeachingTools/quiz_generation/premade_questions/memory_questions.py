@@ -177,10 +177,9 @@ class CachingQuestion(MemoryQuestion):
     
     self.refresh()
   
-  def refresh(self, rng_seed=None, previous : Optional[CachingQuestion]=None, *args, **kwargs):
-    super().refresh(rng_seed=rng_seed, *args, **kwargs)
+  def refresh(self, previous : Optional[CachingQuestion]=None, *args, **kwargs):
+    super().refresh(*args, **kwargs)
     
-    self.answers = []
     if previous is None:
       log.debug("picking new caching policy")
       self.cache_policy = self.rng.choice(list(self.Kind))
@@ -212,72 +211,76 @@ class CachingQuestion(MemoryQuestion):
         "evicted" : (f"[answer__evicted-{request_number}]", ('-' if evicted is None else f"{evicted}")),
         "cache_state" : (f"[answer__cache_state-{request_number}]", ','.join(map(str, cache_state)))
       }
-      self.answers.extend([
-        Answer(f"answer__hit-{request_number}",         ('hit' if was_hit else 'miss'),          Answer.AnswerKind.BLANK),
-        Answer(f"answer__evicted-{request_number}",     ('-' if evicted is None else f"{evicted}"),      Answer.AnswerKind.BLANK),
-        Answer(f"answer__cache_state-{request_number}", copy.copy(cache_state), variable_kind=Answer.VariableKind.LIST),
-      ])
       
-      # log.debug(f"{request:>2} | {'hit' if was_hit else 'miss':<4} | {evicted if evicted is not None else '':<3} | {str(cache_state):<10}")
+      self.answers.update({
+        f"answer__hit-{request_number}":          Answer(f"answer__hit-{request_number}",         ('hit' if was_hit else 'miss'),          Answer.AnswerKind.BLANK),
+        f"answer__evicted-{request_number}":      Answer(f"answer__evicted-{request_number}",     ('-' if evicted is None else f"{evicted}"),      Answer.AnswerKind.BLANK),
+        f"answer__cache_state-{request_number}":  Answer(f"answer__cache_state-{request_number}", copy.copy(cache_state), variable_kind=Answer.VariableKind.LIST),
+      })
       
     self.hit_rate = 100 * number_of_hits / (self.num_requests)
-    # self.hit_rate_var = VariableFloat("Hit Rate (%)", true_value=self.hit_rate)
-    # self.blank_vars["hit_rate"] = self.hit_rate_var
-    self.answers.extend([
-      Answer("answer__hit_rate", f"{self.hit_rate:0.2f}", Answer.AnswerKind.BLANK)
-    ])
+    self.answers.update({
+      "answer__hit_rate": Answer("answer__hit_rate", self.hit_rate, variable_kind=Answer.VariableKind.AUTOFLOAT)
+    })
   
-  def get_body_lines(self, *args, **kwargs) -> List[str]:
-    # return ["question"]
-    lines = [
+  def get_body(self, **kwargs) -> ContentAST.Section:
+    body = ContentAST.Section()
+    
+    body.add_text_element([
       f"Assume we are using a <b>{self.cache_policy}</b> caching policy and a cache size of <b>{self.cache_size}</b>."
       "",
       "Given the below series of requests please fill in the table.",
       "For the hit/miss column, please write either \"hit\" or \"miss\".",
-      "For the eviction column, please write either the number of the evicted page or simply a dash (e.g. \"-\").",
-      # "For the cache state, please enter the cache contents in the order suggested in class, separated by commas with no spaces (e.g. \"1,2,3\").",
-      # "As a reminder, in class we kept them ordered in the order in which we would evict them from the cache (including Belady, although I was too lazy to do that in class)",
-      "",
-    ]
+      "For the eviction column, please write either the number of the evicted page or simply a dash (e.g. \"-\")."
+    ])
     
-    table_headers = ["Page Requested", "Hit/Miss", "Evicted", "Cache State"]
-    lines.extend(
-      self.get_table_generator(
-        { request_number :
-          [
-            self.requests[request_number],
-            f"[answer__hit-{request_number}]",
-            f"[answer__evicted-{request_number}]",
-            f"[answer__cache_state-{request_number}]"
-          ]
-          for request_number in sorted(self.request_results.keys())
-        },
-        table_headers,
-        sorted_keys=sorted(self.request_results.keys()),
-        hide_keys=True
+    body.add_element(
+      ContentAST.Text(
+        "For the cache state, please enter the cache contents in the order suggested in class, "
+        "which means separated by commas with no spaces (e.g. \"1,2,3\")"
+        "and with the left-most being the next to be evicted. "
+        "In the case where there is a tie, order by increasing number.",
+        hide_from_latex=True
       )
     )
     
-    lines.extend([
-      "Hit rate, excluding compulsory misses: [answer__hit_rate]%"
-    ])
+    body.add_element(
+      ContentAST.Table(
+        headers=["Page Requested", "Hit/Miss", "Evicted", "Cache State"],
+        data=[
+          [
+            f"{self.requests[request_number]}",
+            ContentAST.Answer(self.answers[f"answer__hit-{request_number}"]),
+            ContentAST.Answer(self.answers[f"answer__evicted-{request_number}"]),
+            ContentAST.Answer(self.answers[f"answer__cache_state-{request_number}"])
+          ]
+          for request_number in sorted(self.request_results.keys())
+        ]
+      )
+    )
     
-    # log.debug('\n'.join(lines))
+    body.add_elements(
+      [
+        ContentAST.Text("\n\n"),
+        ContentAST.Text("Hit rate, excluding compulsory misses: "),
+        ContentAST.Answer(self.answers["answer__hit_rate"], "%")
+      ],
+      new_paragraph=True
+    )
     
-    return lines
+    return body
   
-  def get_explanation_lines(self, *args, **kwargs) -> List[str]:
-    lines = [
-      # "Apologies for the below table not including the eviction data, but technical limitations prevented me from including it.  "
-      # "Instead, it can be inferred from the change in the cache state.",
-      "The full table can be seen below.",
-      ""
-    ]
+  def get_explanation(self, **kwargs) -> ContentAST.Section:
+    explanation = ContentAST.Section()
     
-    table_headers = ["Page", "Hit/Miss", "Evicted", "Cache State"]
-    lines.extend(
-      self.get_table_generator(
-        { request_number :
+    explanation.add_text_element(
+      "The full caching table can be seen below."
+    )
+    
+    explanation.add_element(
+      ContentAST.Table(
+        headers=["Page", "Hit/Miss", "Evicted", "Cache State"],
+        data=[
           [
             self.request_results[request]["request"][1],
             self.request_results[request]["hit"][1],
@@ -285,20 +288,18 @@ class CachingQuestion(MemoryQuestion):
             f'{self.request_results[request]["cache_state"][1]}',
           ]
           for (request_number, request) in enumerate(sorted(self.request_results.keys()))
-        },
-        table_headers,
-        sorted_keys=sorted(self.request_results.keys()),
-        hide_keys=True
+        ]
       )
     )
     
-    lines.extend([
-      "",
-      "To calculate the hit rate we calculate the percentage of requests that were cache hits out of the total number of requests. "
-      "In this case we are counting all requests, excluding compulsory misses."
-    ])
+    explanation.add_text_element([
+      "To calculate the hit rate we calculate the percentage of requests "
+      "that were cache hits out of the total number of requests. "
+      f"In this case we are counting only all but {self.cache_size} requests, since we are excluding compulsory misses."
+    ], new_paragraph=True
+    )
     
-    return lines
+    return explanation
   
   def is_interesting(self) -> bool:
     # todo: interesting is more likely based on whether I can differentiate between it and another algo, so maybe rerun with a different approach but same requests?
