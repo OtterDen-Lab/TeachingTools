@@ -260,7 +260,7 @@ class ContentAST:
       return True
     
     def merge(self, other: ContentAST.Text):
-      self.content = self.render_markdown() + other.render_markdown()
+      self.content = self.render_markdown() + " " + other.render_markdown()
       self.emphasis = False
   
   class TextBlock(Element):
@@ -316,7 +316,17 @@ class ContentAST:
       return cls('\n'.join(equation_lines))
     
   class Table(Element):
-    def __init__(self, data, headers=None, alignments=None, padding=False):
+    def __init__(self, data, headers=None, alignments=None, padding=False, transpose=False):
+      """
+      Generates a ContentAST.Table element
+      :param data: data in the table.  List[List[Element]]
+      :param headers: headers for the tables
+      :param alignments: how should columns be aligned
+      :param padding: Add in padding around cells in html table
+      :param transpose: apple transpose to table
+      """
+      # todo: fix alignments
+      # todo: implement transpose
       super().__init__()
       self.data = data
       self.headers = headers
