@@ -311,7 +311,7 @@ class ContentAST:
       super().__init__()
       self.data = data
       self.headers = headers
-      self.alignments = alignments,
+      self.alignments = alignments
       self.padding = padding
     
     def render_markdown(self):
@@ -376,25 +376,22 @@ class ContentAST:
         col_spec = "".join("l" if a == "left" else "r" if a == "right" else "c"
                            for a in self.alignments)
       else:
-        col_spec = "c" * (len(self.headers) if self.headers else len(self.data[0]))
+        col_spec = '|'.join(["c"] * (len(self.headers) if self.headers else len(self.data[0])))
       
       result = [f"\\begin{{tabular}}{{{col_spec}}}"]
       result.append("\\hline")
       
       if self.headers:
-        result.append(" & ".join(str(h) for h in self.headers) + " \\\\")
+        result.append(" & ".join(pylatex.escape_latex(str(h)) for h in self.headers) + " \\\\")
         result.append("\\hline")
       
       for row in self.data:
-        for cell in row:
-          if isinstance(cell, ContentAST.Element):
-            cell = cell.render_latex()
-          result.append(" & ".join(str(cell)) + " \\\\")
-      
+        rendered_row = [cell.render_latex() if isinstance(cell, ContentAST.Element) else cell for cell in row]
+        result.append(" & ".join(rendered_row) + " \\\\")
       result.append("\\hline")
       result.append("\\end{tabular}")
       
-      return "\n".join(result)
+      return "\n\n" + "\n".join(result)
   
   class Picture(Element):
     def __init__(self, path, caption=None, width=None):
