@@ -1,19 +1,16 @@
 #!env python
 from __future__ import annotations
 
-from __future__ import annotations
-
-import abc
-import decimal
+import re
 import fractions
 import itertools
 import math
-from decimal import Decimal
 from typing import List, Dict
 
 import enum
 
 import pypandoc
+import pylatex
 
 import logging
 logging.basicConfig()
@@ -192,17 +189,37 @@ class ContentAST:
           
     def convert_markdown(self, str_to_convert, output_format):
       try:
-        return pypandoc.convert_text(
+        output = pypandoc.convert_text(
           str_to_convert,
           output_format,
           format='md',
           extra_args=["-M2GB", "+RTS", "-K64m", "-RTS"]
         )
+        if output_format == "html":
+          output = re.sub(r'^<p>(.*)</p>$', r'\1', output, flags=re.DOTALL)
+        return output.strip()
       except RuntimeError as e:
         log.warning(f"Specified conversion format '{output_format}' not recognized by pypandoc. Defaulting to markdown")
       return None
     
     def render(self, output_format):
+      
+      # Let's merge all Text nodes before we render
+      merged_elements = []
+      previous_node = ContentAST.Text("")
+      for elem in self.elements:
+        if not previous_node.is_mergeable(elem):
+          # Then we can't merge, so we should move on
+          merged_elements.append(previous_node)
+          previous_node = elem
+          continue
+          
+        # Otherwise, we can merge
+        previous_node.merge(elem)
+      merged_elements.append(previous_node)
+      
+      self.elements = merged_elements
+      
       method_name = f"render_{output_format}"
       if hasattr(self, method_name):
         return getattr(self, method_name)()
@@ -210,26 +227,32 @@ class ContentAST:
       return self.render_markdown()  # Fallback to markdown
     
     def render_markdown(self):
-      return "\n\n".join(element.render("markdown") for element in self.elements)
+      return "".join(element.render("markdown") for element in self.elements)
     
     def render_html(self):
-      return "\n".join(element.render("html") for element in self.elements)
+      html = "".join(element.render("html") for element in self.elements)
+      log.debug(html)
+      return html
     
     def render_latex(self):
-      return "\n".join(element.render("latex") for element in self.elements)
+      return "".join(element.render("latex") for element in self.elements)
+  
+    def is_mergeable(self, other: ContentAST.Element):
+      return False
   
   class Section(Element):
     """A child class representing a specific section of a question"""
     pass
   
   class Text(Element):
-    def __init__(self, content : str, hide_from_latex=False):
+    def __init__(self, content : str, hide_from_latex=False, emphasis=False):
       super().__init__()
       self.content = content
       self.hide_from_latex = hide_from_latex
+      self.emphasis = emphasis
     
     def render_markdown(self):
-      return self.content
+      return f"{'***' if self.emphasis else ''}{self.content}{'***' if self.emphasis else ''}"
 
     def render_html(self):
       # If the super function returns None then we just return content as is
@@ -240,6 +263,17 @@ class ContentAST:
         return ""
       content = super().convert_markdown(self.content, "latex") or self.content
       return content.strip()
+    
+    def is_mergeable(self, other: ContentAST.Element):
+      if not isinstance(other, ContentAST.Text):
+        return False
+      if self.hide_from_latex != other.hide_from_latex:
+        return False
+      return True
+    
+    def merge(self, other: ContentAST.Text):
+      self.content = self.render_markdown() + other.render_markdown()
+      self.emphasis = False
   
   class Equation(Element):
     def __init__(self, latex):
@@ -324,6 +358,8 @@ class ContentAST:
       for row in self.data:
         result.append("    <tr>")
         for i, cell in enumerate(row):
+          if isinstance(cell, ContentAST.Element):
+            cell = cell.render_html()
           align_attr = ""
           if self.alignments and i < len(self.alignments):
             align_attr = f' align="{self.alignments[i]}"'
@@ -332,7 +368,6 @@ class ContentAST:
       result.append("  </tbody>")
       result.append("</table>")
       
-      log.debug("\n".join(result))
       return "\n".join(result)
     
     def render_latex(self):
@@ -351,7 +386,10 @@ class ContentAST:
         result.append("\\hline")
       
       for row in self.data:
-        result.append(" & ".join(str(cell) for cell in row) + " \\\\")
+        for cell in row:
+          if isinstance(cell, ContentAST.Element):
+            cell = cell.render_latex()
+          result.append(" & ".join(str(cell)) + " \\\\")
       
       result.append("\\hline")
       result.append("\\end{tabular}")
@@ -431,12 +469,13 @@ class ContentAST:
       return content
     
   class Answer(Element):
-    def __init__(self, answer : Answer):
+    def __init__(self, answer : Answer, trailing_text: str = ""):
       super().__init__()
       self.answer = answer
+      self.trailing_text = trailing_text
     
     def render_markdown(self):
-      return f"[{self.answer.key}]"
+      return f"[{self.answer.key}] {self.trailing_text}".strip()
     
     def render_html(self):
       return self.render_markdown()
