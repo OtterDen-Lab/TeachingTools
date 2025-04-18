@@ -144,14 +144,13 @@ class Answer():
       
       return possible_answers
     elif self.variable_kind == Answer.VariableKind.LIST:
-      
       possible_answers = [
         {
           "blank_id": self.key,
           "answer_text": ','.join(map(str, possible_state)),
           "answer_weight": 100,
         }
-        for possible_state in itertools.permutations(self.value)
+        for possible_state in [self.value] #itertools.permutations(self.value)
       ]
       
       return possible_answers
@@ -170,6 +169,9 @@ class ContentAST:
     def __init__(self, elements=None):
       self.elements : List[ContentAST.Element] = elements or []
     
+    def __str__(self):
+      return self.render_markdown()
+    
     def add_element(self, element):
       self.elements.append(element)
     
@@ -180,12 +182,16 @@ class ContentAST:
     
     def add_text_element(self, content: str|List[str], new_paragraph=False):
       """Helper function to add text to reduce the amount of boilerplate"""
+      # todo this function is probably now unpredictable.  Whoops.
+      #  it should be fixed by changing it to always have the same impact on the AST (i.e. always a TextBlock)
       if new_paragraph:
         self.add_element(ContentAST.Text(""))
       if isinstance(content, str):
         self.add_element(ContentAST.Text(content))
       else:
-        self.add_elements(map(lambda c: ContentAST.Text(c), content))
+        self.add_element(
+          ContentAST.TextBlock(map(lambda c: ContentAST.Text(c), content))
+        )
           
     def convert_markdown(self, str_to_convert, output_format):
       try:
@@ -197,29 +203,12 @@ class ContentAST:
         )
         if output_format == "html":
           output = re.sub(r'^<p>(.*)</p>$', r'\1', output, flags=re.DOTALL)
-        return output.strip()
+        return output
       except RuntimeError as e:
         log.warning(f"Specified conversion format '{output_format}' not recognized by pypandoc. Defaulting to markdown")
       return None
     
     def render(self, output_format):
-      
-      # Let's merge all Text nodes before we render
-      merged_elements = []
-      previous_node = ContentAST.Text("")
-      for elem in self.elements:
-        if not previous_node.is_mergeable(elem):
-          # Then we can't merge, so we should move on
-          merged_elements.append(previous_node)
-          previous_node = elem
-          continue
-          
-        # Otherwise, we can merge
-        previous_node.merge(elem)
-      merged_elements.append(previous_node)
-      
-      self.elements = merged_elements
-      
       method_name = f"render_{output_format}"
       if hasattr(self, method_name):
         return getattr(self, method_name)()
@@ -231,7 +220,6 @@ class ContentAST:
     
     def render_html(self):
       html = "".join(element.render("html") for element in self.elements)
-      log.debug(html)
       return html
     
     def render_latex(self):
@@ -262,7 +250,7 @@ class ContentAST:
       if self.hide_from_latex:
         return ""
       content = super().convert_markdown(self.content, "latex") or self.content
-      return content.strip()
+      return content
     
     def is_mergeable(self, other: ContentAST.Element):
       if not isinstance(other, ContentAST.Text):
@@ -275,6 +263,27 @@ class ContentAST:
       self.content = self.render_markdown() + other.render_markdown()
       self.emphasis = False
   
+  class TextBlock(Element):
+    """A block of text that will combine all child elements together.  i.e. a paragraph"""
+    def render(self, output_format):
+      # Merge all Text nodes before we render
+      merged_elements = []
+      previous_node = ContentAST.Text("")
+      for elem in self.elements:
+        if not previous_node.is_mergeable(elem):
+          # Then we can't merge, so we should move on
+          merged_elements.append(previous_node)
+          previous_node = elem
+          continue
+        
+        # Otherwise, we can merge
+        previous_node.merge(elem)
+      merged_elements.append(previous_node)
+      
+      self.elements = merged_elements
+      
+      return "\n\n" + super().render(output_format)
+      
   class Equation(Element):
     def __init__(self, latex):
       super().__init__()
@@ -472,13 +481,13 @@ class ContentAST:
       self.trailing_text = trailing_text
     
     def render_markdown(self):
-      return f"[{self.answer.key}] {self.trailing_text}".strip()
+      return f"[{self.answer.key}] {self.trailing_text}".rstrip()
     
     def render_html(self):
       return self.render_markdown()
     
     def render_latex(self):
-      return r"\answerblank{5}"
+      return r"\answerblank{2}"
   
   class Document(Element):
     """Root document class that adds document-level rendering"""
