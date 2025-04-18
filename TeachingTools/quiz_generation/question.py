@@ -274,6 +274,8 @@ class Question(abc.ABC):
     
     # Get an interesting enough version of the question
     while True:
+      self.rng_seed_offset += 1
+      self.refresh()
       questionAST = self.get_question()
       if questionAST.interest >= interest_threshold:
         break
