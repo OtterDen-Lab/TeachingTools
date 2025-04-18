@@ -323,7 +323,6 @@ class BaseAndBounds(MemoryAccessQuestion):
   def refresh(self, rng_seed=None, *args, **kwargs):
     super().refresh(rng_seed=rng_seed, *args, **kwargs)
     
-    
     bounds_bits = self.rng.randint(self.MIN_BOUNDS_BIT, self.MAX_BOUNDS_BITS)
     base_bits = self.MAX_BITS - bounds_bits
     
@@ -331,63 +330,59 @@ class BaseAndBounds(MemoryAccessQuestion):
     self.base = self.rng.randint(1, int(math.pow(2, base_bits))) * self.bounds
     self.virtual_address = self.rng.randint(1, int(self.bounds / self.PROBABILITY_OF_VALID))
     
-    
     if self.virtual_address < self.bounds:
-      self.answers.append(
-        Answer(
-          key="answer__physical_address",
-          value=(self.base + self.virtual_address),
-          variable_kind=Answer.VariableKind.BINARY_OR_HEX,
-          length=math.ceil(math.log2(self.base + self.virtual_address))
-        )
+      self.answers["answer"] = Answer(
+        key="answer__physical_address",
+        value=(self.base + self.virtual_address),
+        variable_kind=Answer.VariableKind.BINARY_OR_HEX,
+        length=math.ceil(math.log2(self.base + self.virtual_address))
       )
     else :
-      
-      self.answers.append(
-        Answer(
-          key="answer__physical_address",
-          value="INVALID",
-          variable_kind=Answer.VariableKind.STR
-        )
+      self.answers["answer"] = Answer(
+        key="answer__physical_address",
+        value="INVALID",
+        variable_kind=Answer.VariableKind.STR
       )
   
-  def get_body_lines(self, *args, **kwargs) -> List[str|TableGenerator]:
-    lines = []
+  def get_body(self) -> ContentAST.Section:
+    body = ContentAST.Section()
     
-    lines.extend([
+    body.add_text_element([
       "Given the information in the below table, please calcuate the physical address associated with the given virtual address.",
       "If the virtual address is invalid please simply write ***INVALID***."
     ])
     
-    lines.extend([
-      TableGenerator(
+    body.add_element(
+      ContentAST.Table(
         headers=["Base", "Bounds", "Virtual Address", "Physical Address"],
-        value_matrix=[[
+        data=[[
           f"0x{self.base:X}",
           f"0x{self.bounds:X}",
           f"0x{self.virtual_address:X}",
-          "[answer__physical_address]"
+          ContentAST.Answer(self.answers["answer"])
         ]],
         transpose=True
       )
-    ])
+    )
     
-    return lines
+    return body
   
-  def get_explanation_lines(self, *args, **kwargs) -> List[str]:
-    explanation_lines = [
+  def get_explanation(self) -> ContentAST.Section:
+    explanation = ContentAST.Section()
+    
+    explanation.add_text_element([
       "There's two steps to figuring out base and bounds.",
       "1. Are we within the bounds?\n",
       "2. If so, add to our base.\n",
       "",
-    ]
+    ])
     
-    explanation_lines.extend([
+    explanation.add_text_element([
       f"Step 1: 0x{self.virtual_address:X} < 0x{self.bounds:X} --> {'***VALID***' if (self.virtual_address < self.bounds) else 'INVALID'}",
       "",
     ])
     if self.virtual_address < self.bounds:
-      explanation_lines.extend([
+      explanation.add_text_element([
         f"Step 2: Since the previous check passed, we calculate "
         f"0x{self.base:X} + 0x{self.virtual_address:X} "
         f"= ***0x{self.base + self.virtual_address:X}***.",
@@ -395,14 +390,15 @@ class BaseAndBounds(MemoryAccessQuestion):
       ]
       )
     else:
-      explanation_lines.extend([
+      explanation.add_text_element([
         f"Step 2: Since the previous check failed, we simply write ***INVALID***.",
         "***If*** it had been valid, we would have calculated "
         f"0x{self.base:X} + 0x{self.virtual_address:X} "
         f"= 0x{self.base + self.virtual_address:X}.",
       
       ])
-    return explanation_lines
+    
+    return explanation
 
 
 @QuestionRegistry.register()
