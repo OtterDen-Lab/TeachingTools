@@ -295,17 +295,23 @@ class VSFS_states(IOQuestion):
   def get_body(self) -> ContentAST.Section:
     body = ContentAST.Section()
     
-    body.add_text_element([
-      "What operation happens between these two states?",
-      "",
-      "```",
-      self.start_state,
-      "```",
-      "[answer__cmd]",
-      "```",
-      self.end_state,
-      "```",
-    ])
+    body.add_text_element("What operation happens between these two states?")
+    
+    body.add_element(
+      ContentAST.Code(
+        self.start_state,
+      )
+    )
+    
+    log.debug(self.start_state)
+    
+    body.add_element(ContentAST.Answer(self.answers["answer__cmd"]))
+    
+    body.add_element(
+      ContentAST.Code(
+        self.end_state,
+      )
+    )
     
     return body
   

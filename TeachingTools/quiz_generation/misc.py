@@ -5,6 +5,7 @@ import re
 import fractions
 import itertools
 import math
+import textwrap
 from typing import List, Dict
 
 import enum
@@ -285,7 +286,25 @@ class ContentAST:
       self.elements = merged_elements
       
       return "\n\n" + super().render(output_format)
+  
+  class Code(Text):
+    def __init__(self, lines):
+      super().__init__(lines)
+    
+    def render_markdown(self):
+      content = "```\n" + self.content + "\n```"
+      return content
+    
+    def render_html(self):
       
+      return super().convert_markdown(textwrap.indent(self.content, "\t"), "html") or self.content
+    
+    def render_latex(self):
+      content = super().convert_markdown(self.render_markdown(), "latex") or self.content
+      log.debug(f"content: {content}")
+      return content
+  
+  
   class Equation(Element):
     def __init__(self, latex):
       super().__init__()
