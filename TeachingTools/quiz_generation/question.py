@@ -190,6 +190,8 @@ class Question(abc.ABC):
     
     # To be used throughout when generating random things
     self.rng = random.Random()
+    
+    self.refresh()
   
   @staticmethod
   def get_table_generator(
