@@ -7,6 +7,7 @@ from typing import List
 
 from TeachingTools.quiz_generation.misc import OutputFormat
 from TeachingTools.quiz_generation.question import Question, Answer, TableGenerator, QuestionRegistry
+from TeachingTools.quiz_generation.misc import ContentAST
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -27,8 +28,8 @@ class HardDriveAccessTime(IOQuestion):
     
     self.refresh()
   
-  def refresh(self, rng_seed=None, *args, **kwargs):
-    super().refresh(rng_seed=rng_seed, *args, **kwargs)
+  def refresh(self, *args, **kwargs):
+    super().refresh(*args, **kwargs)
     
     self.hard_drive_rotation_speed = 100 * random.randint(36, 150) # e.g. 3600rpm to 15000rpm
     self.seek_delay = float(round(random.randrange(3, 20), 2))
@@ -41,25 +42,29 @@ class HardDriveAccessTime(IOQuestion):
     self.transfer_delay = 1000 * (self.size_of_reads * self.number_of_reads) / 1024 / self.transfer_rate
     self.disk_access_delay = self.access_delay * self.number_of_reads + self.transfer_delay
     
-    self.answers.extend([
-      Answer("answer__rotational_delay", self.rotational_delay, variable_kind=Answer.VariableKind.FLOAT),
-      Answer("answer__access_delay", self.access_delay, variable_kind=Answer.VariableKind.FLOAT),
-      Answer("answer__transfer_delay", self.transfer_delay, variable_kind=Answer.VariableKind.FLOAT),
-      Answer("answer__disk_access_delay", self.disk_access_delay, variable_kind=Answer.VariableKind.FLOAT),
-    ])
+    self.answers.update({
+      "answer__rotational_delay": Answer("answer__rotational_delay", self.rotational_delay, variable_kind=Answer.VariableKind.FLOAT),
+      "answer__access_delay": Answer("answer__access_delay", self.access_delay, variable_kind=Answer.VariableKind.FLOAT),
+      "answer__transfer_delay": Answer("answer__transfer_delay", self.transfer_delay, variable_kind=Answer.VariableKind.FLOAT),
+      "answer__disk_access_delay": Answer("answer__disk_access_delay", self.disk_access_delay, variable_kind=Answer.VariableKind.FLOAT),
+    })
   
-  def get_body_lines(self, output_format : OutputFormat|None = None, *args, **kwargs) -> List[str]:
-    lines = [
-      "Given the information below, please calculate the following values.",
-    ]
-    if output_format is not None and output_format == OutputFormat.CANVAS:
-      lines.extend([
-        f"Make sure your answers are rounded to {Answer.DEFAULT_ROUNDING_DIGITS} decimal points (even if they are whole numbers), and do so after you finish all your calculations! (i.e. don't use your rounded answers to calculate your overall answer)"
-      ])
+  def get_body(self, *args, **kwargs) -> ContentAST.Section:
+    body = ContentAST.Section()
     
-    lines.extend([
-      TableGenerator(
-        value_matrix=[
+    body.add_elements([
+      ContentAST.Text("Given the information below, please calculate the following values."),
+      ContentAST.Text(
+        f"Make sure your answers are rounded to {Answer.DEFAULT_ROUNDING_DIGITS} decimal points "
+        f"(even if they are whole numbers), and do so after you finish all your calculations! "
+        f"(i.e. don't use your rounded answers to calculate your overall answer)",
+        hide_from_latex=True
+      )
+    ])
+    
+    body.add_element(
+      ContentAST.Table(
+        data=[
           [f"Hard Drive Rotation Speed", f"{self.hard_drive_rotation_speed}RPM"],
           [f"Seek Delay", f"{self.seek_delay}ms"],
           [f"Transfer Rate", f"{self.transfer_rate}MB/s"],
@@ -67,56 +72,60 @@ class HardDriveAccessTime(IOQuestion):
           [f"Size of Reads", f"{self.size_of_reads}KB"],
         ]
       )
-    ])
+    )
     
-    lines.extend(
-      self.get_table_generator(
+    body.add_element(
+      ContentAST.Table(
         headers=["Variable", "Value"],
-        table_data={
-          "Rotational Delay": ["[answer__rotational_delay]ms"],
-          "Access Delay" : ["[answer__access_delay]ms"],
-          "Transfer Delay" : ["[answer__transfer_delay]ms"],
-          "Total Disk Access Delay" : ["[answer__disk_access_delay]ms"]
-        },
-        sorted_keys=["Rotational Delay", "Access Delay", "Transfer Delay", "Total Disk Access Delay"]
+        data=[
+          ["Rotational Delay",        ContentAST.Answer(self.answers["answer__rotational_delay"])],
+          ["Access Delay",            ContentAST.Answer(self.answers["answer__access_delay"])],
+          ["Transfer Delay",          ContentAST.Answer(self.answers["answer__transfer_delay"])],
+          ["Total Disk Access Delay", ContentAST.Answer(self.answers["answer__disk_access_delay"])],
+        ]
       )
     )
     
-    return lines
+    return body
   
-  def get_explanation_lines(self, *args, **kwargs) -> List[str]:
-    lines = [
+  def get_explanation(self) -> ContentAST.Section:
+    explanation = ContentAST.Section()
+    
+    explanation.add_text_element([
       "To calculate the total disk access time (or \"delay\"), we should first calculate each of the individual parts.",
       r"Since we know that  $t_{total} = (\text{# of reads}) \cdot t_{access} + t_{transfer}$"
       r"we therefore need to calculate $t_{access}$ and  $t_{transfer}$, where "
       r"$t_{access} = t_{rotation} + t_{seek}$.",
-      "",
-    ]
+    ])
     
-    lines.extend([
+    explanation.add_text_element([
       "Starting with the rotation delay, we calculate:",
       "$$ t_{rotation} = " + f"\\frac{{1 minute}}{{{self.hard_drive_rotation_speed}revolutions}}"  + r"\cdot \frac{60 seconds}{1 minute} \cdot \frac{1000 ms}{1 second} \cdot \frac{1 revolution}{2} = " + f"{self.rotational_delay:0.2f}ms" + "$$",
       ""
     ])
-    lines.extend([
+    
+    explanation.add_text_element([
       "Now we can calculate:",
       f"$$ t_{{access}} = t_{{rotation}} + t_{{seek}} = {self.rotational_delay:0.2f}ms + {self.seek_delay:0.2f}ms = {self.access_delay:0.2f}ms $$",
       ""
     ])
     
-    lines.extend([
-      r"Next we need to calculate our transfer delay, $t_{transfer}$, which we do as:",
-      "$$" + f"t_{{transfer}} = \\frac{{{self.number_of_reads} \\cdot {self.size_of_reads}KB}}{{1}} \\cdot \\frac{{1MB}}{{1024KB}} \\cdot \\frac{{1 second}}{{{self.transfer_rate}MB}} \\cdot \\frac{{1000ms}}{{1second}} = {self.transfer_delay:0.2}ms" + "$$",
-      ""
-    ])
+    explanation.add_text_element(
+      [
+        r"Next we need to calculate our transfer delay, $t_{transfer}$, which we do as:",
+        "$$" + f"t_{{transfer}} = \\frac{{{self.number_of_reads} \\cdot {self.size_of_reads}KB}}{{1}} \\cdot \\frac{{1MB}}{{1024KB}} \\cdot \\frac{{1 second}}{{{self.transfer_rate}MB}} \\cdot \\frac{{1000ms}}{{1second}} = {self.transfer_delay:0.2}ms" + "$$",
+        ""
+      ],
+      new_paragraph=True
+    )
     
-    lines.extend([
+    explanation.add_text_element([
       "Putting these together we get:",
       "",
       "$$" + f"t_{{total}} = \\text{{(# reads)}} \\cdot t_{{access}} + t_{{transfer}} = {self.number_of_reads} \\cdot {self.access_delay:0.2f} + {self.transfer_delay:0.2f} = {self.disk_access_delay:0.2f}ms" + "$$",
       "\n"
     ])
-    return lines
+    return explanation
 
 
 @QuestionRegistry.register()
