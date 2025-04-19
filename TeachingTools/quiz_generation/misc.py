@@ -166,8 +166,9 @@ class Answer():
 class ContentAST:
   
   class Element:
-    def __init__(self, elements=None):
+    def __init__(self, elements=None, add_spacing_before=False):
       self.elements : List[ContentAST.Element] = elements or []
+      self.add_spacing_before = add_spacing_before
     
     def __str__(self):
       return self.render_markdown()
@@ -220,10 +221,11 @@ class ContentAST:
     
     def render_html(self):
       html = "".join(element.render("html") for element in self.elements)
-      return html
+      return f"{'<br>' if self.add_spacing_before else ''}{html}"
     
     def render_latex(self):
-      return "".join(element.render("latex") for element in self.elements)
+      latex = "".join(element.render("latex") for element in self.elements)
+      return f"{'\n\n\\vspace{0.5cm}' if self.add_spacing_before else ''}{latex}"
   
     def is_mergeable(self, other: ContentAST.Element):
       return False
@@ -405,7 +407,12 @@ class ContentAST:
         result.append("\\hline")
       
       for row in self.data:
-        rendered_row = [cell.render_latex() if isinstance(cell, ContentAST.Element) else cell for cell in row]
+        rendered_row = [
+          cell.render_latex()
+          if isinstance(cell, ContentAST.Element)
+          else pylatex.escape_latex(cell)
+          for cell in row
+        ]
         result.append(" & ".join(rendered_row) + " \\\\")
       result.append("\\hline")
       result.append("\\end{tabular}")
@@ -485,19 +492,21 @@ class ContentAST:
       return content
     
   class Answer(Element):
-    def __init__(self, answer : Answer, trailing_text: str = ""):
+    def __init__(self, answer : Answer = None, leading_text: str = "", trailing_text: str = "", length=5):
       super().__init__()
       self.answer = answer
+      self.leading_text = leading_text
       self.trailing_text = trailing_text
+      self.length = length
     
     def render_markdown(self):
-      return f"[{self.answer.key}] {self.trailing_text}".rstrip()
+      return f"{self.leading_text} [{self.answer.key}] {self.trailing_text}".strip()
     
     def render_html(self):
       return self.render_markdown()
     
     def render_latex(self):
-      return r"\answerblank{2}"
+      return fr"{self.leading_text} \answerblank{{{self.length}}} {self.trailing_text}".strip()
   
   class Document(Element):
     """Root document class that adds document-level rendering"""
