@@ -136,8 +136,8 @@ class INodeAccesses(IOQuestion):
     
     self.refresh()
   
-  def refresh(self, rng_seed=None, *args, **kwargs):
-    super().refresh(rng_seed=rng_seed, *args, **kwargs)
+  def refresh(self, *args, **kwargs):
+    super().refresh(*args, **kwargs)
     
     # Calculating this first to use blocksize as an even multiple of it
     self.inode_size = 2**random.randint(6, 10)
@@ -152,109 +152,114 @@ class INodeAccesses(IOQuestion):
     self.inode_index_in_block = int(self.inode_address_in_block / self.inode_size)
     
     
-    self.answers.extend([
-      Answer("answer__inode_address", self.inode_address),
-      Answer("answer__inode_block", self.inode_block),
-      Answer("answer__inode_address_in_block", self.inode_address_in_block),
-      Answer("answer__inode_index_in_block", self.inode_index_in_block),
-    ])
+    self.answers.update({
+      "answer__inode_address": Answer("answer__inode_address", self.inode_address),
+      "answer__inode_block": Answer("answer__inode_block", self.inode_block),
+      "answer__inode_address_in_block": Answer("answer__inode_address_in_block", self.inode_address_in_block),
+      "answer__inode_index_in_block": Answer("answer__inode_index_in_block", self.inode_index_in_block),
+    })
   
-  def get_body_lines(self, output_format: OutputFormat|None = None, *args, **kwargs) -> List[str|TableGenerator]:
-    lines = [
-      "Given the information below, please calculate the following values."
-    ]
-    if output_format is not None and output_format == OutputFormat.CANVAS:
-      lines.extend([
-        " (hint: they should all be round numbers)."
-      ])
+  def get_body(self) -> ContentAST.Section:
+    body = ContentAST.Section()
     
-    lines.extend(
-      self.get_table_generator(
-        table_data={
-          f"Block Size" : [f"{self.block_size} Bytes"],
-          f"Inode Number" : [f"{self.inode_number}"],
-          f"Inode Start Location" : [f"{self.inode_start_location} Bytes"],
-          f"Inode size" : [f"{self.inode_size} Bytes"],
-        },
-        add_header_space=True
-      )
-    )
-    
-    lines.extend(
-      self.get_table_generator(
-        headers=["Variable", "Value"],
-        table_data={
-          "Inode address": ["[answer__inode_address] Bytes"],
-          "Block containing inode" : ["[answer__inode_block]"],
-          "Inode address (offset) within block" : ["[answer__inode_address_in_block] Bytes offset"],
-          "Inode index within block" : ["[answer__inode_index_in_block]"]
-        },
-        sorted_keys=["Inode address", "Block containing inode", "Inode address (offset) within block", "Inode index within block"]
-      )
-    )
-    
-    return lines
-  
-  def get_explanation_lines(self, *args, **kwargs) -> List[str]:
-    lines = []
-    
-    
-    lines.extend([
-      "If we are given an inode number, there are a few steps that we need to take to load the actual inode.  These consist of determining the address of the inode, which block would contain it, and then its address within the block.",
-      ""
-      "To find the inode address, we calculate:",
-      "",
+    body.add_elements([
+      ContentAST.Text("Given the information below, please calculate the following values."),
+      ContentAST.Text("(hint: they should all be round numbers).", hide_from_latex=True)
       
-      self.make_block_equation__multiline_equals(
+    ])
+    
+    body.add_element(
+      ContentAST.Table(
+        data=[
+          [f"Block Size",           f"{self.block_size} Bytes"],
+          [f"Inode Number",         f"{self.inode_number}"],
+          [f"Inode Start Location", f"{self.inode_start_location} Bytes"],
+          [f"Inode size",           f"{self.inode_size} Bytes"],
+        ]
+      )
+    )
+    
+    body.add_element(
+      ContentAST.Table(
+        headers=["Variable", "Value"],
+        data=[
+          ["Inode address",                       ContentAST.Answer(self.answers["answer__inode_address"])],
+          ["Block containing inode" ,             ContentAST.Answer(self.answers["answer__inode_block"])],
+          ["Inode address (offset) within block", ContentAST.Answer(self.answers["answer__inode_address_in_block"])],
+          ["Inode index within block",            ContentAST.Answer(self.answers["answer__inode_index_in_block"])],
+        ],
+      )
+    )
+    
+    return body
+  
+  def get_explanation(self) -> ContentAST.Section:
+    explanation = ContentAST.Section()
+    
+    explanation.add_text_element([
+      "If we are given an inode number, there are a few steps that we need to take to load the actual inode.  "
+      "These consist of determining the address of the inode, which block would contain it, "
+      "and then its address within the block.",
+      "To find the inode address, we calculate:",
+    ])
+    
+    explanation.add_element(
+      ContentAST.Equation.make_block_equation__multiline_equals(
         r"(\text{Inode address})",
         [
           r"(\text{Inode Start Location}) + (\text{inode #}) \cdot (\text{inode size})",
           f"{self.inode_start_location} + {self.inode_number} \\cdot {self.inode_size}",
           f"{self.inode_address}"
-        ]
-      ),
-      
-      "",
-      "Next, we us this to figure out what block the inode is in.  We do this directly so we know what block to load, thus minimizing the number of loads we have to make.",
-      "",
-      
-      self.make_block_equation__multiline_equals(
-        r"\text{Block containing inode}",
-        [
-          r"(\text{Inode address}) \mathbin{//} (\text{block size})",
-          f"{self.inode_address} \\mathbin{{//}} {self.block_size}",
-          f"{self.inode_block}"
-        ]
-      ),
-      
-      "",
+        ])
+    )
+    
+    explanation.add_text_element(
+      [
+        "Next, we us this to figure out what block the inode is in.  "
+        "We do this directly so we know what block to load, "
+        "thus minimizing the number of loads we have to make.",
+      ],
+      new_paragraph=True
+    )
+    explanation.add_element(ContentAST.Equation.make_block_equation__multiline_equals(
+      r"\text{Block containing inode}",
+      [
+        r"(\text{Inode address}) \mathbin{//} (\text{block size})",
+        f"{self.inode_address} \\mathbin{{//}} {self.block_size}",
+        f"{self.inode_block}"
+      ]
+    ))
+    
+    explanation.add_text_element([
       "When we load this block, we now have in our system memory (remember, blocks on the hard drive are effectively useless to us until they're in main memory!), the inode, so next we need to figure out where it is within that block."
       "This means that we'll need to find the offset into this block.  We'll calculate this both as the offset in bytes, and also in number of inodes, since we can use array indexing.",
-      "",
-      
-      self.make_block_equation__multiline_equals(
-        r"\text{offset within block}",
-        [
-          r"(\text{Inode address}) \bmod (\text{block size})",
-          f"{self.inode_address} \\bmod {self.block_size}",
-          f"{self.inode_address_in_block}"
-        ]
-      ),
-      
-      "and",
-      "",
-      
-      self.make_block_equation__multiline_equals(
-        r"\text{index within block}",
-        [
-          r"\dfrac{\text{offset within block}}{\text{inode size}}",
-          f"\\dfrac{{{self.inode_address_in_block}}}{{{self.inode_size}}}",
-          f"{self.inode_index_in_block}"
-        ]
-      )
     ])
     
-    return lines
+    
+    explanation.add_element(ContentAST.Equation.make_block_equation__multiline_equals(
+      r"\text{offset within block}",
+      [
+        r"(\text{Inode address}) \bmod (\text{block size})",
+        f"{self.inode_address} \\bmod {self.block_size}",
+        f"{self.inode_address_in_block}"
+      ]
+    ))
+    
+    explanation.add_text_element([
+      "and",
+      "",
+    ])
+      
+    explanation.add_element(ContentAST.Equation.make_block_equation__multiline_equals(
+      r"\text{index within block}",
+      [
+        r"\dfrac{\text{offset within block}}{\text{inode size}}",
+        f"\\dfrac{{{self.inode_address_in_block}}}{{{self.inode_size}}}",
+        f"{self.inode_index_in_block}"
+      ]
+    ))
+    
+    return explanation
 
 
 @QuestionRegistry.register()
