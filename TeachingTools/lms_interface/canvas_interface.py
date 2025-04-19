@@ -205,7 +205,6 @@ class CanvasCourse(LMSWrapper):
   def get_students(self) -> List[Student]:
     return [Student(s.name, s.id, s) for s in self.course.get_users(enrollment_type=["student"])]
 
-
 class CanvasAssignment(LMSWrapper):
   def __init__(self, *args, canvasapi_interface: CanvasInterface, canvasapi_course : CanvasCourse, canvasapi_assignment: canvasapi.assignment.Assignment, **kwargs):
     self.canvas_interface = canvasapi_interface
