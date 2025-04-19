@@ -272,8 +272,8 @@ class VSFS_states(IOQuestion):
     
     self.refresh()
   
-  def refresh(self, rng_seed=None, *args, **kwargs):
-    super().refresh(rng_seed=rng_seed, *args, **kwargs)
+  def refresh(self, *args, **kwargs):
+    super().refresh(*args, **kwargs)
     
     fs = self.vsfs(4, 4)
     operations = fs.run_for_steps(3)
@@ -290,14 +290,12 @@ class VSFS_states(IOQuestion):
     ))
     random.shuffle(wrong_answers)
     
-    self.answers.extend([
-      Answer("answer__cmd",  f"{operations[-1]['cmd']}"),
-    ])
+    self.answers["answer__cmd"] = Answer("answer__cmd",  f"{operations[-1]['cmd']}")
   
-  def get_body_lines(self, *args, **kwargs) -> List[str]:
-    lines = []
+  def get_body(self) -> ContentAST.Section:
+    body = ContentAST.Section()
     
-    lines.extend([
+    body.add_text_element([
       "What operation happens between these two states?",
       "",
       "```",
@@ -309,20 +307,35 @@ class VSFS_states(IOQuestion):
       "```",
     ])
     
-    return lines
+    return body
   
-  def get_explanation_lines(self, *args, **kwargs) -> List[str]:
-    lines = [
-      "These questions are based on the VSFS simulator that our book mentions.  We will be discussing the interpretation of this in class, but you can also find information <a href=\"https://github.com/chyyuu/os_tutorial_lab/blob/master/ostep/ostep13-vsfs.md\">here</a>, as well as simulator code.  Please note that the code uses python 2.",
+  def get_explanation(self) -> ContentAST.Section:
+    explanation = ContentAST.Section()
+    
+    explanation.add_text_element([
+      "These questions are based on the VSFS simulator that our book mentions.  "
+      "We will be discussing the interpretation of this in class, but you can also find information "
+      "<a href=\"https://github.com/chyyuu/os_tutorial_lab/blob/master/ostep/ostep13-vsfs.md\">here</a>, "
+      "as well as simulator code.  Please note that the code uses python 2.",
       "",
       "In general, I recommend looking for differences between the two outputs.  Recommended steps would be:",
       "<ol>"
-      "<li> Check to see if there are differences between the bitmaps that could indicate a file/directroy were created or removed.</li>",
-      "<li>Check the listed inodes to see if any entries have changed.  This might be a new entry entirely or a reference count changing.  If the references increased then this was likely a link or creation, and if it decreased then it is likely an unlink.</li>",
-      "<li>Look at the data blocks to see if a new entry has been added to a directory or a new block has been mapped.</li>",
+      
+      "<li> Check to see if there are differences between the bitmaps "
+      "that could indicate a file/directroy were created or removed.</li>",
+      
+      "<li>Check the listed inodes to see if any entries have changed.  "
+      "This might be a new entry entirely or a reference count changing.  "
+      "If the references increased then this was likely a link or creation, "
+      "and if it decreased then it is likely an unlink.</li>",
+      
+      "<li>Look at the data blocks to see if a new entry has "
+      "been added to a directory or a new block has been mapped.</li>",
+      
       "</ol>",
-      "These steps can usually help you quickly identify what has occured in the simulation and key you in to the right answer."
-    ]
+      "These steps can usually help you quickly identify "
+      "what has occured in the simulation and key you in to the right answer."
+    ])
     
-    return lines
+    return explanation
   
