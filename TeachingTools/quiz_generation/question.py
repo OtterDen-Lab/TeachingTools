@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import abc
+import io
 import dataclasses
 import datetime
 import enum
 import importlib
 import itertools
+import os
 import pathlib
 import pkgutil
 import random
@@ -190,8 +192,6 @@ class Question(abc.ABC):
     
     # To be used throughout when generating random things
     self.rng = random.Random()
-    
-    self.refresh()
   
   @staticmethod
   def get_table_generator(
@@ -285,14 +285,31 @@ class Question(abc.ABC):
     # Get the answers and type of question
     question_type, answers = self.get_answers(*args, **kwargs)
     
+    def image_upload(img_data) -> str:
+      
+      course.create_folder(f"{quiz.id}", parent_folder_path="Quiz Files")
+      file_name = "temp.png"
+      with io.FileIO(file_name, 'w+') as ffid:
+        ffid.write(img_data.getbuffer())
+        ffid.flush()
+        ffid.seek(0)
+        upload_success, f = course.upload(ffid, parent_folder_path=f"Quiz Files/{quiz.id}")
+      os.remove(file_name)
+      
+      img_data.name = "img.png"
+      # upload_success, f = course.upload(img_data, parent_folder_path=f"Quiz Files/{quiz.id}")
+      log.debug("path: " + f"/courses/{course.id}/files/{f['id']}/preview")
+      return f"/courses/{course.id}/files/{f['id']}/preview"
+      
+    
     # Build appropriate dictionary to send to canvas
     return {
       "question_name": f"{self.name} ({datetime.datetime.now().strftime('%m/%d/%y %H:%M:%S.%f')})",
-      "question_text": questionAST.render("html"), # todo: this will not work for images currently
+      "question_text": questionAST.render("html", upload_func=image_upload),
       "question_type": question_type.value,
       "points_possible": self.points_value,
       "answers": answers,
-      "neutral_comments_html": questionAST.explanation.render("html") # todo: Don't break this boundary?
+      "neutral_comments_html": questionAST.explanation.render("html", upload_func=image_upload)
     }
 
 class QuestionGroup():

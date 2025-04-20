@@ -6,7 +6,8 @@ import fractions
 import itertools
 import math
 import textwrap
-from typing import List, Dict
+from io import BytesIO
+from typing import List, Dict, Callable
 
 import enum
 
@@ -210,22 +211,23 @@ class ContentAST:
         log.warning(f"Specified conversion format '{output_format}' not recognized by pypandoc. Defaulting to markdown")
       return None
     
-    def render(self, output_format):
+    def render(self, output_format, **kwargs):
+      log.debug(kwargs)
       method_name = f"render_{output_format}"
       if hasattr(self, method_name):
-        return getattr(self, method_name)()
+        return getattr(self, method_name)(**kwargs)
       
-      return self.render_markdown()  # Fallback to markdown
+      return self.render_markdown(**kwargs)  # Fallback to markdown
     
-    def render_markdown(self):
-      return "".join(element.render("markdown") for element in self.elements)
+    def render_markdown(self, **kwargs):
+      return "".join(element.render("markdown", **kwargs) for element in self.elements)
     
-    def render_html(self):
-      html = "".join(element.render("html") for element in self.elements)
+    def render_html(self, **kwargs):
+      html = "".join(element.render("html", **kwargs) for element in self.elements)
       return f"{'<br>' if self.add_spacing_before else ''}{html}"
     
-    def render_latex(self):
-      latex = "".join(element.render("latex") for element in self.elements)
+    def render_latex(self, **kwargs):
+      latex = "".join(element.render("latex", **kwargs) for element in self.elements)
       return f"{'\n\n\\vspace{0.5cm}' if self.add_spacing_before else ''}{latex}"
   
     def is_mergeable(self, other: ContentAST.Element):
@@ -242,14 +244,14 @@ class ContentAST:
       self.hide_from_latex = hide_from_latex
       self.emphasis = emphasis
     
-    def render_markdown(self):
+    def render_markdown(self, **kwargs):
       return f"{'***' if self.emphasis else ''}{self.content}{'***' if self.emphasis else ''}"
 
-    def render_html(self):
+    def render_html(self, **kwargs):
       # If the super function returns None then we just return content as is
       return super().convert_markdown(self.content, "html") or self.content
     
-    def render_latex(self):
+    def render_latex(self, **kwargs):
       if self.hide_from_latex:
         return ""
       content = super().convert_markdown(self.content, "latex") or self.content
@@ -268,7 +270,7 @@ class ContentAST:
   
   class TextBlock(Element):
     """A block of text that will combine all child elements together.  i.e. a paragraph"""
-    def render(self, output_format):
+    def render(self, output_format, **kwargs):
       # Merge all Text nodes before we render
       merged_elements = []
       previous_node = ContentAST.Text("")
@@ -285,21 +287,21 @@ class ContentAST:
       
       self.elements = merged_elements
       
-      return "\n\n" + super().render(output_format)
+      return "\n\n" + super().render(output_format, **kwargs)
   
   class Code(Text):
     def __init__(self, lines):
       super().__init__(lines)
     
-    def render_markdown(self):
+    def render_markdown(self, **kwargs):
       content = "```\n" + self.content + "\n```"
       return content
     
-    def render_html(self):
+    def render_html(self, **kwargs):
       
       return super().convert_markdown(textwrap.indent(self.content, "\t"), "html") or self.content
     
-    def render_latex(self):
+    def render_latex(self, **kwargs):
       content = super().convert_markdown(self.render_markdown(), "latex") or self.content
       log.debug(f"content: {content}")
       return content
@@ -310,13 +312,13 @@ class ContentAST:
       super().__init__()
       self.latex = latex
     
-    def render_markdown(self):
+    def render_markdown(self, **kwargs):
       return r"$$ \displaystyle " + f"{self.latex}" + r" \frac{}{}$$"
     
-    def render_html(self):
+    def render_html(self, **kwargs):
       return f"<div class='math'>$$ \\displaystyle{self.latex} \\frac{{}}{{}}$$</div>"
     
-    def render_latex(self):
+    def render_latex(self, **kwargs):
       return f"\\begin{{equation}}\n{self.latex}\n\\end{{equation}}"
   
     @classmethod
@@ -354,7 +356,7 @@ class ContentAST:
       self.alignments = alignments
       self.padding = padding
     
-    def render_markdown(self):
+    def render_markdown(self, **kwargs):
       # Basic markdown table implementation
       result = []
       
@@ -379,7 +381,7 @@ class ContentAST:
         
       return "\n".join(result)
     
-    def render_html(self):
+    def render_html(self, **kwargs):
       # HTML table implementation
       result = ["<table border=\"1\" style=\"border-collapse: collapse; width: 100%;\">"]
       
@@ -410,7 +412,7 @@ class ContentAST:
       
       return "\n".join(result)
     
-    def render_latex(self):
+    def render_latex(self, **kwargs):
       # LaTeX table implementation
       if self.alignments:
         col_spec = "".join("l" if a == "left" else "r" if a == "right" else "c"
@@ -439,29 +441,33 @@ class ContentAST:
       return "\n\n" + "\n".join(result)
   
   class Picture(Element):
-    def __init__(self, path, caption=None, width=None):
+    def __init__(self, img_data, caption=None, width=None):
       super().__init__()
-      self.path = path
+      self.img_data = img_data
       self.caption = caption
       self.width = width
     
-    def render_markdown(self):
+    def render_markdown(self, **kwargs):
       if self.caption:
         return f"![{self.caption}]({self.path})"
       return f"![]({self.path})"
-    
-    def render_html(self):
+
+    def render_html(
+        self,
+        upload_func: Callable[[BytesIO], str] = lambda _: "",
+        **kwargs
+    ) -> str:
       attrs = []
       if self.width:
         attrs.append(f'width="{self.width}"')
       
-      img = f'<img src="{self.path}" {" ".join(attrs)} alt="{self.caption or ""}">'
+      img = f'<img src="{upload_func(self.img_data)}" {" ".join(attrs)} alt="{self.caption or ""}">'
       
       if self.caption:
         return f'<figure>\n  {img}\n  <figcaption>{self.caption}</figcaption>\n</figure>'
       return img
     
-    def render_latex(self):
+    def render_latex(self, **kwargs):
       options = []
       if self.width:
         options.append(f"width={self.width}")
@@ -492,9 +498,9 @@ class ContentAST:
       self.value = value
       self.interest = interest
       
-    def render(self, output_format):
+    def render(self, output_format, **kwargs):
       # Generate content from all elements
-      content = self.body.render(output_format)
+      content = self.body.render(output_format, **kwargs)
       
       # If output format is latex, add in minipage and question environments
       if output_format == "latex":
@@ -518,13 +524,13 @@ class ContentAST:
       self.trailing_text = trailing_text
       self.length = length
     
-    def render_markdown(self):
+    def render_markdown(self, **kwargs):
       return f"{self.leading_text} [{self.answer.key}] {self.trailing_text}".strip()
     
-    def render_html(self):
+    def render_html(self, **kwargs):
       return self.render_markdown()
     
-    def render_latex(self):
+    def render_latex(self, **kwargs):
       return fr"{self.leading_text} \answerblank{{{self.length}}} {self.trailing_text}".strip()
   
   class Document(Element):
@@ -533,9 +539,9 @@ class ContentAST:
       super().__init__()
       self.title = title
     
-    def render(self, output_format):
+    def render(self, output_format, **kwargs):
       # Generate content from all elements
-      content = super().render(output_format)
+      content = super().render(output_format, **kwargs)
       
       # Add title if present
       if self.title and output_format == "markdown":
