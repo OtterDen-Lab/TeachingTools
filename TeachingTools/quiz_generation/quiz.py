@@ -14,8 +14,8 @@ from typing import List, Dict, Optional
 
 import yaml
 
-from TeachingTools.quiz_generation.misc import OutputFormat
-from TeachingTools.quiz_generation.question import Question, QuestionRegistry, ConcreteQuestion, QuestionGroup
+from TeachingTools.quiz_generation.misc import OutputFormat, ContentAST
+from TeachingTools.quiz_generation.question import Question, QuestionRegistry, QuestionGroup
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -24,11 +24,10 @@ log.setLevel(logging.DEBUG)
 
 class ConcreteQuestionSet:
   def __init__(self, questions: List[Question], rng_seed, previous_question_set : Optional[ConcreteQuestionSet]= None):
-    self.questions : List[ConcreteQuestion] = []
+    self.questions : List[ContentAST.Question] = []
     for i, question in enumerate(questions):
       self.questions.append(
-        question.generate(
-          OutputFormat.LATEX, # todo: try to remove reliance on latex here (again)
+        question.get_question(
           rng_seed=rng_seed,
           previous=(
             None if previous_question_set is None
@@ -47,7 +46,7 @@ class ConcreteQuestionSet:
   def get_latex(self) -> str:
     text = ""
     for question in self.questions:
-      text += question.question_text + "\n\n"
+      text += question.render("latex") + "\n\n"
     return text
   
   def get_rubric(self):
@@ -334,6 +333,7 @@ class Quiz:
         r"\usepackage{longtable}",
         r"\usepackage{arydshln}",
         r"\usepackage{ragged2e}\let\Centering\flushleft",
+        r"\usepackage{array}",
         
         r"% Custom commands",
         r"\newcounter{NumQuestions}",

@@ -140,10 +140,10 @@ class LanguageQuestion(Question):
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
     
-    self.instantiate()
+    self.refresh()
   
-  def instantiate(self, rng_seed=None, grammar_str: Optional[str] = None, *args, **kwargs):
-    super().instantiate(rng_seed=rng_seed, *args, **kwargs)
+  def refresh(self, rng_seed=None, grammar_str: Optional[str] = None, *args, **kwargs):
+    super().refresh(rng_seed=rng_seed, *args, **kwargs)
     
     log.debug("Instantiate")
     self.answers = []
