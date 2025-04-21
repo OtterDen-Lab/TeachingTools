@@ -183,7 +183,7 @@ class Question(abc.ABC):
     self.name = name
     self.points_value = points_value
     self.kind = topic
-    self.spacing = kwargs.get("spacing", 3)
+    self.spacing = kwargs.get("spacing", 0)
     
     self.extra_attrs = kwargs # clear page, etc.
     
@@ -234,7 +234,8 @@ class Question(abc.ABC):
     return ContentAST.Question(
       body=self.get_body(),
       explanation=self.get_explanation(),
-      value=kwargs.get("value", 1)
+      value=kwargs.get("value", 1),
+      spacing=self.spacing
     )
   
   @abc.abstractmethod

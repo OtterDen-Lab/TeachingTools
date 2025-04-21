@@ -261,7 +261,8 @@ class ContentAST:
         explanation: ContentAST.Section,
         name=None,
         value=1,
-        interest=1.0
+        interest=1.0,
+        spacing=3
     ):
       super().__init__()
       self.name = name
@@ -269,6 +270,7 @@ class ContentAST:
       self.body = body
       self.value = value
       self.interest = interest
+      self.spacing = spacing
     
     def render(self, output_format, **kwargs):
       # Generate content from all elements
@@ -282,6 +284,7 @@ class ContentAST:
           r"\noindent\begin{minipage}{0.9\textwidth}",
           content,
           r"\end{minipage}",
+          f"\\vspace{{{self.spacing}cm}}"
           r"\end{minipage}"
         ]
         content = '\n'.join(latex_lines)
