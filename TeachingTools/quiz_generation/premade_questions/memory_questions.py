@@ -230,13 +230,15 @@ class CachingQuestion(MemoryQuestion):
   def get_body(self, **kwargs) -> ContentAST.Section:
     body = ContentAST.Section()
     
-    body.add_text_element([
-      f"Assume we are using a <b>{self.cache_policy}</b> caching policy and a cache size of <b>{self.cache_size}</b>."
-      "",
-      "Given the below series of requests please fill in the table.",
-      "For the hit/miss column, please write either \"hit\" or \"miss\".",
-      "For the eviction column, please write either the number of the evicted page or simply a dash (e.g. \"-\")."
-    ])
+    body.add_element(
+      ContentAST.Paragraph([
+        f"Assume we are using a <b>{self.cache_policy}</b> caching policy and a cache size of <b>{self.cache_size}</b>."
+        "",
+        "Given the below series of requests please fill in the table.",
+        "For the hit/miss column, please write either \"hit\" or \"miss\".",
+        "For the eviction column, please write either the number of the evicted page or simply a dash (e.g. \"-\")."
+      ])
+    )
     
     body.add_element(
       ContentAST.Text(
@@ -263,13 +265,14 @@ class CachingQuestion(MemoryQuestion):
       )
     )
     
-    body.add_elements(
-      [
-        ContentAST.Element(add_spacing_before=True),
-        ContentAST.Text("Hit rate, excluding compulsory misses: "),
-        ContentAST.Answer(self.answers["answer__hit_rate"], "%")
-      ],
-      new_paragraph=True
+    body.add_element(
+      ContentAST.AnswerBlock(
+        ContentAST.Answer(
+          answer=self.answers["answer__hit_rate"],
+          label="Hit rate, excluding compulsory misses",
+          unit="%"
+        )
+      )
     )
     
     return body
@@ -277,9 +280,7 @@ class CachingQuestion(MemoryQuestion):
   def get_explanation(self, **kwargs) -> ContentAST.Section:
     explanation = ContentAST.Section()
     
-    explanation.add_text_element(
-      "The full caching table can be seen below."
-    )
+    explanation.add_element(ContentAST.Paragraph(["The full caching table can be seen below."]))
     
     explanation.add_element(
       ContentAST.Table(
@@ -296,17 +297,20 @@ class CachingQuestion(MemoryQuestion):
       )
     )
     
-    explanation.add_text_element([
-      "To calculate the hit rate we calculate the percentage of requests "
-      "that were cache hits out of the total number of requests. "
-      f"In this case we are counting only all but {self.cache_size} requests, since we are excluding compulsory misses."
-    ], new_paragraph=True
+    explanation.add_element(
+      ContentAST.Paragraph([
+        "To calculate the hit rate we calculate the percentage of requests "
+        "that were cache hits out of the total number of requests. "
+        f"In this case we are counting only all but {self.cache_size} requests, "
+        f"since we are excluding compulsory misses."
+      ])
     )
     
     return explanation
   
   def is_interesting(self) -> bool:
-    # todo: interesting is more likely based on whether I can differentiate between it and another algo, so maybe rerun with a different approach but same requests?
+    # todo: interesting is more likely based on whether I can differentiate between it and another algo,
+    #  so maybe rerun with a different approach but same requests?
     return (self.hit_rate / 100.0) < 0.7
 
 
@@ -314,7 +318,7 @@ class MemoryAccessQuestion(MemoryQuestion, abc.ABC):
   PROBABILITY_OF_VALID = .875
 
 
-@QuestionRegistry.register("BaseAndBounds")
+@QuestionRegistry.register()
 class BaseAndBounds(MemoryAccessQuestion):
   MAX_BITS = 32
   MIN_BOUNDS_BIT = 5
@@ -351,10 +355,13 @@ class BaseAndBounds(MemoryAccessQuestion):
   def get_body(self) -> ContentAST.Section:
     body = ContentAST.Section()
     
-    body.add_text_element([
-      "Given the information in the below table, please calcuate the physical address associated with the given virtual address.",
-      "If the virtual address is invalid please simply write ***INVALID***."
-    ])
+    body.add_element(
+      ContentAST.Paragraph([
+        "Given the information in the below table, "
+        "please calcuate the physical address associated with the given virtual address.",
+        "If the virtual address is invalid please simply write ***INVALID***."
+      ])
+    )
     
     body.add_element(
       ContentAST.Table(
@@ -374,33 +381,40 @@ class BaseAndBounds(MemoryAccessQuestion):
   def get_explanation(self) -> ContentAST.Section:
     explanation = ContentAST.Section()
     
-    explanation.add_text_element([
-      "There's two steps to figuring out base and bounds.",
-      "1. Are we within the bounds?\n",
-      "2. If so, add to our base.\n",
-      "",
-    ])
+    explanation.add_element(
+      ContentAST.Paragraph([
+        "There's two steps to figuring out base and bounds.",
+        "1. Are we within the bounds?\n",
+        "2. If so, add to our base.\n",
+        "",
+      ])
+    )
     
-    explanation.add_text_element([
-      f"Step 1: 0x{self.virtual_address:X} < 0x{self.bounds:X} --> {'***VALID***' if (self.virtual_address < self.bounds) else 'INVALID'}",
-      "",
-    ])
+    explanation.add_element(
+      ContentAST.Paragraph([
+        f"Step 1: 0x{self.virtual_address:X} < 0x{self.bounds:X} "
+        f"--> {'***VALID***' if (self.virtual_address < self.bounds) else 'INVALID'}"
+      ])
+    )
+    
     if self.virtual_address < self.bounds:
-      explanation.add_text_element([
-        f"Step 2: Since the previous check passed, we calculate "
-        f"0x{self.base:X} + 0x{self.virtual_address:X} "
-        f"= ***0x{self.base + self.virtual_address:X}***.",
-        "If it had been invalid we would have simply written INVALID"
-      ]
+      explanation.add_element(
+        ContentAST.Paragraph([
+          f"Step 2: Since the previous check passed, we calculate "
+          f"0x{self.base:X} + 0x{self.virtual_address:X} "
+          f"= ***0x{self.base + self.virtual_address:X}***.",
+          "If it had been invalid we would have simply written INVALID"
+        ])
       )
     else:
-      explanation.add_text_element([
-        f"Step 2: Since the previous check failed, we simply write ***INVALID***.",
-        "***If*** it had been valid, we would have calculated "
-        f"0x{self.base:X} + 0x{self.virtual_address:X} "
-        f"= 0x{self.base + self.virtual_address:X}.",
-      
-      ])
+      explanation.add_element(
+        ContentAST.Paragraph([
+          f"Step 2: Since the previous check failed, we simply write ***INVALID***.",
+          "***If*** it had been valid, we would have calculated "
+          f"0x{self.base:X} + 0x{self.virtual_address:X} "
+          f"= 0x{self.base + self.virtual_address:X}.",
+        ])
+      )
     
     return explanation
 
@@ -424,8 +438,8 @@ class Segmentation(MemoryAccessQuestion):
     
     return
   
-  def refresh(self, rng_seed=None, *args, **kwargs):
-    super().refresh(rng_seed=rng_seed, *args, **kwargs)
+  def refresh(self, *args, **kwargs):
+    super().refresh(*args, **kwargs)
     
     # Pick how big each of our address spaces will be
     self.virtual_bits = self.rng.randint(self.MIN_VIRTUAL_BITS, self.MAX_VIRTUAL_BITS)
@@ -514,14 +528,16 @@ class Segmentation(MemoryAccessQuestion):
   def get_body(self) -> ContentAST.Section:
     body = ContentAST.Section()
     
-    body.add_text_element([
-      f"Given a virtual address space of {self.virtual_bits}bits, "
-      f"and a physical address space of {self.physical_bits}bits, "
-      "what is the physical address associated with the virtual address "
-      f"0b{self.virtual_address:0{self.virtual_bits}b}?",
-      "If it is invalid simply type INVALID.",
-      "Note: assume that the stack grows in the same way as the code and the heap."
-    ])
+    body.add_element(
+      ContentAST.Paragraph([
+        f"Given a virtual address space of {self.virtual_bits}bits, "
+        f"and a physical address space of {self.physical_bits}bits, "
+        "what is the physical address associated with the virtual address "
+        f"0b{self.virtual_address:0{self.virtual_bits}b}?",
+        "If it is invalid simply type INVALID.",
+        "Note: assume that the stack grows in the same way as the code and the heap."
+      ])
+    )
     
     body.add_element(
       ContentAST.Table(
@@ -534,82 +550,97 @@ class Segmentation(MemoryAccessQuestion):
       )
     )
     
-    body.add_element(ContentAST.Text("\n"))
-    
-    body.add_elements([
-      ContentAST.Element([], add_spacing_before=True),
-      ContentAST.Text("Segment name: "),
-      ContentAST.Answer(self.answers["answer__segment"]),
-      ContentAST.Element([], add_spacing_before=True),
-      ContentAST.Text("Physical Address: "),
-      ContentAST.Answer(self.answers["answer__physical_address"])
-    ])
-    
+    body.add_element(
+      ContentAST.AnswerBlock([
+        ContentAST.Answer(
+          self.answers["answer__segment"],
+          label="Segment name"
+        ),
+        ContentAST.Answer(
+          self.answers["answer__physical_address"],
+          label="Physical Address"
+        )
+      ])
+    )
     return body
   
   def get_explanation(self) -> ContentAST.Section:
     explanation = ContentAST.Section()
-    explanation.add_text_element([
-      "The core idea to keep in mind with segmentation is that you should always check ",
-      "the first two bits of the virtual address to see what segment it is in and then go from there."
-      "Keep in mind, we also may need to include padding if our virtual address has a number of leading zeros left off!"
-    ])
     
-    explanation.add_text_element(
-      [
-        f"In this problem our virtual address, converted to binary and including padding, is 0b{self.virtual_address:0{self.virtual_bits}b}.",
-        f"From this we know that our segment bits are 0b{self.segment_bits:02b}, meaning that we are in the <b>{self.segment}</b> segment.",
+    explanation.add_element(
+      ContentAST.Paragraph([
+        "The core idea to keep in mind with segmentation is that you should always check ",
+        "the first two bits of the virtual address to see what segment it is in and then go from there."
+        "Keep in mind, "
+        "we also may need to include padding if our virtual address has a number of leading zeros left off!"
+      ])
+    )
+    
+    explanation.add_element(
+      ContentAST.Paragraph([
+        f"In this problem our virtual address, "
+        f"converted to binary and including padding, is 0b{self.virtual_address:0{self.virtual_bits}b}.",
+        f"From this we know that our segment bits are 0b{self.segment_bits:02b}, "
+        f"meaning that we are in the ***{self.segment}*** segment.",
         ""
-      ],
-      new_paragraph=True
+      ])
     )
     
     if self.segment == "unallocated":
-      explanation.add_text_element([
-        "Since this is the unallocated segment there are no possible valid translations, so we enter <b>INVALID</b>."
-      ])
+      explanation.add_element(
+        ContentAST.Paragraph([
+          "Since this is the unallocated segment there are no possible valid translations, so we enter ***INVALID***."
+        ])
+      )
     else:
-      explanation.add_text_element([
-        f"Since we are in the {self.segment} segment, we see from our table that our bounds are {self.bounds[self.segment]}. "
-        f"Remember that our check for our {self.segment} segment is: ",
-        f"<code> if (offset > bounds({self.segment})) : INVALID</code>",
-        "which becomes"
-        f"<code> if ({self.offset:0b} > {self.bounds[self.segment]:0b}) : INVALID</code>"
-      ])
+      explanation.add_element(
+        ContentAST.Paragraph([
+          f"Since we are in the {self.segment} segment, "
+          f"we see from our table that our bounds are {self.bounds[self.segment]}. "
+          f"Remember that our check for our {self.segment} segment is: ",
+          f"`if (offset > bounds({self.segment})) : INVALID`",
+          "which becomes"
+          f"`if ({self.offset:0b} > {self.bounds[self.segment]:0b}) : INVALID`"
+        ])
+      )
       
       if not self.__within_bounds(self.segment, self.offset, self.bounds[self.segment]):
         # then we are outside of bounds
-        explanation.add_text_element([
-          "We can therefore see that we are outside of bounds so we should put <b>INVALID</b>.",
-          "If we <i>were</i> requesting a valid memory location we could use the below steps to do so."
-          "<hr>"
-        ])
+        explanation.add_element(
+          ContentAST.Paragraph([
+            "We can therefore see that we are outside of bounds so we should put ***INVALID***.",
+            "If we <i>were</i> requesting a valid memory location we could use the below steps to do so."
+            "<hr>"
+          ])
+        )
       else:
-        explanation.add_text_element([
-          "We are therefore in bounds so we can calculate our physical address, as we do below."
-        ])
+        explanation.add_element(
+          ContentAST.Paragraph([
+            "We are therefore in bounds so we can calculate our physical address, as we do below."
+          ])
+        )
       
-      explanation.add_text_element(
-        [
+      explanation.add_element(
+        ContentAST.Paragraph([
           "To find the physical address we use the formula:",
           "<code>physical_address = base(segment) + offset</code>",
           "which becomes",
           f"<code>physical_address = {self.base[self.segment]:0b} + {self.offset:0b}</code>.",
           ""
-        ],
-        new_paragraph=True
+        ])
       )
       
-      explanation.add_text_element(
-        [
-          "Lining this up for ease we can do this calculation as:",
-          "<pre><code>",
+      explanation.add_element(
+        ContentAST.Paragraph([
+          "Lining this up for ease we can do this calculation as:"
+        ])
+      )
+      explanation.add_element(
+        ContentAST.Code([
           f"  0b{self.base[self.segment]:0{self.physical_bits}b}",
           f"<u>+ 0b{self.offset:0{self.physical_bits}b}</u>",
           f"  0b{self.physical_address:0{self.physical_bits}b}"
-          "</code></pre>"
-        ],
-        new_paragraph=True
+        ])
       )
     
     return explanation
@@ -687,10 +718,12 @@ class Paging(MemoryAccessQuestion):
   def get_body(self, *args, **kwargs) -> ContentAST.Section:
     body = ContentAST.Section()
     
-    body.add_text_element([
-      "Given the below information please calculate the equivalent physical address of the given virtual address, filling out all steps along the way.",
-      "Remember, we typically have the MSB representing valid or invalid."
-    ])
+    body.add_element(
+      ContentAST.Paragraph([
+        "Given the below information please calculate the equivalent physical address of the given virtual address, filling out all steps along the way.",
+        "Remember, we typically have the MSB representing valid or invalid."
+      ])
+    )
     
     body.add_element(
       ContentAST.Table(
@@ -702,7 +735,6 @@ class Paging(MemoryAccessQuestion):
       )
     )
     
-    body.add_element(ContentAST.Element(add_spacing_before=True))
     
     # Make values for Page Table
     table_size = self.rng.randint(5,8)
@@ -750,84 +782,105 @@ class Paging(MemoryAccessQuestion):
       )
     )
     
-    
-    
-    body.add_elements([
-      ContentAST.Element(add_spacing_before=True),
-      ContentAST.Answer(self.answers["answer__vpn"], label="- VPN: "),
-      ContentAST.Element(add_spacing_before=True),
-      ContentAST.Answer(self.answers["answer__offset"], label="- Offset: "),
-      ContentAST.Element(add_spacing_before=True),
-      ContentAST.Answer(self.answers["answer__pte"], label="- PTE: "),
-      ContentAST.Element(add_spacing_before=True),
-      ContentAST.Answer(self.answers["answer__is_valid"], label="- VALID or INVALID?: "),
-      ContentAST.Element(add_spacing_before=True),
-      ContentAST.Answer(self.answers["answer__pfn"], label="- PFN: "),
-      ContentAST.Element(add_spacing_before=True),
-      ContentAST.Answer(self.answers["answer__physical_address"], label="- Physical Address: "),
-      ContentAST.Element(add_spacing_before=True),
-    ])
+    body.add_element(
+      ContentAST.AnswerBlock([
+        
+        ContentAST.Answer(self.answers["answer__vpn"],              label="VPN"),
+        ContentAST.Answer(self.answers["answer__offset"],           label="Offset"),
+        ContentAST.Answer(self.answers["answer__pte"],              label="PTE"),
+        ContentAST.Answer(self.answers["answer__is_valid"],         label="VALID or INVALID?"),
+        ContentAST.Answer(self.answers["answer__pfn"],              label="PFN"),
+        ContentAST.Answer(self.answers["answer__physical_address"], label="Physical Address"),
+      ])
+    )
     
     return body
   
   def get_explanation_lines(self, *args, **kwargs) -> ContentAST.Section:
     explanation = ContentAST.Section()
     
-    explanation.add_text_element([
-      "The core idea of Paging is we want to break the virtual address into the VPN and the offset.  "
-      "From here, we get the Page Table Entry corresponding to the VPN, and check the validity of the entry.  "
-      "If it is valid, we clear the metadata and attach the PFN to the offset and have our physical address.",
-      "",
-      "Don't forget to pad with the appropriate number of 0s (the appropriate number is the number of bits)!",
-      "",
-      f"Virtual Address = VPN | offset",
-      f"<tt>0b{self.virtual_address:0{self.num_vpn_bits+self.num_offset_bits}b}</tt> = <tt>0b{self.vpn:0{self.num_vpn_bits}b}</tt> | <tt>0b{self.offset:0{self.num_offset_bits}b}</tt>",
-      ""
-    ])
-    
-    explanation.add_text_element([
-      "We next use our VPN to index into our page table and find the corresponding entry."
-      f"Our Page Table Entry is:",
-      "",
-      f"<tt>0b{self.pte:0{(self.num_pfn_bits+1)}b}</tt>"
-      f"which we found by looking for our VPN in the page table.",
-      "",
-    ])
-    
-    is_valid = (self.pte // (2**self.num_pfn_bits) == 1)
-    if is_valid:
-      explanation.add_text_element([
-        f"In our PTE we see that the first bit is <b>{self.pte // (2**self.num_pfn_bits)}</b> meaning that the translation is <b>VALID</b>"
+    explanation.add_element(
+      ContentAST.Paragraph([
+        "The core idea of Paging is we want to break the virtual address into the VPN and the offset.  "
+        "From here, we get the Page Table Entry corresponding to the VPN, and check the validity of the entry.  "
+        "If it is valid, we clear the metadata and attach the PFN to the offset and have our physical address.",
       ])
+    )
+    
+    explanation.add_element(
+      ContentAST.Paragraph([
+        "Don't forget to pad with the appropriate number of 0s (the appropriate number is the number of bits)!",
+      ])
+    )
+    
+    explanation.add_element(
+      ContentAST.Paragraph([
+        f"Virtual Address = VPN | offset",
+        f"<tt>0b{self.virtual_address:0{self.num_vpn_bits+self.num_offset_bits}b}</tt> "
+        f"= <tt>0b{self.vpn:0{self.num_vpn_bits}b}</tt> | <tt>0b{self.offset:0{self.num_offset_bits}b}</tt>",
+      ])
+    )
+    
+    explanation.add_element(
+      ContentAST.Paragraph([
+        "We next use our VPN to index into our page table and find the corresponding entry."
+        f"Our Page Table Entry is ",
+        f"<tt>0b{self.pte:0{(self.num_pfn_bits+1)}b}</tt>"
+        f"which we found by looking for our VPN in the page table.",
+      ])
+    )
+    
+    if self.is_valid:
+      explanation.add_element(
+        ContentAST.Paragraph([
+          f"In our PTE we see that the first bit is <b>{self.pte // (2**self.num_pfn_bits)}</b> meaning that the translation is <b>VALID</b>"
+        ])
+      )
     else:
-      explanation.add_text_element([
-        f"In our PTE we see that the first bit is <b>{self.pte // (2**self.num_pfn_bits)}</b> meaning that the translation is <b>INVALID</b>.",
-        "Therefore, we just write \"INVALID\" as our answer.",
-        "If it were valid we would complete the below steps.",
-        "",
-        "<hr>"
-        "\n",
+      explanation.add_element(
+        ContentAST.Paragraph([
+          f"In our PTE we see that the first bit is <b>{self.pte // (2**self.num_pfn_bits)}</b> meaning that the translation is <b>INVALID</b>.",
+          "Therefore, we just write \"INVALID\" as our answer.",
+          "If it were valid we would complete the below steps.",
+          "<hr>"
+        ])
+      )
+    
+    explanation.add_element(
+      ContentAST.Paragraph([
+        "Next, we convert our PTE to our PFN by removing our metadata.  "
+        "In this case we're just removing the leading bit.  We can do this by applying a binary mask.",
+        f"PFN = PTE & mask",
+        f"which is,"
       ])
+    )
+    explanation.add_element(ContentAST.Equation(
+        f"<tt>{self.pfn:0{self.num_pfn_bits}b}</tt> "
+        f"= <tt>0b{self.pte:0{self.num_pfn_bits+1}b}</tt> "
+        f"& <tt>0b{(2**self.num_pfn_bits)-1:0{self.num_pfn_bits+1}b}</tt>"
+      )
+    )
     
-    explanation.add_text_element([
-      "Next, we convert our PTE to our PFN by removing our metadata.  In this case we're just removing the leading bit.  We can do this by applying a binary mask.",
-      f"PFN = PTE & mask",
-      f"which is,",
-      "",
-      f"<tt>{self.pfn:0{self.num_pfn_bits}b}</tt> = <tt>0b{self.pte:0{self.num_pfn_bits+1}b}</tt> & <tt>0b{(2**self.num_pfn_bits)-1:0{self.num_pfn_bits+1}b}</tt>"
-    ])
+    explanation.add_elements([
+        ContentAST.Paragraph([
+          "We then add combine our PFN and offset, "
+          "Physical Address = PFN | offset",
+        ]),
+      ContentAST.Equation(
+        f"{'<tt><b>' if self.is_valid else ''}0b{self.physical_address:0{self.num_pfn_bits+self.num_offset_bits}b}{'</b></tt>' if self.is_valid else ''} = <tt>0b{self.pfn:0{self.num_pfn_bits}b}</tt> | <tt>0b{self.offset:0{self.num_vpn_bits}b}</tt>",
+      )
+      ]
+    )
     
-    explanation.add_text_element([
-      "We then add combine our PFN and offset",
-      "",
-      "Physical Address = PFN | offset",
-      f"{'<tt><b>' if is_valid else ''}0b{self.physical_address:0{self.num_pfn_bits+self.num_offset_bits}b}{'</b></tt>' if is_valid else ''} = <tt>0b{self.pfn:0{self.num_pfn_bits}b}</tt> | <tt>0b{self.offset:0{self.num_vpn_bits}b}</tt>",
-      "",
-      "",
-      "Note: Strictly speaking, this calculation is:",
-      f"{'<tt><b>' if is_valid else ''}0b{self.physical_address:0{self.num_pfn_bits+self.num_offset_bits}b}{'</b></tt>' if is_valid else ''} = <tt>0b{self.pfn:0{self.num_pfn_bits}b}{0:0{self.num_offset_bits}}</tt> + <tt>0b{self.offset:0{self.num_offset_bits}b}</tt>",
-      "But that's a lot of extra 0s, so I'm splitting them up for succinctness",
-      ""
+    explanation.add_element(
+    )
+    
+    explanation.add_elements([
+      ContentAST.Paragraph(["Note: Strictly speaking, this calculation is:",]),
+      ContentAST.Equation(
+        f"{'<tt><b>' if self.is_valid else ''}0b{self.physical_address:0{self.num_pfn_bits+self.num_offset_bits}b}{'</b></tt>' if self.is_valid else ''} = <tt>0b{self.pfn:0{self.num_pfn_bits}b}{0:0{self.num_offset_bits}}</tt> + <tt>0b{self.offset:0{self.num_offset_bits}b}</tt>",
+      ),
+      ContentAST.Paragraph(["But that's a lot of extra 0s, so I'm splitting them up for succinctness"])
     ])
     
     return explanation

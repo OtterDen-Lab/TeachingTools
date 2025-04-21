@@ -183,20 +183,21 @@ class ContentAST:
       if new_paragraph:
         self.elements.append(ContentAST.Text(""))
       self.elements.extend(elements)
+
+    # def add_text_element(self, content: str|List[str], new_paragraph=False):
+    #   """Helper function to add text to reduce the amount of boilerplate"""
+    #   # todo this function is probably now unpredictable.  Whoops.
+    #   #  it should be fixed by changing it to always have the same impact on the AST (i.e. always a TextBlock)
+    #   if new_paragraph:
+    #     self.add_element(ContentAST.Text(""))
+    #   if isinstance(content, str):
+    #     self.add_element(ContentAST.Text(content))
+    #   else:
+    #     self.add_element(
+    #       ContentAST.Paragraph(map(lambda c: ContentAST.Text(c), content))
+    #     )
+
     
-    def add_text_element(self, content: str|List[str], new_paragraph=False):
-      """Helper function to add text to reduce the amount of boilerplate"""
-      # todo this function is probably now unpredictable.  Whoops.
-      #  it should be fixed by changing it to always have the same impact on the AST (i.e. always a TextBlock)
-      if new_paragraph:
-        self.add_element(ContentAST.Text(""))
-      if isinstance(content, str):
-        self.add_element(ContentAST.Text(content))
-      else:
-        self.add_element(
-          ContentAST.Paragraph(map(lambda c: ContentAST.Text(c), content))
-        )
-          
     def convert_markdown(self, str_to_convert, output_format):
       try:
         output = pypandoc.convert_text(
@@ -205,8 +206,8 @@ class ContentAST:
           format='md',
           extra_args=["-M2GB", "+RTS", "-K64m", "-RTS"]
         )
-        if output_format == "html":
-          output = re.sub(r'^<p>(.*)</p>$', r'\1', output, flags=re.DOTALL)
+        # if output_format == "html":
+        #   output = re.sub(r'^<p>(.*)</p>$', r'\1', output, flags=re.DOTALL)
         return output
       except RuntimeError as e:
         log.warning(f"Specified conversion format '{output_format}' not recognized by pypandoc. Defaulting to markdown")
@@ -374,20 +375,6 @@ class ContentAST:
     def render_latex(self, **kwargs):
       return fr"{self.label + (':' if len(self.label) > 0 else '')} \answerblank{{{self.length}}} {self.unit}".strip()
   
-  class AnswerBlock(Element):
-    def __init__(self, answers: ContentAST.Answer|List[ContentAST.Answer]):
-      if not isinstance(answers, list):
-        answers = [answers]
-      super().__init__(elements=answers, add_spacing_before=True)
-    
-    def render(self, output_format, **kwargs):
-      # todo: make this render into a table block, but maybe without formatting lines.
-      return super().render(output_format, **kwargs)
-  
-  # Special Elements
-  class SpecialtyElement(Element):
-    pass
-  
   class Code(Text):
     def __init__(self, lines):
       super().__init__(lines)
@@ -402,16 +389,13 @@ class ContentAST:
     
     def render_latex(self, **kwargs):
       content = super().convert_markdown(self.render_markdown(), "latex") or self.content
-      log.debug(f"content: {content}")
       return content
   
-  class SpecialtyElement(Element):
-    pass
-  
-  class Equation(SpecialtyElement):
-    def __init__(self, latex):
+  class Equation(Element):
+    def __init__(self, latex, inline=False):
       super().__init__()
       self.latex = latex
+      self.inline = inline
     
     def render_markdown(self, **kwargs):
       return r"$$ \displaystyle " + f"{self.latex}" + r" \frac{}{}$$"
@@ -439,7 +423,7 @@ class ContentAST:
       
       return cls('\n'.join(equation_lines))
     
-  class Table(SpecialtyElement):
+  class Table(Element):
     def __init__(self, data, headers=None, alignments=None, padding=False, transpose=False):
       """
       Generates a ContentAST.Table element
@@ -519,7 +503,7 @@ class ContentAST:
         col_spec = "".join("l" if a == "left" else "r" if a == "right" else "c"
                            for a in self.alignments)
       else:
-        col_spec = '|'.join(["c"] * (len(self.headers) if self.headers else len(self.data[0])))
+        col_spec = '|'.join(["l"] * (len(self.headers) if self.headers else len(self.data[0])))
       
       result = [f"\\begin{{tabular}}{{{col_spec}}}"]
       result.append("\\hline")
@@ -536,12 +520,14 @@ class ContentAST:
           for cell in row
         ]
         result.append(" & ".join(rendered_row) + " \\\\")
-      result.append("\\hline")
+      
+      if len(self.data) > 1:
+        result.append("\\hline")
       result.append("\\end{tabular}")
       
       return "\n\n" + "\n".join(result)
   
-  class Picture(SpecialtyElement):
+  class Picture(Element):
     def __init__(self, img_data, caption=None, width=None):
       super().__init__()
       self.img_data = img_data
@@ -583,20 +569,18 @@ class ContentAST:
       result.append("\\end{figure}")
       return "\n".join(result)
   
-  class Answer(Element):
-    def __init__(self, answer : Answer = None, leading_text: str = "", trailing_text: str = "", length=5):
-      super().__init__()
-      self.answer = answer
-      self.leading_text = leading_text
-      self.trailing_text = trailing_text
-      self.length = length
+  class AnswerBlock(Table):
+    def __init__(self, answers: ContentAST.Answer|List[ContentAST.Answer]):
+      if not isinstance(answers, list):
+        answers = [answers]
+        
+      super().__init__(
+        data=[
+          [answer]
+          for answer in answers
+        ]
+      )
     
-    def render_markdown(self, **kwargs):
-      return f"{self.leading_text} [{self.answer.key}] {self.trailing_text}".strip()
+    def add_element(self, element):
+      self.data.append(element)
     
-    def render_html(self, **kwargs):
-      return self.render_markdown()
-    
-    def render_latex(self, **kwargs):
-      return fr"{self.leading_text} \answerblank{{{self.length}}} {self.trailing_text}".strip()
-  
