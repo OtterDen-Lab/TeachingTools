@@ -19,12 +19,13 @@ logging.basicConfig()
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
+
 class OutputFormat(enum.Enum):
   LATEX = enum.auto(),
   CANVAS = enum.auto()
 
 
-class Answer():
+class Answer:
   DEFAULT_ROUNDING_DIGITS = 4
   
   class AnswerKind(enum.Enum):
@@ -193,7 +194,7 @@ class ContentAST:
         self.add_element(ContentAST.Text(content))
       else:
         self.add_element(
-          ContentAST.TextBlock(map(lambda c: ContentAST.Text(c), content))
+          ContentAST.Paragraph(map(lambda c: ContentAST.Text(c), content))
         )
           
     def convert_markdown(self, str_to_convert, output_format):
@@ -233,6 +234,60 @@ class ContentAST:
     def is_mergeable(self, other: ContentAST.Element):
       return False
   
+  class Document(Element):
+    """Root document class that adds document-level rendering"""
+    def __init__(self, title=None):
+      super().__init__()
+      self.title = title
+    
+    def render(self, output_format, **kwargs):
+      # Generate content from all elements
+      content = super().render(output_format, **kwargs)
+      
+      # Add title if present
+      if self.title and output_format == "markdown":
+        content = f"# {self.title}\n\n{content}"
+      elif self.title and output_format == "html":
+        content = f"<h1>{self.title}</h1>\n{content}"
+      elif self.title and output_format == "latex":
+        content = f"\\section{{{self.title}}}\n{content}"
+      
+      return content
+  
+  class Question(Element):
+    def __init__(
+        self,
+        body: ContentAST.Section,
+        explanation: ContentAST.Section,
+        name=None,
+        value=1,
+        interest=1.0
+    ):
+      super().__init__()
+      self.name = name
+      self.explanation = explanation
+      self.body = body
+      self.value = value
+      self.interest = interest
+    
+    def render(self, output_format, **kwargs):
+      # Generate content from all elements
+      content = self.body.render(output_format, **kwargs)
+      
+      # If output format is latex, add in minipage and question environments
+      if output_format == "latex":
+        latex_lines = [
+          r"\noindent\begin{minipage}{\textwidth}",
+          r"\question{" + str(int(self.value)) + r"}",
+          r"\noindent\begin{minipage}{0.9\textwidth}",
+          content,
+          r"\end{minipage}",
+          r"\end{minipage}"
+        ]
+        content = '\n'.join(latex_lines)
+      
+      return content
+  
   class Section(Element):
     """A child class representing a specific section of a question"""
     pass
@@ -268,7 +323,7 @@ class ContentAST:
       self.content = self.render_markdown() + " " + other.render_markdown()
       self.emphasis = False
   
-  class TextBlock(Element):
+  class Paragraph(Element):
     """A block of text that will combine all child elements together.  i.e. a paragraph"""
     def render(self, output_format, **kwargs):
       # Merge all Text nodes before we render
@@ -306,8 +361,10 @@ class ContentAST:
       log.debug(f"content: {content}")
       return content
   
+  class SpecialtyElement(Element):
+    pass
   
-  class Equation(Element):
+  class Equation(SpecialtyElement):
     def __init__(self, latex):
       super().__init__()
       self.latex = latex
@@ -338,7 +395,7 @@ class ContentAST:
       
       return cls('\n'.join(equation_lines))
     
-  class Table(Element):
+  class Table(SpecialtyElement):
     def __init__(self, data, headers=None, alignments=None, padding=False, transpose=False):
       """
       Generates a ContentAST.Table element
@@ -440,7 +497,7 @@ class ContentAST:
       
       return "\n\n" + "\n".join(result)
   
-  class Picture(Element):
+  class Picture(SpecialtyElement):
     def __init__(self, img_data, caption=None, width=None):
       super().__init__()
       self.img_data = img_data
@@ -482,40 +539,6 @@ class ContentAST:
       result.append("\\end{figure}")
       return "\n".join(result)
   
-  class Question(Element):
-    def __init__(
-        self,
-        body: ContentAST.Section,
-        explanation: ContentAST.Section,
-        name=None,
-        value=1,
-        interest=1.0
-    ):
-      super().__init__()
-      self.name = name
-      self.explanation = explanation
-      self.body = body
-      self.value = value
-      self.interest = interest
-      
-    def render(self, output_format, **kwargs):
-      # Generate content from all elements
-      content = self.body.render(output_format, **kwargs)
-      
-      # If output format is latex, add in minipage and question environments
-      if output_format == "latex":
-        latex_lines = [
-          r"\noindent\begin{minipage}{\textwidth}",
-          r"\question{" + str(int(self.value)) + r"}",
-          r"\noindent\begin{minipage}{0.9\textwidth}",
-          content,
-          r"\end{minipage}",
-          r"\end{minipage}"
-        ]
-        content = '\n'.join(latex_lines)
-        
-      return content
-    
   class Answer(Element):
     def __init__(self, answer : Answer = None, leading_text: str = "", trailing_text: str = "", length=5):
       super().__init__()
@@ -532,24 +555,4 @@ class ContentAST:
     
     def render_latex(self, **kwargs):
       return fr"{self.leading_text} \answerblank{{{self.length}}} {self.trailing_text}".strip()
-  
-  class Document(Element):
-    """Root document class that adds document-level rendering"""
-    def __init__(self, title=None):
-      super().__init__()
-      self.title = title
-    
-    def render(self, output_format, **kwargs):
-      # Generate content from all elements
-      content = super().render(output_format, **kwargs)
-      
-      # Add title if present
-      if self.title and output_format == "markdown":
-        content = f"# {self.title}\n\n{content}"
-      elif self.title and output_format == "html":
-        content = f"<h1>{self.title}</h1>\n{content}"
-      elif self.title and output_format == "latex":
-        content = f"\\section{{{self.title}}}\n{content}"
-      
-      return content
   
