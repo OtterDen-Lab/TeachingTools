@@ -205,7 +205,7 @@ class SchedulingQuestion(ProcessQuestion):
           key=(lambda j: selector(j, curr_time))
         )
         if selected_job.has_started():
-          self.timeline[curr_time].append(f"Starting Job{selected_job.job_id} (resp = {curr_time - selected_job.arrival:0.{Answer.DEFAULT_ROUNDING_DIGITS}f}s)")
+          self.timeline[curr_time].append(f"Starting Job{selected_job.job_id} (resp = {curr_time - selected_job.arrival:0.{self.ROUNDING_DIGITS}f}s)")
         # We start the job that we selected
         selected_job.run(curr_time, (self.SCHEDULER_KIND == self.Kind.RoundRobin))
         
@@ -234,7 +234,7 @@ class SchedulingQuestion(ProcessQuestion):
         break
       if self.SCHEDULER_KIND != SchedulingQuestion.Kind.RoundRobin:
         if selected_job is not None:
-          self.timeline[curr_time].append(f"Running Job{selected_job.job_id} for {next_time_slice:0.{Answer.DEFAULT_ROUNDING_DIGITS}f}s")
+          self.timeline[curr_time].append(f"Running Job{selected_job.job_id} for {next_time_slice:0.{self.ROUNDING_DIGITS}f}s")
         else:
           self.timeline[curr_time].append(f"(No job running)")
       curr_time += next_time_slice
@@ -243,7 +243,7 @@ class SchedulingQuestion(ProcessQuestion):
       if selected_job is not None:
         selected_job.stop(curr_time, (self.SCHEDULER_KIND == self.Kind.RoundRobin))
         if selected_job.is_complete(curr_time):
-          self.timeline[curr_time].append(f"Completed Job{selected_job.job_id} (TAT = {selected_job.turnaround_time:0.{Answer.DEFAULT_ROUNDING_DIGITS}f}s)")
+          self.timeline[curr_time].append(f"Completed Job{selected_job.job_id} (TAT = {selected_job.turnaround_time:0.{self.ROUNDING_DIGITS}f}s)")
       selected_job = None
       
       # Filter out completed jobs
@@ -425,19 +425,19 @@ class SchedulingQuestion(ProcessQuestion):
       "For turnaround time (TAT) this would be:"
     ] + [
       f"Job{job_id}_TAT "
-      f"= {self.job_stats[job_id]['arrival'] + self.job_stats[job_id]['TAT']:0.{Answer.DEFAULT_ROUNDING_DIGITS}f} "
-      f"- {self.job_stats[job_id]['arrival']:0.{Answer.DEFAULT_ROUNDING_DIGITS}f} "
-      f"= {self.job_stats[job_id]['TAT']:0.{Answer.DEFAULT_ROUNDING_DIGITS}f}"
+      f"= {self.job_stats[job_id]['arrival'] + self.job_stats[job_id]['TAT']:0.{self.ROUNDING_DIGITS}f} "
+      f"- {self.job_stats[job_id]['arrival']:0.{self.ROUNDING_DIGITS}f} "
+      f"= {self.job_stats[job_id]['TAT']:0.{self.ROUNDING_DIGITS}f}"
       for job_id in sorted(self.job_stats.keys())
     ])
     
     summation_line = ' + '.join([
-      f"{self.job_stats[job_id]['TAT']:0.{Answer.DEFAULT_ROUNDING_DIGITS}f}" for job_id in sorted(self.job_stats.keys())
+      f"{self.job_stats[job_id]['TAT']:0.{self.ROUNDING_DIGITS}f}" for job_id in sorted(self.job_stats.keys())
     ])
     explanation.add_text_element([
       f"We then calculate the average of these to find the average TAT time",
       f"Avg(TAT) = ({summation_line}) / ({len(self.job_stats.keys())}) "
-      f"= {self.overall_stats['TAT']:0.{Answer.DEFAULT_ROUNDING_DIGITS}f}",
+      f"= {self.overall_stats['TAT']:0.{self.ROUNDING_DIGITS}f}",
       
     ], new_paragraph=True)
     
@@ -447,20 +447,20 @@ class SchedulingQuestion(ProcessQuestion):
       "For response time this would be:"
     ] + [
       f"Job{job_id}_response "
-      f"= {self.job_stats[job_id]['arrival'] + self.job_stats[job_id]['Response']:0.{Answer.DEFAULT_ROUNDING_DIGITS}f} "
-      f"- {self.job_stats[job_id]['arrival']:0.{Answer.DEFAULT_ROUNDING_DIGITS}f} "
-      f"= {self.job_stats[job_id]['Response']:0.{Answer.DEFAULT_ROUNDING_DIGITS}f}"
+      f"= {self.job_stats[job_id]['arrival'] + self.job_stats[job_id]['Response']:0.{self.ROUNDING_DIGITS}f} "
+      f"- {self.job_stats[job_id]['arrival']:0.{self.ROUNDING_DIGITS}f} "
+      f"= {self.job_stats[job_id]['Response']:0.{self.ROUNDING_DIGITS}f}"
       for job_id in sorted(self.job_stats.keys())
     ])
     
     summation_line = ' + '.join([
-      f"{self.job_stats[job_id]['Response']:0.{Answer.DEFAULT_ROUNDING_DIGITS}f}" for job_id in sorted(self.job_stats.keys())
+      f"{self.job_stats[job_id]['Response']:0.{self.ROUNDING_DIGITS}f}" for job_id in sorted(self.job_stats.keys())
     ])
     explanation.add_text_element([
       f"We then calculate the average of these to find the average Response time",
       f"Avg(Response) "
       f"= ({summation_line}) / ({len(self.job_stats.keys())}) "
-      f"= {self.overall_stats['Response']:0.{Answer.DEFAULT_ROUNDING_DIGITS}f}",
+      f"= {self.overall_stats['Response']:0.{self.ROUNDING_DIGITS}f}",
       "\n",
     ], new_paragraph=True)
     
@@ -468,7 +468,7 @@ class SchedulingQuestion(ProcessQuestion):
       ContentAST.Table(
         headers=["Time", "Events"],
         data=[
-          [f"{t:02.{Answer.DEFAULT_ROUNDING_DIGITS}f}s"] + ['\n'.join(self.timeline[t])]
+          [f"{t:02.{self.ROUNDING_DIGITS}f}s"] + ['\n'.join(self.timeline[t])]
           for t in sorted(self.timeline.keys())
         ]
       )
@@ -494,7 +494,7 @@ class SchedulingQuestion(ProcessQuestion):
     
     for x_loc in set([t for job_id in self.job_stats.keys() for t in self.job_stats[job_id]["state_changes"] ]):
       ax.axvline(x_loc, zorder=0)
-      plt.text(x_loc + 0, len(self.job_stats.keys())-0.3, f'{x_loc:0.{Answer.DEFAULT_ROUNDING_DIGITS}f}s', rotation=90)
+      plt.text(x_loc + 0, len(self.job_stats.keys())-0.3, f'{x_loc:0.{self.ROUNDING_DIGITS}f}s', rotation=90)
     
     if self.SCHEDULER_KIND != self.Kind.RoundRobin:
       for y_loc, job_id in enumerate(sorted(self.job_stats.keys(), reverse=True)):

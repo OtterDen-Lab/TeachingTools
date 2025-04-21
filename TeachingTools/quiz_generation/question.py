@@ -13,6 +13,8 @@ import pathlib
 import pkgutil
 import random
 import re
+import uuid
+
 import pypandoc
 import yaml
 from typing import List, Dict, Any, Tuple, Optional
@@ -288,7 +290,9 @@ class Question(abc.ABC):
     def image_upload(img_data) -> str:
       
       course.create_folder(f"{quiz.id}", parent_folder_path="Quiz Files")
-      file_name = "temp.png"
+      file_name = f"{uuid.uuid4()}.png"
+      
+      
       with io.FileIO(file_name, 'w+') as ffid:
         ffid.write(img_data.getbuffer())
         ffid.flush()
