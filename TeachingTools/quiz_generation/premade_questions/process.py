@@ -359,9 +359,12 @@ class SchedulingQuestion(ProcessQuestion):
     
     body = ContentAST.Section()
     
-    body.add_text_element([
-      f"Given the below information, compute the required values if using <b>{self.SCHEDULER_NAME}</b> scheduling.  Break any ties using the job number.",
-    ])
+    body.add_element(
+      ContentAST.Paragraph([
+        f"Given the below information, compute the required values if using <b>{self.SCHEDULER_NAME}</b> scheduling.  "
+        f"Break any ties using the job number.",
+      ])
+    )
     
     body.add_element(
       ContentAST.Text(
@@ -401,68 +404,77 @@ class SchedulingQuestion(ProcessQuestion):
   def get_explanation(self, **kwargs) -> ContentAST.Section:
     explanation = ContentAST.Section()
     
-    explanation.add_text_element([
-      f"To calculate the overall Turnaround and Response times using {self.SCHEDULER_KIND} "
-      f"we want to first start by calculating the respective target and response times of all of our individual jobs."
+    explanation.add_element(
+      ContentAST.Paragraph([
+        f"To calculate the overall Turnaround and Response times using {self.SCHEDULER_KIND} "
+        f"we want to first start by calculating the respective target and response times of all of our individual jobs."
+      ])
+    )
+    
+    explanation.add_elements([
+      ContentAST.Paragraph([
+        "We do this by subtracting arrival time from either the completion time or the start time.  That is:"
+        ]),
+      ContentAST.Equation(f"Job_TAT = Job_completion - Job_arrival"),
+      ContentAST.Equation(f"Job_response = Job_start - Job_arrival"),
     ])
     
-    explanation.add_text_element([
-      "We do this by subtracting arrival time from either the completion time or the start time.  That is:"
-      "",
-      f"Job_TAT = Job_completion - Job_arrival\n",
-      ""
-      f"Job_response = Job_start - Job_arrival\n",
-      "",
-    ])
-    
-    explanation.add_text_element([
-      f"For each of our {len(self.job_stats.keys())} jobs, we can make these calculations.",
-      ""
-    ])
+    explanation.add_element(
+      ContentAST.Paragraph([
+        f"For each of our {len(self.job_stats.keys())} jobs, we can make these calculations.",
+      ])
+    )
     
     ## Add in TAT
-    explanation.add_text_element([
-      "For turnaround time (TAT) this would be:"
-    ] + [
-      f"Job{job_id}_TAT "
-      f"= {self.job_stats[job_id]['arrival'] + self.job_stats[job_id]['TAT']:0.{self.ROUNDING_DIGITS}f} "
-      f"- {self.job_stats[job_id]['arrival']:0.{self.ROUNDING_DIGITS}f} "
-      f"= {self.job_stats[job_id]['TAT']:0.{self.ROUNDING_DIGITS}f}"
-      for job_id in sorted(self.job_stats.keys())
-    ])
+    explanation.add_element(
+      ContentAST.Paragraph([
+        "For turnaround time (TAT) this would be:"
+      ] + [
+        f"Job{job_id}_TAT "
+        f"= {self.job_stats[job_id]['arrival'] + self.job_stats[job_id]['TAT']:0.{self.ROUNDING_DIGITS}f} "
+        f"- {self.job_stats[job_id]['arrival']:0.{self.ROUNDING_DIGITS}f} "
+        f"= {self.job_stats[job_id]['TAT']:0.{self.ROUNDING_DIGITS}f}"
+        for job_id in sorted(self.job_stats.keys())
+      ])
+    )
     
     summation_line = ' + '.join([
       f"{self.job_stats[job_id]['TAT']:0.{self.ROUNDING_DIGITS}f}" for job_id in sorted(self.job_stats.keys())
     ])
-    explanation.add_text_element([
-      f"We then calculate the average of these to find the average TAT time",
-      f"Avg(TAT) = ({summation_line}) / ({len(self.job_stats.keys())}) "
-      f"= {self.overall_stats['TAT']:0.{self.ROUNDING_DIGITS}f}",
-      
-    ], new_paragraph=True)
+    explanation.add_element(
+      ContentAST.Paragraph([
+        f"We then calculate the average of these to find the average TAT time",
+        f"Avg(TAT) = ({summation_line}) / ({len(self.job_stats.keys())}) "
+        f"= {self.overall_stats['TAT']:0.{self.ROUNDING_DIGITS}f}",
+      ])
+    )
     
     
     ## Add in Response
-    explanation.add_text_element([
-      "For response time this would be:"
-    ] + [
+    explanation.add_element(
+      ContentAST.Paragraph([
+        "For response time this would be:"
+      ] + [
       f"Job{job_id}_response "
       f"= {self.job_stats[job_id]['arrival'] + self.job_stats[job_id]['Response']:0.{self.ROUNDING_DIGITS}f} "
       f"- {self.job_stats[job_id]['arrival']:0.{self.ROUNDING_DIGITS}f} "
       f"= {self.job_stats[job_id]['Response']:0.{self.ROUNDING_DIGITS}f}"
       for job_id in sorted(self.job_stats.keys())
     ])
+    )
     
     summation_line = ' + '.join([
       f"{self.job_stats[job_id]['Response']:0.{self.ROUNDING_DIGITS}f}" for job_id in sorted(self.job_stats.keys())
     ])
-    explanation.add_text_element([
-      f"We then calculate the average of these to find the average Response time",
-      f"Avg(Response) "
-      f"= ({summation_line}) / ({len(self.job_stats.keys())}) "
-      f"= {self.overall_stats['Response']:0.{self.ROUNDING_DIGITS}f}",
-      "\n",
-    ], new_paragraph=True)
+    explanation.add_element(
+      ContentAST.Paragraph([
+        f"We then calculate the average of these to find the average Response time",
+        f"Avg(Response) "
+        f"= ({summation_line}) / ({len(self.job_stats.keys())}) "
+        f"= {self.overall_stats['Response']:0.{self.ROUNDING_DIGITS}f}",
+        "\n",
+      ])
+    )
     
     explanation.add_element(
       ContentAST.Table(
@@ -567,7 +579,6 @@ class SchedulingQuestion(ProcessQuestion):
       fid.write(image_buffer.getvalue())
     return image_path
     
-
 
 class MLFQ_Question(ProcessQuestion):
   
