@@ -435,8 +435,7 @@ class Segmentation(MemoryAccessQuestion):
   
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
-    
-    return
+    self.refresh()
   
   def refresh(self, *args, **kwargs):
     super().refresh(*args, **kwargs)
@@ -636,11 +635,11 @@ class Segmentation(MemoryAccessQuestion):
         ])
       )
       explanation.add_element(
-        ContentAST.Code([
-          f"  0b{self.base[self.segment]:0{self.physical_bits}b}",
-          f"<u>+ 0b{self.offset:0{self.physical_bits}b}</u>",
-          f"  0b{self.physical_address:0{self.physical_bits}b}"
-        ])
+        ContentAST.Code(
+          f"  0b{self.base[self.segment]:0{self.physical_bits}b}\n"
+          f"<u>+ 0b{self.offset:0{self.physical_bits}b}</u>\n"
+          f"  0b{self.physical_address:0{self.physical_bits}b}\n"
+        )
       )
     
     return explanation
