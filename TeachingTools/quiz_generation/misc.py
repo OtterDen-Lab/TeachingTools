@@ -213,7 +213,6 @@ class ContentAST:
       return None
     
     def render(self, output_format, **kwargs):
-      log.debug(kwargs)
       method_name = f"render_{output_format}"
       if hasattr(self, method_name):
         return getattr(self, method_name)(**kwargs)
@@ -324,9 +323,19 @@ class ContentAST:
       self.emphasis = False
   
   class Paragraph(Element):
-    """A block of text that will combine all child elements together.  i.e. a paragraph"""
+    """A block of text that will combine all child elements together."""
+    
+    def __init__(self, lines_or_elements: List[str|ContentAST.Element] = None):
+      super().__init__(add_spacing_before=True)
+      for line in lines_or_elements:
+        if isinstance(line, str):
+          self.elements.append(ContentAST.Text(line))
+        else:
+          self.elements.append(line)
+      
     def render(self, output_format, **kwargs):
       # Merge all Text nodes before we render
+      # todo: if equations are inlined then we can merge (as of right now at least)
       merged_elements = []
       previous_node = ContentAST.Text("")
       for elem in self.elements:
@@ -342,7 +351,42 @@ class ContentAST:
       
       self.elements = merged_elements
       
+      # todo: double new lines like this are not sustainable and should be removed -- these should be in the individual renders
       return "\n\n" + super().render(output_format, **kwargs)
+  
+    def add_line(self, line: str):
+      self.elements.append(ContentAST.Text(line))
+  
+  class Answer(Element):
+    def __init__(self, answer: Answer = None, label: str = "", unit: str = "", blank_length=5):
+      super().__init__()
+      self.answer = answer
+      self.label = label
+      self.unit = unit
+      self.length = blank_length
+    
+    def render_markdown(self, **kwargs):
+      return f"{self.label + (':' if len(self.label) > 0 else '')} [{self.answer.key}] {self.unit}".strip()
+    
+    def render_html(self, **kwargs):
+      return self.render_markdown()
+    
+    def render_latex(self, **kwargs):
+      return fr"{self.label + (':' if len(self.label) > 0 else '')} \answerblank{{{self.length}}} {self.unit}".strip()
+  
+  class AnswerBlock(Element):
+    def __init__(self, answers: ContentAST.Answer|List[ContentAST.Answer]):
+      if not isinstance(answers, list):
+        answers = [answers]
+      super().__init__(elements=answers, add_spacing_before=True)
+    
+    def render(self, output_format, **kwargs):
+      # todo: make this render into a table block, but maybe without formatting lines.
+      return super().render(output_format, **kwargs)
+  
+  # Special Elements
+  class SpecialtyElement(Element):
+    pass
   
   class Code(Text):
     def __init__(self, lines):
