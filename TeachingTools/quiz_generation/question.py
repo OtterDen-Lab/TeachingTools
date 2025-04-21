@@ -195,30 +195,6 @@ class Question(abc.ABC):
     # To be used throughout when generating random things
     self.rng = random.Random()
   
-  @staticmethod
-  def get_table_generator(
-      table_data: Dict[str,List[str]],
-      headers: List[str] = None,
-      sorted_keys: List[str] = None,
-      add_header_space: bool = False,
-      hide_keys: bool = False,
-      html_out = False
-  ) -> List[str|TableGenerator]:
-    
-    if sorted_keys is None:
-      sorted_keys = sorted(table_data.keys())
-    if add_header_space and headers is not None:
-      headers = [""] + headers
-    
-    return [
-      TableGenerator(
-        headers = headers,
-        value_matrix=[
-          ([key] if not hide_keys else []) + [str(d) for d in table_data[key]]
-          for key in sorted_keys
-        ])
-    ]
-  
   @classmethod
   def from_yaml(cls, path_to_yaml):
     with open(path_to_yaml) as fid:

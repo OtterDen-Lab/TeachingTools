@@ -184,20 +184,6 @@ class ContentAST:
         self.elements.append(ContentAST.Text(""))
       self.elements.extend(elements)
 
-    # def add_text_element(self, content: str|List[str], new_paragraph=False):
-    #   """Helper function to add text to reduce the amount of boilerplate"""
-    #   # todo this function is probably now unpredictable.  Whoops.
-    #   #  it should be fixed by changing it to always have the same impact on the AST (i.e. always a TextBlock)
-    #   if new_paragraph:
-    #     self.add_element(ContentAST.Text(""))
-    #   if isinstance(content, str):
-    #     self.add_element(ContentAST.Text(content))
-    #   else:
-    #     self.add_element(
-    #       ContentAST.Paragraph(map(lambda c: ContentAST.Text(c), content))
-    #     )
-
-    
     def convert_markdown(self, str_to_convert, output_format):
       try:
         output = pypandoc.convert_text(
