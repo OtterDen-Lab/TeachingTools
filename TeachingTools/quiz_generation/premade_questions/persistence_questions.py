@@ -78,9 +78,9 @@ class HardDriveAccessTime(IOQuestion):
       ContentAST.Table(
         headers=["Variable", "Value"],
         data=[
-          ["Rotational Delay",        ContentAST.Answer(self.answers["answer__rotational_delay"])],
-          ["Access Delay",            ContentAST.Answer(self.answers["answer__access_delay"])],
-          ["Transfer Delay",          ContentAST.Answer(self.answers["answer__transfer_delay"])],
+          ["Rotational Delay", ContentAST.Answer(self.answers["answer__rotational_delay"])],
+          ["Access Delay", ContentAST.Answer(self.answers["answer__access_delay"])],
+          ["Transfer Delay", ContentAST.Answer(self.answers["answer__transfer_delay"])],
           ["Total Disk Access Delay", ContentAST.Answer(self.answers["answer__disk_access_delay"])],
         ]
       )
@@ -183,10 +183,10 @@ class INodeAccesses(IOQuestion):
       ContentAST.Table(
         headers=["Variable", "Value"],
         data=[
-          ["Inode address",                       ContentAST.Answer(self.answers["answer__inode_address"])],
-          ["Block containing inode" ,             ContentAST.Answer(self.answers["answer__inode_block"])],
+          ["Inode address", ContentAST.Answer(self.answers["answer__inode_address"])],
+          ["Block containing inode" , ContentAST.Answer(self.answers["answer__inode_block"])],
           ["Inode address (offset) within block", ContentAST.Answer(self.answers["answer__inode_address_in_block"])],
-          ["Inode index within block",            ContentAST.Answer(self.answers["answer__inode_index_in_block"])],
+          ["Inode index within block", ContentAST.Answer(self.answers["answer__inode_index_in_block"])],
         ],
       )
     )

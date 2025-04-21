@@ -254,9 +254,9 @@ class CachingQuestion(MemoryQuestion):
         data=[
           [
             f"{self.requests[request_number]}",
-            ContentAST.Answer(self.answers[f"answer__hit-{request_number}"], length=2),
-            ContentAST.Answer(self.answers[f"answer__evicted-{request_number}"], length=2),
-            ContentAST.Answer(self.answers[f"answer__cache_state-{request_number}"], length=2)
+            ContentAST.Answer(self.answers[f"answer__hit-{request_number}"], blank_length=2),
+            ContentAST.Answer(self.answers[f"answer__evicted-{request_number}"], blank_length=2),
+            ContentAST.Answer(self.answers[f"answer__cache_state-{request_number}"], blank_length=2)
           ]
           for request_number in sorted(self.request_results.keys())
         ]
@@ -754,17 +754,17 @@ class Paging(MemoryAccessQuestion):
     
     body.add_elements([
       ContentAST.Element(add_spacing_before=True),
-      ContentAST.Answer(self.answers["answer__vpn"], leading_text="- VPN: "),
+      ContentAST.Answer(self.answers["answer__vpn"], label="- VPN: "),
       ContentAST.Element(add_spacing_before=True),
-      ContentAST.Answer(self.answers["answer__offset"], leading_text="- Offset: "),
+      ContentAST.Answer(self.answers["answer__offset"], label="- Offset: "),
       ContentAST.Element(add_spacing_before=True),
-      ContentAST.Answer(self.answers["answer__pte"], leading_text="- PTE: "),
+      ContentAST.Answer(self.answers["answer__pte"], label="- PTE: "),
       ContentAST.Element(add_spacing_before=True),
-      ContentAST.Answer(self.answers["answer__is_valid"], leading_text="- VALID or INVALID?: "),
+      ContentAST.Answer(self.answers["answer__is_valid"], label="- VALID or INVALID?: "),
       ContentAST.Element(add_spacing_before=True),
-      ContentAST.Answer(self.answers["answer__pfn"], leading_text="- PFN: "),
+      ContentAST.Answer(self.answers["answer__pfn"], label="- PFN: "),
       ContentAST.Element(add_spacing_before=True),
-      ContentAST.Answer(self.answers["answer__physical_address"], leading_text="- Physical Address: "),
+      ContentAST.Answer(self.answers["answer__physical_address"], label="- Physical Address: "),
       ContentAST.Element(add_spacing_before=True),
     ])
     
