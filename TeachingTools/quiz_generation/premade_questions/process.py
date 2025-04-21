@@ -391,12 +391,10 @@ class SchedulingQuestion(ProcessQuestion):
     )
     
     body.add_element(
-      ContentAST.Table(
-        data=[
-          [f"Overall average response time:", ContentAST.Answer(self.answers["answer__average_response_time"])],
-          [f"Overall average TAT:", ContentAST.Answer(self.answers["answer__average_turnaround_time"])],
-        ]
-      )
+      ContentAST.AnswerBlock([
+        ContentAST.Answer(self.answers["answer__average_response_time"], label="Overall avereage response time"),
+        ContentAST.Answer(self.answers["answer__average_turnaround_time"], label="Overall average TAT")
+      ])
     )
     
     return body
