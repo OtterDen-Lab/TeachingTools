@@ -521,7 +521,8 @@ class ContentAST:
         ]
         result.append(" & ".join(rendered_row) + " \\\\")
       
-      result.append("\\bottomrule")
+      if len(self.data) > 1:
+        result.append("\\bottomrule")
       result.append("\\end{tabular}")
       
       return "\n\n" + "\n".join(result)

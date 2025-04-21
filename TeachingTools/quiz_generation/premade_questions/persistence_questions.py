@@ -91,39 +91,41 @@ class HardDriveAccessTime(IOQuestion):
   def get_explanation(self) -> ContentAST.Section:
     explanation = ContentAST.Section()
     
-    explanation.add_text_element([
-      "To calculate the total disk access time (or \"delay\"), we should first calculate each of the individual parts.",
-      r"Since we know that  $t_{total} = (\text{# of reads}) \cdot t_{access} + t_{transfer}$"
-      r"we therefore need to calculate $t_{access}$ and  $t_{transfer}$, where "
-      r"$t_{access} = t_{rotation} + t_{seek}$.",
-    ])
-    
-    explanation.add_text_element([
-      "Starting with the rotation delay, we calculate:",
-      "$$ t_{rotation} = " + f"\\frac{{1 minute}}{{{self.hard_drive_rotation_speed}revolutions}}"  + r"\cdot \frac{60 seconds}{1 minute} \cdot \frac{1000 ms}{1 second} \cdot \frac{1 revolution}{2} = " + f"{self.rotational_delay:0.2f}ms" + "$$",
-      ""
-    ])
-    
-    explanation.add_text_element([
-      "Now we can calculate:",
-      f"$$ t_{{access}} = t_{{rotation}} + t_{{seek}} = {self.rotational_delay:0.2f}ms + {self.seek_delay:0.2f}ms = {self.access_delay:0.2f}ms $$",
-      ""
-    ])
-    
-    explanation.add_text_element(
-      [
-        r"Next we need to calculate our transfer delay, $t_{transfer}$, which we do as:",
-        "$$" + f"t_{{transfer}} = \\frac{{{self.number_of_reads} \\cdot {self.size_of_reads}KB}}{{1}} \\cdot \\frac{{1MB}}{{1024KB}} \\cdot \\frac{{1 second}}{{{self.transfer_rate}MB}} \\cdot \\frac{{1000ms}}{{1second}} = {self.transfer_delay:0.2}ms" + "$$",
-        ""
-      ],
-      new_paragraph=True
+    explanation.add_element(
+      ContentAST.Paragraph([
+        "To calculate the total disk access time (or \"delay\"), we should first calculate each of the individual parts.",
+        r"Since we know that  $t_{total} = (\text{# of reads}) \cdot t_{access} + t_{transfer}$"
+        r"we therefore need to calculate $t_{access}$ and  $t_{transfer}$, where "
+        r"$t_{access} = t_{rotation} + t_{seek}$.",
+      ])
     )
     
-    explanation.add_text_element([
-      "Putting these together we get:",
-      "",
-      "$$" + f"t_{{total}} = \\text{{(# reads)}} \\cdot t_{{access}} + t_{{transfer}} = {self.number_of_reads} \\cdot {self.access_delay:0.2f} + {self.transfer_delay:0.2f} = {self.disk_access_delay:0.2f}ms" + "$$",
-      "\n"
+    explanation.add_elements([
+      ContentAST.Paragraph(["Starting with the rotation delay, we calculate:"]),
+      ContentAST.Equation(
+        "t_{rotation} = " + f"\\frac{{1 minute}}{{{self.hard_drive_rotation_speed}revolutions}}"  + r"\cdot \frac{60 seconds}{1 minute} \cdot \frac{1000 ms}{1 second} \cdot \frac{1 revolution}{2} = " + f"{self.rotational_delay:0.2f}ms",
+      )
+    ])
+    
+    explanation.add_elements([
+      ContentAST.Paragraph([
+        "Now we can calculate:",
+      ]),
+      ContentAST.Equation(
+        f"t_{{access}} = t_{{rotation}} + t_{{seek}} = {self.rotational_delay:0.2f}ms + {self.seek_delay:0.2f}ms = {self.access_delay:0.2f}ms"
+      )
+    ])
+    
+    explanation.add_elements([
+      ContentAST.Paragraph([r"Next we need to calculate our transfer delay, $t_{transfer}$, which we do as:"]),
+      ContentAST.Equation(
+        "ft_{{transfer}} = \\frac{{{self.number_of_reads} \\cdot {self.size_of_reads}KB}}{{1}} \\cdot \\frac{{1MB}}{{1024KB}} \\cdot \\frac{{1 second}}{{{self.transfer_rate}MB}} \\cdot \\frac{{1000ms}}{{1second}} = {self.transfer_delay:0.2}ms"
+      )
+    ])
+    
+    explanation.add_elements([
+      ContentAST.Paragraph(["Putting these together we get:"]),
+      ContentAST.Equation(f"t_{{total}} = \\text{{(# reads)}} \\cdot t_{{access}} + t_{{transfer}} = {self.number_of_reads} \\cdot {self.access_delay:0.2f} + {self.transfer_delay:0.2f} = {self.disk_access_delay:0.2f}ms")
     ])
     return explanation
 
@@ -196,12 +198,14 @@ class INodeAccesses(IOQuestion):
   def get_explanation(self) -> ContentAST.Section:
     explanation = ContentAST.Section()
     
-    explanation.add_text_element([
-      "If we are given an inode number, there are a few steps that we need to take to load the actual inode.  "
-      "These consist of determining the address of the inode, which block would contain it, "
-      "and then its address within the block.",
-      "To find the inode address, we calculate:",
-    ])
+    explanation.add_element(
+      ContentAST.Paragraph([
+        "If we are given an inode number, there are a few steps that we need to take to load the actual inode.  "
+        "These consist of determining the address of the inode, which block would contain it, "
+        "and then its address within the block.",
+        "To find the inode address, we calculate:",
+      ])
+    )
     
     explanation.add_element(
       ContentAST.Equation.make_block_equation__multiline_equals(
@@ -213,13 +217,12 @@ class INodeAccesses(IOQuestion):
         ])
     )
     
-    explanation.add_text_element(
-      [
+    explanation.add_element(
+      ContentAST.Paragraph([
         "Next, we us this to figure out what block the inode is in.  "
         "We do this directly so we know what block to load, "
         "thus minimizing the number of loads we have to make.",
-      ],
-      new_paragraph=True
+      ])
     )
     explanation.add_element(ContentAST.Equation.make_block_equation__multiline_equals(
       r"\text{Block containing inode}",
@@ -230,10 +233,16 @@ class INodeAccesses(IOQuestion):
       ]
     ))
     
-    explanation.add_text_element([
-      "When we load this block, we now have in our system memory (remember, blocks on the hard drive are effectively useless to us until they're in main memory!), the inode, so next we need to figure out where it is within that block."
-      "This means that we'll need to find the offset into this block.  We'll calculate this both as the offset in bytes, and also in number of inodes, since we can use array indexing.",
-    ])
+    explanation.add_element(
+      ContentAST.Paragraph([
+        "When we load this block, we now have in our system memory "
+        "(remember, blocks on the hard drive are effectively useless to us until they're in main memory!), "
+        "the inode, so next we need to figure out where it is within that block."
+        "This means that we'll need to find the offset into this block.  "
+        "We'll calculate this both as the offset in bytes, and also in number of inodes, "
+        "since we can use array indexing.",
+      ])
+    )
     
     
     explanation.add_element(ContentAST.Equation.make_block_equation__multiline_equals(
@@ -245,10 +254,7 @@ class INodeAccesses(IOQuestion):
       ]
     ))
     
-    explanation.add_text_element([
-      "and",
-      "",
-    ])
+    explanation.add_element(ContentAST.Paragraph(["and"]))
       
     explanation.add_element(ContentAST.Equation.make_block_equation__multiline_equals(
       r"\text{index within block}",
@@ -295,7 +301,7 @@ class VSFS_states(IOQuestion):
   def get_body(self) -> ContentAST.Section:
     body = ContentAST.Section()
     
-    body.add_text_element("What operation happens between these two states?")
+    body.add_element(ContentAST.Paragraph(["What operation happens between these two states?"]))
     
     body.add_element(
       ContentAST.Code(
@@ -303,9 +309,14 @@ class VSFS_states(IOQuestion):
       )
     )
     
-    log.debug(self.start_state)
-    
-    body.add_element(ContentAST.Answer(self.answers["answer__cmd"]))
+    body.add_element(
+      ContentAST.AnswerBlock(
+        ContentAST.Answer(
+          self.answers["answer__cmd"],
+          label="Command"
+        )
+      )
+    )
     
     body.add_element(
       ContentAST.Code(
@@ -318,30 +329,32 @@ class VSFS_states(IOQuestion):
   def get_explanation(self) -> ContentAST.Section:
     explanation = ContentAST.Section()
     
-    explanation.add_text_element([
-      "These questions are based on the VSFS simulator that our book mentions.  "
-      "We will be discussing the interpretation of this in class, but you can also find information "
-      "<a href=\"https://github.com/chyyuu/os_tutorial_lab/blob/master/ostep/ostep13-vsfs.md\">here</a>, "
-      "as well as simulator code.  Please note that the code uses python 2.",
-      "",
-      "In general, I recommend looking for differences between the two outputs.  Recommended steps would be:",
-      "<ol>"
-      
-      "<li> Check to see if there are differences between the bitmaps "
-      "that could indicate a file/directroy were created or removed.</li>",
-      
-      "<li>Check the listed inodes to see if any entries have changed.  "
-      "This might be a new entry entirely or a reference count changing.  "
-      "If the references increased then this was likely a link or creation, "
-      "and if it decreased then it is likely an unlink.</li>",
-      
-      "<li>Look at the data blocks to see if a new entry has "
-      "been added to a directory or a new block has been mapped.</li>",
-      
-      "</ol>",
-      "These steps can usually help you quickly identify "
-      "what has occured in the simulation and key you in to the right answer."
-    ])
+    explanation.add_element(
+      ContentAST.Paragraph([
+        "These questions are based on the VSFS simulator that our book mentions.  "
+        "We will be discussing the interpretation of this in class, but you can also find information "
+        "<a href=\"https://github.com/chyyuu/os_tutorial_lab/blob/master/ostep/ostep13-vsfs.md\">here</a>, "
+        "as well as simulator code.  Please note that the code uses python 2.",
+        "",
+        "In general, I recommend looking for differences between the two outputs.  Recommended steps would be:",
+        "<ol>"
+        
+        "<li> Check to see if there are differences between the bitmaps "
+        "that could indicate a file/directroy were created or removed.</li>",
+        
+        "<li>Check the listed inodes to see if any entries have changed.  "
+        "This might be a new entry entirely or a reference count changing.  "
+        "If the references increased then this was likely a link or creation, "
+        "and if it decreased then it is likely an unlink.</li>",
+        
+        "<li>Look at the data blocks to see if a new entry has "
+        "been added to a directory or a new block has been mapped.</li>",
+        
+        "</ol>",
+        "These steps can usually help you quickly identify "
+        "what has occured in the simulation and key you in to the right answer."
+      ])
+    )
     
     return explanation
   
