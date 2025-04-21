@@ -269,8 +269,8 @@ class ContentAST:
           r"\question{" + str(int(self.value)) + r"}",
           r"\noindent\begin{minipage}{0.9\textwidth}",
           content,
-          r"\end{minipage}",
           f"\\vspace{{{self.spacing}cm}}"
+          r"\end{minipage}",
           r"\end{minipage}"
         ]
         content = '\n'.join(latex_lines)
