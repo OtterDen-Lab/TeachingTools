@@ -1,7 +1,7 @@
 #!env python
+import abc
 import logging
 import math
-from typing import List
 
 from TeachingTools.quiz_generation.question import Question, QuestionRegistry, Answer
 from TeachingTools.quiz_generation.misc import ContentAST
@@ -11,7 +11,7 @@ log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
 
-class MathQuestion(Question):
+class MathQuestion(Question, abc.ABC):
   def __init__(self, *args, **kwargs):
     kwargs["topic"] = kwargs.get("topic", Question.Topic.MATH)
     super().__init__(*args, **kwargs)
@@ -42,39 +42,54 @@ class BitsAndBytes(MathQuestion):
   
   def get_body(self, **kwargs) -> ContentAST.Section:
     body = ContentAST.Section()
-    body.add_text_element([
-      f"Given that we have {self.num_bits if self.from_binary else self.num_bytes} {'bits' if self.from_binary else 'bytes'}, "
-      f"how many {'bits' if not self.from_binary else 'bytes'} "
-      f"{'do we need to address our memory' if not self.from_binary else 'of memory can be addressed'}?"
-    ])
+    body.add_element(
+      ContentAST.Paragraph([
+        f"Given that we have "
+        f"{self.num_bits if self.from_binary else self.num_bytes} {'bits' if self.from_binary else 'bytes'}, "
+        f"how many {'bits' if not self.from_binary else 'bytes'} "
+        f"{'do we need to address our memory' if not self.from_binary else 'of memory can be addressed'}?"
+      ])
+    )
     
     if self.from_binary:
-      body.add_elements([
-        ContentAST.Text("Address space size: "),
-        ContentAST.Answer(self.answers['answer']),
-        ContentAST.Text("Bytes")
-      ])
+      body.add_element(
+        ContentAST.AnswerBlock(
+          ContentAST.Answer(
+            answer=self.answers['answer'],
+            label="Address space size",
+            unit="Bytes"
+          ),
+        )
+      )
     else:
-      body.add_elements([
-        ContentAST.Text("Number of bits in address: "),
-        ContentAST.Answer(self.answers['answer']),
-        ContentAST.Text("bits")
-      ])
+      body.add_element(
+        ContentAST.AnswerBlock(
+          ContentAST.Answer(
+            answer=self.answers['answer'],
+            label="Number of bits in address",
+            unit="bits"
+          ),
+        )
+      )
       
     return body
   
   def get_explanation(self, **kwargs) -> ContentAST.Section:
     explanation = ContentAST.Section()
     
-    explanation.add_text_element(
-      "Remember that for these problems we use one of these two equations (which are equivalent)"
+    explanation.add_element(
+      ContentAST.Paragraph([
+        "Remember that for these problems we use one of these two equations (which are equivalent)"
+      ])
     )
     explanation.add_elements([
       ContentAST.Equation(r"log_{2}(\text{#bytes}) = \text{#bits}"),
       ContentAST.Equation(r"2^{(\text{#bits})} = \text{#bytes}")
     ])
     
-    explanation.add_text_element("Therefore, we calculate:")
+    explanation.add_element(
+      ContentAST.Paragraph(["Therefore, we calculate:"])
+    )
     
     if self.from_binary:
       explanation.add_element(
@@ -86,6 +101,7 @@ class BitsAndBytes(MathQuestion):
       )
     
     return explanation
+
 
 @QuestionRegistry.register()
 class HexAndBinary(MathQuestion):
@@ -115,34 +131,45 @@ class HexAndBinary(MathQuestion):
   def get_body(self, **kwargs) -> ContentAST.Section:
     body = ContentAST.Section()
     
-    body.add_text_element([
-      f"Given the number {self.hex_val if not self.from_binary else self.binary_val} please convert it to {'hex' if self.from_binary else 'binary'}.",
-      "Please include base indicator all padding zeros as appropriate (e.g. 0x01 should be 0b00000001",
-      "",
-      f"Value in {'hex' if self.from_binary else 'binary'}: "
-    ])
+    body.add_element(
+      ContentAST.Paragraph([
+        f"Given the number {self.hex_val if not self.from_binary else self.binary_val} "
+        f"please convert it to {'hex' if self.from_binary else 'binary'}.",
+        "Please include base indicator all padding zeros as appropriate (e.g. 0x01 should be 0b00000001)",
+      ])
+    )
     
-    body.add_element(ContentAST.Answer(self.answers['answer']))
+    body.add_element(
+      ContentAST.AnswerBlock([
+        ContentAST.Answer(
+          answer = self.answers['answer'],
+          label=f"Value in {'hex' if self.from_binary else 'binary'}: ",
+        )
+      ])
+    )
     
     return body
   
   def get_explanation(self, **kwargs) -> ContentAST.Section:
     explanation = ContentAST.Section()
     
-    explanation.add_text_element([
+    paragraph = ContentAST.Paragraph([
       "The core idea for converting between binary and hex is to divide and conquer.  "
       "Specifically, each hexit (hexadecimal digit) is equivalent to 4 bits.  "
     ])
     
     if self.from_binary:
-      explanation.add_text_element(
+      paragraph.add_line(
         "Therefore, we need to consider each group of 4 bits together and convert them to the appropriate hexit."
       )
     else:
-      explanation.add_text_element(
+      paragraph.add_line(
         "Therefore, we need to consider each hexit and convert it to the appropriate 4 bits."
       )
     
+    explanation.add_element(paragraph)
+    
+    # Generate translation table
     binary_str = f"{self.value:0{4*self.number_of_hexits}b}"
     hex_str = f"{self.value:0{self.number_of_hexits}X}"
     
@@ -159,18 +186,21 @@ class HexAndBinary(MathQuestion):
     )
     
     if self.from_binary:
-      explanation.add_text_element(
+      explanation.add_element(
+        ContentAST.Paragraph([
         f"Which gives us our hex value of: 0x{hex_str}"
+        ])
       )
     else:
-      explanation.add_text_element(
-        f"Which gives us our binary value of: 0b{binary_str}"
+      explanation.add_element(
+        ContentAST.Paragraph([
+          f"Which gives us our binary value of: 0b{binary_str}"
+        ])
       )
       
     return explanation
   
-
-
+  
 @QuestionRegistry.register()
 class AverageMemoryAccessTime(MathQuestion):
   
@@ -189,11 +219,11 @@ class AverageMemoryAccessTime(MathQuestion):
     self.miss_latency = int(self.rng.randint(1, 9) * math.pow(10, orders_of_magnitude_different))
     
     # Add in a complication of making it sometimes very, very close
-    if self.rng.self.rng() < self.CHANCE_OF_99TH_PERCENTILE:
+    if self.rng.random() < self.CHANCE_OF_99TH_PERCENTILE:
       # Then let's make it very close to 99%
-      self.hit_rate = (99 + self.rng.self.rng()) / 100
+      self.hit_rate = (99 + self.rng.random()) / 100
     else:
-      self.hit_rate = self.rng.self.rng()
+      self.hit_rate = self.rng.random()
       
     # Calculate the hit rate
     self.hit_rate = round(self.hit_rate, 4)
@@ -206,7 +236,7 @@ class AverageMemoryAccessTime(MathQuestion):
     }
     
     # Finally, do the self.rngizing of the question, to avoid these being non-deterministic
-    self.show_miss_rate = self.rng.self.rng() > 0.5
+    self.show_miss_rate = self.rng.random() > 0.5
     
     # At this point, everything in the question should be set.
     pass
@@ -215,29 +245,40 @@ class AverageMemoryAccessTime(MathQuestion):
     body = ContentAST.Section()
     
     # Add in background information
-    body.add_elements([
-      ContentAST.Text("Please calculate the Average Memory Access Time given the below information. "),
-      ContentAST.Text(
-        f"Please round your answer to {Answer.DEFAULT_ROUNDING_DIGITS} decimal points. ",
-        hide_from_latex=True
-      ),
-      ContentAST.Text(f"- Hit Latency: {self.hit_latency} cycles"),
-        ContentAST.Text(f"- Miss Latency: {self.miss_latency} cycles")
-    ])
+    body.add_element(
+      ContentAST.Paragraph([
+        ContentAST.Text("Please calculate the Average Memory Access Time given the below information. "),
+        ContentAST.Text(
+          f"Please round your answer to {Answer.DEFAULT_ROUNDING_DIGITS} decimal points. ",
+          hide_from_latex=True
+        )
+      ])
+    )
+    table_data = [
+      ["Hit Latency", f"{self.hit_latency} cycles"],
+      ["Miss Latency", f"{self.miss_latency} cycles"]
+    ]
     
     # Add in either miss rate or hit rate -- we only need one of them
     if self.show_miss_rate:
-      body.add_text_element(f"- Miss Rate: {100 * (1 - self.hit_rate): 0.2f}%")
+      table_data.append(["Miss Rate", f"{100 * (1 - self.hit_rate): 0.2f}%"])
     else:
-      body.add_text_element(f"- Hit Rate: {100 * self.hit_rate: 0.2f}%")
+      table_data.append(["Hit Rate", f"{100 * self.hit_rate: 0.2f}%"])
     
-    # Add in answer line
-    body.add_elements([
-        ContentAST.Text("Average Memory Access Time:"),
-        ContentAST.Answer(self.answers["amat"]),
-        ContentAST.Text("cycles")
-      ],
-      new_paragraph=True
+    body.add_element(
+      ContentAST.Table(
+        data=table_data
+      )
+    )
+    
+    body.add_element(
+      ContentAST.AnswerBlock([
+        ContentAST.Answer(
+          answer=self.answers["amat"],
+          label="Average Memory Access Time",
+          unit="cycles"
+        )
+      ])
     )
     
     return body
@@ -246,11 +287,13 @@ class AverageMemoryAccessTime(MathQuestion):
     explanation = ContentAST.Section()
     
     # Add in General explanation
-    explanation.add_text_element([
-      "Remember that to calculate the Average Memory Access Time "
-      "we weight both the hit and miss times by their relative likelihood.",
-      "That is, we calculate:"
-    ])
+    explanation.add_element(
+      ContentAST.Paragraph([
+        "Remember that to calculate the Average Memory Access Time "
+        "we weight both the hit and miss times by their relative likelihood.",
+        "That is, we calculate:"
+      ])
+    )
     
     # Add in equations
     ContentAST.Equation.make_block_equation__multiline_equals(
