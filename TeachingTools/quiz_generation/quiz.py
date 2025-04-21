@@ -333,6 +333,7 @@ class Quiz:
         r"\usepackage{longtable}",
         r"\usepackage{arydshln}",
         r"\usepackage{ragged2e}\let\Centering\flushleft",
+        r"\usepackage{array}",
         
         r"% Custom commands",
         r"\newcounter{NumQuestions}",

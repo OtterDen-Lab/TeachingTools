@@ -506,11 +506,11 @@ class ContentAST:
         col_spec = '|'.join(["l"] * (len(self.headers) if self.headers else len(self.data[0])))
       
       result = [f"\\begin{{tabular}}{{{col_spec}}}"]
-      result.append("\\hline")
+      result.append("\\toprule")
       
       if self.headers:
         result.append(" & ".join(pylatex.escape_latex(str(h)) for h in self.headers) + " \\\\")
-        result.append("\\hline")
+        result.append("\\midrule")
       
       for row in self.data:
         rendered_row = [
@@ -521,8 +521,7 @@ class ContentAST:
         ]
         result.append(" & ".join(rendered_row) + " \\\\")
       
-      if len(self.data) > 1:
-        result.append("\\hline")
+      result.append("\\bottomrule")
       result.append("\\end{tabular}")
       
       return "\n\n" + "\n".join(result)
@@ -584,3 +583,12 @@ class ContentAST:
     def add_element(self, element):
       self.data.append(element)
     
+    def render_latex(self, **kwargs):
+      rendered_content = super().render_latex(**kwargs)
+      content = (
+        r"{"
+        r"\setlength{\extrarowheight}{20pt}"
+        + rendered_content +
+        r"}"
+      )
+      return content
