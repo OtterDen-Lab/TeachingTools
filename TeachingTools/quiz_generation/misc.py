@@ -413,7 +413,7 @@ class ContentAST:
       return cls('\n'.join(equation_lines))
     
   class Table(Element):
-    def __init__(self, data, headers=None, alignments=None, padding=False, transpose=False):
+    def __init__(self, data, headers=None, alignments=None, padding=False, transpose=False, hide_rules=False):
       """
       Generates a ContentAST.Table element
       :param data: data in the table.  List[List[Element]]
@@ -428,7 +428,8 @@ class ContentAST:
       self.data = data
       self.headers = headers
       self.alignments = alignments
-      self.padding = padding
+      self.padding = padding,
+      self.hide_rules = hide_rules
     
     def render_markdown(self, **kwargs):
       # Basic markdown table implementation
@@ -495,11 +496,11 @@ class ContentAST:
         col_spec = '|'.join(["l"] * (len(self.headers) if self.headers else len(self.data[0])))
       
       result = [f"\\begin{{tabular}}{{{col_spec}}}"]
-      result.append("\\toprule")
+      if not self.hide_rules: result.append("\\toprule")
       
       if self.headers:
         result.append(" & ".join(pylatex.escape_latex(str(h)) for h in self.headers) + " \\\\")
-        result.append("\\midrule")
+        if not self.hide_rules: result.append("\\midrule")
       
       for row in self.data:
         rendered_row = [
@@ -510,7 +511,7 @@ class ContentAST:
         ]
         result.append(" & ".join(rendered_row) + " \\\\")
       
-      if len(self.data) > 1:
+      if len(self.data) > 1 and not self.hide_rules:
         result.append("\\bottomrule")
       result.append("\\end{tabular}")
       
@@ -569,6 +570,7 @@ class ContentAST:
           for answer in answers
         ]
       )
+      self.hide_rules = True
     
     def add_element(self, element):
       self.data.append(element)
