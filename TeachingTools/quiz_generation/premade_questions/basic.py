@@ -69,34 +69,17 @@ class FromGenerator(FromText):
     # Attach the function dynamically
     attach_function_to_object(self, generator, "generator")
     
-    self.answers = []
+    self.answers = {}
+    self.refresh()
   
-  def refresh(self, rng_seed=None, *args, **kwargs):
-    super().refresh(rng_seed=rng_seed, *args, **kwargs)
-    output_format = kwargs.get("output_format", OutputFormat.LATEX)
+  def get_body(self, **kwargs) -> ContentAST.Section:
+    self.refresh()
+    return super().get_body()
+  
+  def refresh(self, *args, **kwargs):
+    super().refresh(*args, **kwargs)
     try:
       generated_text = self.generator()
-      if isinstance(generated_text, list):
-        parts = []
-        curr_part = ""
-        for line in generated_text:
-          if isinstance(line, TableGenerator):
-            
-            parts.append(
-              pypandoc.convert_text(
-                curr_part,
-                ('html' if output_format == OutputFormat.CANVAS else 'latex'),
-                format='md', extra_args=["-M2GB", "+RTS", "-K64m", "-RTS"]
-              )
-            )
-            curr_part = ""
-            parts.append('\n' + line.generate(output_format) + '\n')
-          else:
-            if output_format == OutputFormat.LATEX:
-              line = re.sub(r'\[answer\S+]', r"\\answerblank{3}", line)
-            curr_part += line + '\n'
-        
-        generated_text = '\n'.join(parts)
       self.text = generated_text
     except TypeError as e:
       log.error(f"Error generating from text: {e}")
