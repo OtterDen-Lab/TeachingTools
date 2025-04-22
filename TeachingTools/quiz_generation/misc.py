@@ -142,6 +142,11 @@ class Answer:
           },
           {
             "blank_id": self.key,
+            "answer_text": f"{value_fraction.numerator / value_fraction.denominator}",
+            "answer_weight": 100,
+          },
+          {
+            "blank_id": self.key,
             "answer_text":
               f"{value_fraction.numerator // value_fraction.denominator} {value_fraction.numerator % value_fraction.denominator}/{value_fraction.denominator}",
             "answer_weight": 100,
