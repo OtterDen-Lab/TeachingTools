@@ -708,7 +708,7 @@ class Paging(MemoryAccessQuestion):
         "answer__physical_address": Answer("answer__physical_address",  self.physical_address,  variable_kind=Answer.VariableKind.BINARY_OR_HEX, length=(self.num_pfn_bits + self.num_offset_bits)),
       })
     else:
-      self.answers.extend({
+      self.answers.update({
         "answer__is_valid":         Answer("answer__is_valid",          "INVALID"),
         "answer__pfn":              Answer("answer__pfn",               "INVALID"),
         "answer__physical_address": Answer("answer__physical_address",  "INVALID"),
