@@ -207,11 +207,13 @@ class Question(abc.ABC):
     :return: (ContentAST.Question) Containing question.
     """
     # todo: would it make sense to refresh here?
+    self.refresh(rng_seed=kwargs.get("rng_seed", None))
     return ContentAST.Question(
       body=self.get_body(),
       explanation=self.get_explanation(),
-      value=kwargs.get("value", 1),
-      spacing=self.spacing
+      value=self.points_value,
+      spacing=self.spacing,
+      topic=self.kind
     )
   
   @abc.abstractmethod
@@ -246,7 +248,8 @@ class Question(abc.ABC):
     """
     self.answers = {}
     # todo: maybe have it randomly generate a seed every time, or use the time, and return this
-    self.rng.seed(self.rng_seed_offset + (rng_seed or 0))
+    self.rng.seed(None if rng_seed is None else rng_seed + self.rng_seed_offset)
+    # self.rng.seed(self.rng_seed_offset + (rng_seed or 0))
     
   def is_interesting(self) -> bool:
     return True
@@ -257,7 +260,7 @@ class Question(abc.ABC):
     while True:
       self.rng_seed_offset += 1
       self.refresh()
-      questionAST = self.get_question()
+      questionAST = self.get_question(**kwargs)
       if questionAST.interest >= interest_threshold:
         break
     

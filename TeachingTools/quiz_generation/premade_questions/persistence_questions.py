@@ -281,7 +281,7 @@ class VSFS_states(IOQuestion):
   def refresh(self, *args, **kwargs):
     super().refresh(*args, **kwargs)
     
-    fs = self.vsfs(4, 4)
+    fs = self.vsfs(4, 4, self.rng)
     operations = fs.run_for_steps(3)
     
     self.start_state = operations[-1]["start_state"]
@@ -294,11 +294,12 @@ class VSFS_states(IOQuestion):
         operations
       )
     ))
-    random.shuffle(wrong_answers)
+    self.rng.shuffle(wrong_answers)
     
     self.answers["answer__cmd"] = Answer("answer__cmd",  f"{operations[-1]['cmd']}")
   
   def get_body(self) -> ContentAST.Section:
+    self.refresh()
     body = ContentAST.Section()
     
     body.add_element(ContentAST.Paragraph(["What operation happens between these two states?"]))
@@ -306,6 +307,7 @@ class VSFS_states(IOQuestion):
     body.add_element(
       ContentAST.Code(
         self.start_state,
+        make_small=True
       )
     )
     
@@ -321,6 +323,7 @@ class VSFS_states(IOQuestion):
     body.add_element(
       ContentAST.Code(
         self.end_state,
+        make_small=True
       )
     )
     
