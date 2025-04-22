@@ -28,7 +28,7 @@ class ConcreteQuestionSet:
     for i, question in enumerate(questions):
       self.questions.append(
         question.get_question(
-          rng_seed=rng_seed,
+          # rng_seed=rng_seed,
           previous=(
             None if previous_question_set is None
             else previous_question_set.questions[i].question
@@ -43,9 +43,9 @@ class ConcreteQuestionSet:
     return overall_score / (len(self.questions) if not weighted else sum([q.value for q in self.questions]))
   
   
-  def get_latex(self) -> str:
+  def get_latex(self, sort_order) -> str:
     text = ""
-    for question in self.questions:
+    for question in sorted(self.questions, key=lambda q: (-q.value, sort_order.index(q.topic))):
       text += question.render("latex") + "\n\n"
     return text
   
@@ -220,7 +220,7 @@ class Quiz:
     
     for exam_dict in list_of_exam_dicts:
       # Get general quiz information from the dictionary
-      name = exam_dict.get("name", "Unnamed Exam") + f" ({datetime.now().strftime("%a %b %d %I:%M %p")})"
+      name = exam_dict.get("name", "Unnamed Exam") # + f" ({datetime.now().strftime("%a %b %d %I:%M %p")})"
       practice = exam_dict.get("practice", False)
       sort_order = list(map(lambda t: Question.Topic.from_string(t), exam_dict.get("sort order", [])))
       sort_order = sort_order + list(filter(lambda t: t not in sort_order, Question.Topic))
@@ -335,6 +335,13 @@ class Quiz:
         r"\usepackage{ragged2e}\let\Centering\flushleft",
         r"\usepackage{array}",
         
+        r"\usepackage{verbatim}",
+        r"\let\oldverbatim\verbatim",
+        r"\let\endoldverbatim\endverbatim",
+        r"\renewenvironment{verbatim}",
+        r"{\small\linespread{0.8}\selectfont\oldverbatim}",
+        r"{\endoldverbatim}",
+        
         r"% Custom commands",
         r"\newcounter{NumQuestions}",
         r"\newcommand{\question}[1]{ %",
@@ -412,7 +419,7 @@ class Quiz:
     tmp_tex = tempfile.NamedTemporaryFile('w')
     
     tmp_tex.write(self.get_header(OutputFormat.LATEX) + "\n\n")
-    tmp_tex.write(question_set.get_latex())
+    tmp_tex.write(question_set.get_latex(self.question_sort_order))
     tmp_tex.write(self.get_footer(OutputFormat.LATEX))
     
     tmp_tex.flush()

@@ -15,6 +15,9 @@ import pypandoc
 import pylatex
 
 import logging
+
+import TeachingTools.quiz_generation.quiz
+
 logging.basicConfig()
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
@@ -248,7 +251,8 @@ class ContentAST:
         name=None,
         value=1,
         interest=1.0,
-        spacing=3
+        spacing=3,
+        topic = None
     ):
       super().__init__()
       self.name = name
@@ -257,6 +261,7 @@ class ContentAST:
       self.value = value
       self.interest = interest
       self.spacing = spacing
+      self.topic = topic # todo: remove this bs.
     
     def render(self, output_format, **kwargs):
       # Generate content from all elements
@@ -365,8 +370,9 @@ class ContentAST:
       return fr"{self.label + (':' if len(self.label) > 0 else '')} \answerblank{{{self.length}}} {self.unit}".strip()
   
   class Code(Text):
-    def __init__(self, lines):
+    def __init__(self, lines, **kwargs):
       super().__init__(lines)
+      self.make_normal = kwargs.get("make_normal", False)
     
     def render_markdown(self, **kwargs):
       content = "```\n" + self.content + "\n```"
@@ -378,6 +384,12 @@ class ContentAST:
     
     def render_latex(self, **kwargs):
       content = super().convert_markdown(self.render_markdown(), "latex") or self.content
+      if self.make_normal:
+        content = (
+          r"{\normal "
+          + content +
+          r"}"
+        )
       return content
   
   class Equation(Element):
