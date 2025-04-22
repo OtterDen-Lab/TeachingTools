@@ -186,7 +186,8 @@ class inode:
     
 
 class fs:
-  def __init__(self, numInodes, numData):
+  def __init__(self, numInodes, numData, rng):
+    self.rng = rng
     self.numInodes = numInodes
     self.numData   = numData
     
@@ -235,13 +236,13 @@ class fs:
 
   def makeName(self):
     p = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'j', 'k', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
-    return p[int(random.random() * len(p))]
+    return p[int(self.rng.random() * len(p))]
     p = ['b', 'c', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 'm', 'n', 'p', 's', 't', 'v', 'w', 'x', 'y', 'z']
-    f = p[int(random.random() * len(p))]
+    f = p[int(self.rng.random() * len(p))]
     p = ['a', 'e', 'i', 'o', 'u']
-    s = p[int(random.random() * len(p))]
+    s = p[int(self.rng.random() * len(p))]
     p = ['b', 'c', 'd', 'f', 'g', 'j', 'k', 'l', 'm', 'n', 'p', 's', 't', 'v', 'w', 'x', 'y', 'z']
-    l = p[int(random.random() * len(p))]
+    l = p[int(self.rng.random() * len(p))]
     return '%c%c%c' % (f, s, l)
 
   def inodeAlloc(self):
@@ -398,7 +399,7 @@ class fs:
     dprint('doDelete')
     if len(self.files) == 0:
       return -1, ""
-    dfile = self.files[int(random.random() * len(self.files))]
+    dfile = self.files[int(self.rng.random() * len(self.files))]
     dprint('try delete(%s)' % dfile)
     return self.deleteFile(dfile)
 
@@ -406,11 +407,11 @@ class fs:
     dprint('doLink')
     if len(self.files) == 0:
       return -1, ""
-    parent = self.dirs[int(random.random() * len(self.dirs))]
+    parent = self.dirs[int(self.rng.random() * len(self.dirs))]
     nfile = self.makeName()
 
     # pick random target
-    target = self.files[int(random.random() * len(self.files))]
+    target = self.files[int(self.rng.random() * len(self.files))]
 
     # get full name of newfile
     if parent == '/':
@@ -430,7 +431,7 @@ class fs:
   
   def doCreate(self, ftype):
     dprint('doCreate')
-    parent = self.dirs[int(random.random() * len(self.dirs))]
+    parent = self.dirs[int(self.rng.random() * len(self.dirs))]
     nfile = self.makeName()
     if ftype == 'd':
       tlist = self.dirs
@@ -464,9 +465,9 @@ class fs:
     dprint('doAppend')
     if len(self.files) == 0:
       return -1, ""
-    afile = self.files[int(random.random() * len(self.files))]
+    afile = self.files[int(self.rng.random() * len(self.files))]
     dprint('try writeFile(%s)' % afile)
-    data = chr(ord('a') + int(random.random() * 26))
+    data = chr(ord('a') + int(self.rng.random() * 26))
     rc = self.writeFile(afile, data)
     return rc
   
@@ -488,7 +489,7 @@ class fs:
         attempts += 1
         if attempts > 1000:
           return operations
-        r = random.random()
+        r = self.rng.random()
         if r < 0.3:
           rc, cmd = self.doAppend()
           dprint('doAppend rc:%d' % rc)
@@ -499,7 +500,7 @@ class fs:
           rc, cmd = self.doLink()
           dprint('doLink rc:%d' % rc)
         else:
-          if random.random() < 0.75:
+          if self.rng.random() < 0.75:
             rc, cmd = self.doCreate('f')
             dprint('doCreate(f) rc:%d' % rc)
           else:
