@@ -166,8 +166,11 @@ class INodeAccesses(IOQuestion):
     
     body.add_elements([
       ContentAST.Text("Given the information below, please calculate the following values."),
-      ContentAST.Text("(hint: they should all be round numbers).", hide_from_latex=True)
-      
+      ContentAST.Text("(hint: they should all be round numbers).", hide_from_latex=True),
+      ContentAST.Text(
+        "Remember, demonstrating you know the equations and what goes into them is generally sufficient.",
+        hide_from_html=True
+      ),
     ])
     
     body.add_element(

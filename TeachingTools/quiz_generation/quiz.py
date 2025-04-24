@@ -351,7 +351,9 @@ class Quiz:
         r"\par",
         r"\vspace{0.1cm}",
         r"}",
-        r"\newcommand{\answerblank}[1]{\rule[-1.5mm]{#1cm}{0.15mm}}",
+        
+        r"\newcommand{\answerblank}[1]{\rule{0pt}{10mm}\rule[-1.5mm]{#1cm}{0.15mm}}",
+        
         r"\setlist[itemize]{itemsep=10pt, parsep=5pt} % Adjust these values as needed",
         
         
