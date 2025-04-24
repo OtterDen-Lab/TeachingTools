@@ -292,16 +292,19 @@ class ContentAST:
     pass
   
   class Text(Element):
-    def __init__(self, content : str, hide_from_latex=False, emphasis=False):
+    def __init__(self, content : str, *, hide_from_latex=False, hide_from_html=False, emphasis=False):
       super().__init__()
       self.content = content
       self.hide_from_latex = hide_from_latex
+      self.hide_from_html = hide_from_html
       self.emphasis = emphasis
     
     def render_markdown(self, **kwargs):
       return f"{'***' if self.emphasis else ''}{self.content}{'***' if self.emphasis else ''}"
 
     def render_html(self, **kwargs):
+      if self.hide_from_html:
+        return ""
       # If the super function returns None then we just return content as is
       return super().convert_markdown(self.content, "html") or self.content
     
