@@ -67,10 +67,9 @@ class Quiz:
   
   INTEREST_THRESHOLD = 1.0
   
-  def __init__(self, name, possible_questions: List[dict|Question], practice, *args, **kwargs):
+  def __init__(self, name, questions: List[dict|Question], practice, *args, **kwargs):
     self.name = name
-    self.possible_questions = possible_questions
-    self.questions : List[Question] = []
+    self.questions = questions
     self.instructions = kwargs.get("instructions", "")
     self.question_sort_order = None
     self.practice = practice
@@ -88,128 +87,7 @@ class Quiz:
           return (-q.points_value, float('inf'))
       return -q.points_value
     return iter(sorted(self.questions, key=sort_func))
-    
-  def describe(self):
-    
-    # Print out title
-    print(f"Title: {self.name}")
-    total_points = sum(map(lambda q: q.points_value, self.questions))
-    total_questions = len(self.questions)
-    
-    # Print out overall information
-    print(f"{total_points} points total, {total_questions} / {len(self.possible_questions)} questions picked")
-    
-    # Print out the per-value information
-    points_counter = collections.Counter([q.points_value for q in self.questions])
-    for points in sorted(points_counter.keys(), reverse=True):
-      print(f"{points_counter.get(points)} x {points}points")
-    
-    # Either get the sort order or default to the order in the enum class
-    sort_order = self.question_sort_order
-    if sort_order is None:
-      sort_order = Question.Topic
-      
-    # Build per-topic information
-    
-    topic_information = {}
-    topic_strings = {}
-    for topic in sort_order:
-      topic_strings = {"name": topic.name}
-      
-      question_count = len(list(map(lambda q: q.points_value, filter(lambda q: q.kind == topic, self.questions))))
-      topic_points = sum(map(lambda q: q.points_value, filter(lambda q: q.kind == topic, self.questions)))
-      
-      # If we have questions add in some states, otherwise mark them as empty
-      if question_count != 0:
-        topic_strings["count_str"] = f"{question_count} questions ({ 100 * question_count / total_questions:0.1f}%)"
-        topic_strings["points_str"] = f"{topic_points:2} points ({ 100 * topic_points / total_points:0.1f}%)"
-      else:
-        topic_strings["count_str"] = "--"
-        topic_strings["points_str"] = "--"
-      
-      topic_information[topic] = topic_strings
-    
-    
-    # Get padding string lengths
-    paddings = collections.defaultdict(lambda: 0)
-    for field in topic_strings.keys():
-      paddings[field] = max(len(information[field]) for information in topic_information.values())
-    
-    # Print out topics information using the padding
-    for topic in sort_order:
-      topic_strings = topic_information[topic]
-      print(f"{topic_strings['name']:{paddings['name']}} : {topic_strings['count_str']:{paddings['count_str']}} : {topic_strings['points_str']:{paddings['points_str']}}")
-    
-  def select_questions(self, total_points=None, exam_outline: List[Dict]=None):
-    # The exam_outline object should contain a description of the kinds of questions that we want.
-    # It will be a list of dictionaries that has "num questions" and then the appropriate filters.
-    # We will walk through it and pick an appropriate set of questions, ensuring that we only select each once (unless we can pick more than once)
-    # After we've gone through all the rules, we can backfill with whatever is left
-
-    if total_points is None:
-      self.questions = self.possible_questions
-      return
-    
-    questions_picked = set()
-    
-    possible_questions = set(self.possible_questions)
-    
-    if exam_outline is not None:
-      for requirements in exam_outline:
-        # Filter out to only get appropriate questions
-        log.debug(requirements["filters"])
-        appropriate_questions = list(filter(
-          lambda q: all([getattr(q, attr_name) == attr_val for (attr_name, attr_val) in requirements["filters"].items()]),
-          possible_questions
-        ))
-        
-        log.debug(f"{len(appropriate_questions)} appropriate questions")
-        
-        # Pick the appropriate number of questions
-        questions_picked.update(
-          random.sample(appropriate_questions, min(requirements["num_to_pick"], len(appropriate_questions)))
-        )
-        
-        # Remove any questions that were just picked so we don't pick them again
-        possible_questions = set(possible_questions).difference(set(questions_picked))
-        
-    log.debug(f"Selected due to filters: {len(questions_picked)} ({sum(map(lambda q: q.points_value, questions_picked))}points)")
-    
-    if total_points is not None:
-      # Figure out how many points we have left to select
-      num_points_left = total_points - sum(map(lambda q: q.points_value, questions_picked))
-      
-      
-      # To pick the remaining points, we want to take our remaining questions and select a subset that adds up to the required number of points
   
-      # Find all combinations of objects that match the target value
-      log.debug("Finding all matching sets...")
-      matching_sets = []
-      for r in range(1, len(possible_questions) + 1):
-        for combo in itertools.combinations(possible_questions, r):
-          if sum(q.points_value for q in combo) == num_points_left:
-            matching_sets.append(combo)
-            if len(matching_sets) > 1000:
-              break
-        if len(matching_sets) > 1000:
-          break
-      
-      # Pick a random matching set
-      if matching_sets:
-        random_set = random.choice(matching_sets)
-      else:
-        log.error("Cannot find any matching sets")
-        random_set = []
-    
-      questions_picked.update(random_set)
-    else:
-      # todo: I know this snippet is repeated.  Oh well.
-      questions_picked = self.possible_questions
-    self.questions = questions_picked
-  
-  def set_sort_order(self, sort_order):
-    self.question_sort_order = sort_order
-
   @classmethod
   def from_yaml(cls, path_to_yaml) -> List[Quiz]:
     
@@ -220,7 +98,7 @@ class Quiz:
     
     for exam_dict in list_of_exam_dicts:
       # Get general quiz information from the dictionary
-      name = exam_dict.get("name", "Unnamed Exam") # + f" ({datetime.now().strftime("%a %b %d %I:%M %p")})"
+      name = exam_dict.get("name", f"Unnamed Exam ({datetime.now().strftime('%a %b %d %I:%M %p')})")
       practice = exam_dict.get("practice", False)
       sort_order = list(map(lambda t: Question.Topic.from_string(t), exam_dict.get("sort order", [])))
       sort_order = sort_order + list(filter(lambda t: t not in sort_order, Question.Topic))
@@ -287,7 +165,7 @@ class Quiz:
                 pick_once=(not question_config["random_per_student"])
               )
             )
-            
+          
           else: # Then this is just a single question
             questions_for_exam.extend([
               make_question(
@@ -298,12 +176,75 @@ class Quiz:
               for repeat_number in range(question_config["repeat"])
             ])
       log.debug(f"len(questions_for_exam): {len(questions_for_exam)}")
-      quiz_from_yaml = Quiz(name, questions_for_exam, practice)
+      quiz_from_yaml = cls(name, questions_for_exam, practice)
       quiz_from_yaml.set_sort_order(sort_order)
       quizes_loaded.append(quiz_from_yaml)
     return quizes_loaded
   
+  def get_quiz(self, **kwargs) -> ContentAST.Document:
+    quiz = ContentAST.Document(title=self.name)
+    
+    quiz.add_elements(
+      question.get_question(**kwargs)
+      for question in self.questions
+    )
+    
+    return quiz
   
+  def describe(self):
+    
+    # Print out title
+    print(f"Title: {self.name}")
+    total_points = sum(map(lambda q: q.points_value, self.questions))
+    total_questions = len(self.questions)
+    
+    # Print out overall information
+    print(f"{total_points} points total, {total_questions} questions")
+    
+    # Print out the per-value information
+    points_counter = collections.Counter([q.points_value for q in self.questions])
+    for points in sorted(points_counter.keys(), reverse=True):
+      print(f"{points_counter.get(points)} x {points}points")
+    
+    # Either get the sort order or default to the order in the enum class
+    sort_order = self.question_sort_order
+    if sort_order is None:
+      sort_order = Question.Topic
+      
+    # Build per-topic information
+    
+    topic_information = {}
+    topic_strings = {}
+    for topic in sort_order:
+      topic_strings = {"name": topic.name}
+      
+      question_count = len(list(map(lambda q: q.points_value, filter(lambda q: q.kind == topic, self.questions))))
+      topic_points = sum(map(lambda q: q.points_value, filter(lambda q: q.kind == topic, self.questions)))
+      
+      # If we have questions add in some states, otherwise mark them as empty
+      if question_count != 0:
+        topic_strings["count_str"] = f"{question_count} questions ({ 100 * question_count / total_questions:0.1f}%)"
+        topic_strings["points_str"] = f"{topic_points:2} points ({ 100 * topic_points / total_points:0.1f}%)"
+      else:
+        topic_strings["count_str"] = "--"
+        topic_strings["points_str"] = "--"
+      
+      topic_information[topic] = topic_strings
+    
+    
+    # Get padding string lengths
+    paddings = collections.defaultdict(lambda: 0)
+    for field in topic_strings.keys():
+      paddings[field] = max(len(information[field]) for information in topic_information.values())
+    
+    # Print out topics information using the padding
+    for topic in sort_order:
+      topic_strings = topic_information[topic]
+      print(f"{topic_strings['name']:{paddings['name']}} : {topic_strings['count_str']:{paddings['count_str']}} : {topic_strings['points_str']:{paddings['points_str']}}")
+    
+  def set_sort_order(self, sort_order):
+    self.question_sort_order = sort_order
+
   def get_header(self, output_format: OutputFormat, *args, **kwargs) -> str:
     lines = []
     if output_format == OutputFormat.LATEX:
@@ -398,7 +339,7 @@ class Quiz:
     
     question_set = None
     
-    while True:
+    while False:
       # Pick a new random seed
       rng_seed = random.randint(0, 1_000_000_000_000)
       
@@ -420,9 +361,7 @@ class Quiz:
     
     tmp_tex = tempfile.NamedTemporaryFile('w')
     
-    tmp_tex.write(self.get_header(OutputFormat.LATEX) + "\n\n")
-    tmp_tex.write(question_set.get_latex(self.question_sort_order))
-    tmp_tex.write(self.get_footer(OutputFormat.LATEX))
+    tmp_tex.write(self.get_quiz().render_latex())
     
     tmp_tex.flush()
     shutil.copy(f"{tmp_tex.name}", "debug.tex")
