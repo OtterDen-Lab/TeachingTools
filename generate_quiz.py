@@ -46,7 +46,6 @@ def main():
   
   quizzes = Quiz.from_yaml(args.quiz_yaml)
   for quiz in quizzes:
-    quiz.select_questions()
     
     for i in range(args.num_pdfs):
       quiz.generate_latex(remove_previous=(i==0))
