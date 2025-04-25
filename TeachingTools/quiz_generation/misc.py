@@ -235,7 +235,7 @@ class ContentAST:
     \documentclass[12pt]{article}
 
     % Page layout
-    \usepackage[a4paper, margin=1in]{geometry}
+    \usepackage[a4paper, margin=1.5cm]{geometry}
     
     % Tables and formatting
     \usepackage{booktabs}       % For clean table rules
