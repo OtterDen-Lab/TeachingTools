@@ -74,6 +74,27 @@ def generate_latex(latex_text, remove_previous=False):
   proc.wait(timeout=30)
   tmp_tex.close()
 
+def generate_quiz(
+    path_to_quiz_yaml,
+    num_pdfs=0,
+    num_canvas=0,
+    use_prod=False,
+    course_id=None
+):
+  
+  quizzes = Quiz.from_yaml(path_to_quiz_yaml)
+  for quiz in quizzes:
+    
+    for i in range(num_pdfs):
+      latex_text = quiz.get_quiz().render_latex()
+      generate_latex(latex_text, remove_previous=(i==0))
+    
+    if num_canvas > 0:
+      canvas_interface = CanvasInterface(prod=use_prod)
+      canvas_course = canvas_interface.get_course(course_id=course_id)
+      canvas_course.push_quiz_to_canvas(quiz, num_canvas, title=quiz.name, is_practice=quiz.practice)
+    
+    quiz.describe()
 
 def main():
   
@@ -83,19 +104,13 @@ def main():
     test()
     return
   
-  quizzes = Quiz.from_yaml(args.quiz_yaml)
-  for quiz in quizzes:
-    
-    for i in range(args.num_pdfs):
-      latex_text = quiz.get_quiz().render_latex()
-      generate_latex(latex_text, remove_previous=(i==0))
-    
-    if args.num_canvas > 0:
-      canvas_interface = CanvasInterface(prod=args.prod)
-      canvas_course = canvas_interface.get_course(course_id=args.course_id)
-      canvas_course.push_quiz_to_canvas(quiz, args.num_canvas, title=quiz.name, is_practice=quiz.practice)
-    
-    quiz.describe()
+  generate_quiz(
+    args.quiz_yaml,
+    num_pdfs=args.num_pdfs,
+    num_canvas=args.num_canvas,
+    use_prod=args.prod,
+    course_id=args.course_id
+  )
 
 
 if __name__ == "__main__":

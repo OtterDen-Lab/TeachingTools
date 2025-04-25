@@ -37,8 +37,6 @@ class Quiz:
     self.question_sort_order = None
     self.practice = practice
     
-    self.used_seeds = []
-    
     # Plan: right now we just take in questions and then assume they have a score and a "generate" button
   
   def __iter__(self):
