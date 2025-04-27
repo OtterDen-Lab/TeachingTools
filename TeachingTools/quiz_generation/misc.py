@@ -344,12 +344,13 @@ class ContentAST:
       if output_format == "latex":
         latex_lines = [
           r"\noindent\begin{minipage}{\textwidth}",
+          r"\noindent\makebox[\linewidth]{\rule{\paperwidth}{1pt}}",
           r"\question{" + str(int(self.value)) + r"}",
           r"\noindent\begin{minipage}{0.9\textwidth}",
           content,
           f"\\vspace{{{self.spacing}cm}}"
           r"\end{minipage}",
-          r"\end{minipage}"
+          r"\end{minipage}",
         ]
         content = '\n'.join(latex_lines)
       
