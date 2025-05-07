@@ -257,6 +257,10 @@ class INodeAccesses(IOQuestion):
       ]
     ))
     
+    explanation.add_element(
+      ContentAST.Text("Remember that `mod` is the same as `%`, the modulo operation.")
+    )
+    
     explanation.add_element(ContentAST.Paragraph(["and"]))
       
     explanation.add_element(ContentAST.Equation.make_block_equation__multiline_equals(
