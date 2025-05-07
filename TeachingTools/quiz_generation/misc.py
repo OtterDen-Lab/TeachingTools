@@ -479,7 +479,7 @@ class ContentAST:
       return r"$$ \displaystyle " + f"{self.latex}" + r" \frac{}{}$$"
     
     def render_html(self, **kwargs):
-      return f"<div class='math'>$$ \\displaystyle{self.latex} \\frac{{}}{{}}$$</div>"
+      return f"<div class='math'>$$ \\displaystyle {self.latex} \\frac{{}}{{}}$$</div>"
     
     def render_latex(self, **kwargs):
       return f"\\begin{{equation}}\n{self.latex}\n\\end{{equation}}"

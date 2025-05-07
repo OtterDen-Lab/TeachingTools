@@ -413,8 +413,8 @@ class SchedulingQuestion(ProcessQuestion):
       ContentAST.Paragraph([
         "We do this by subtracting arrival time from either the completion time or the start time.  That is:"
         ]),
-      ContentAST.Equation(f"Job_TAT = Job_completion - Job_arrival"),
-      ContentAST.Equation(f"Job_response = Job_start - Job_arrival"),
+      ContentAST.Equation("Job_{TAT} = Job_{completion} - Job_{arrival}"),
+      ContentAST.Equation("Job_{response} = Job_{start} - Job_{arrival}"),
     ])
     
     explanation.add_element(
