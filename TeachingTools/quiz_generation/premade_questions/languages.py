@@ -9,6 +9,9 @@ import random
 from TeachingTools.quiz_generation.question import QuestionRegistry, Question, Answer
 
 import logging
+
+from TeachingTools.quiz_generation.misc import ContentAST
+
 logging.basicConfig()
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
@@ -93,12 +96,17 @@ class BNF:
   
   class Production:
     def __init__(self, production_line, nonterminal_symbols: Dict[str, BNF.Symbol]):
-      self.production = [
-        (nonterminal_symbols.get(symbol, BNF.Symbol(symbol, BNF.Symbol.Kind.Terminal)))
-        for symbol in production_line.split(' ')
-      ]
+      if len(production_line.strip()) == 0:
+        self.production = []
+      else:
+        self.production = [
+          (nonterminal_symbols.get(symbol, BNF.Symbol(symbol, BNF.Symbol.Kind.Terminal)))
+          for symbol in production_line.split(' ')
+        ]
       
     def __str__(self):
+      if len(self.production) == 0:
+        return '""'
       return f"{' '.join([str(s) for s in self.production])}"
   
   
@@ -142,16 +150,15 @@ class LanguageQuestion(Question):
     
     self.refresh()
   
-  def refresh(self, rng_seed=None, grammar_str: Optional[str] = None, *args, **kwargs):
-    super().refresh(rng_seed=rng_seed, *args, **kwargs)
+  def refresh(self, grammar_str: Optional[str] = None, *args, **kwargs):
+    super().refresh(*args, **kwargs)
     
-    log.debug("Instantiate")
-    self.answers = []
+    self.answers = {}
     
     if grammar_str is not None:
       self.grammar_str = grammar_str
     else:
-      which_grammar = random.choice(range(3))
+      which_grammar = random.choice(range(4))
       
       if which_grammar == 0:
         # todo: make a few different kinds of grammars that could be picked
@@ -221,37 +228,55 @@ class LanguageQuestion(Question):
         """
         self.include_spaces = True
         self.MAX_LENGTH = 100
+      elif which_grammar == 3:
+        self.grammar_str_good = """
+          <A> ::= a <B> a |
+          <B> ::= b <C> b |
+          <C> ::= c <A> c |
+        """
+        self.grammar_str_bad = """
+          <A> ::= a <B> c
+          <B> ::= b <C> a |
+          <C> ::= c <A> b |
+        """
+        self.include_spaces = False
+        self.MAX_LENGTH = 100
     
     self.grammar_good = BNF.parse_bnf(self.grammar_str_good)
     self.grammar_bad = BNF.parse_bnf(self.grammar_str_bad)
     
-    self.answers.append(
-      Answer(
-        f"answer_good",
-        self.grammar_good.generate(self.include_spaces),
-        Answer.AnswerKind.MULTIPLE_ANSWER,
-        correct=True
-      )
+    self.answers.update(
+      {
+        "answer_good" : Answer(
+          f"answer_good",
+          self.grammar_good.generate(self.include_spaces),
+          Answer.AnswerKind.MULTIPLE_ANSWER,
+          correct=True
+        )
+      }
     )
     
-    self.answers.append(
-      Answer(
-        f"answer_bad",
-        self.grammar_bad.generate(self.include_spaces),
-        Answer.AnswerKind.MULTIPLE_ANSWER,
-        correct=False
-      )
-    )
-    self.answers.append(
-      Answer(
-        f"answer_bad_early",
-        self.grammar_bad.generate(self.include_spaces, early_exit=True),
-        Answer.AnswerKind.MULTIPLE_ANSWER,
-        correct=False
-      )
-    )
+    self.answers.update(
+      {
+        "answer_bad":
+          Answer(
+            f"answer_bad",
+            self.grammar_bad.generate(self.include_spaces),
+            Answer.AnswerKind.MULTIPLE_ANSWER,
+            correct=False
+          )
+      })
+    self.answers.update({
+      "answer_bad_early":
+        Answer(
+          f"answer_bad_early",
+          self.grammar_bad.generate(self.include_spaces, early_exit=True),
+          Answer.AnswerKind.MULTIPLE_ANSWER,
+          correct=False
+        )
+    })
     
-    answer_text_set = {a.value for a in self.answers}
+    answer_text_set = {a.value for a in self.answers.values()}
     num_tries = 0
     while len(self.answers) < 10 and num_tries < self.MAX_TRIES:
       
@@ -271,27 +296,38 @@ class LanguageQuestion(Question):
         correct=correct
       )
       if len(new_answer.value) < self.MAX_LENGTH and new_answer.value not in answer_text_set:
-        self.answers.append(new_answer)
+        self.answers.update({new_answer.key : new_answer})
         answer_text_set.add(new_answer.value)
       num_tries += 1
   
-  def get_body_lines(self, *args, **kwargs) -> List[str]:
-    lines = []
-    lines.extend([
-      "Given the following grammar, which of the below strings are part of the language?",
-      "",
-      self.grammar_good.get_grammar_string()
-    ])
-    return lines
+  def get_body(self, *args, **kwargs) -> ContentAST.Section:
+    body = ContentAST.Section()
+    
+    body.add_element(
+      ContentAST.Paragraph([
+        "Given the following grammar, which of the below strings are part of the language?"
+      ])
+    )
+    
+    body.add_element(
+      ContentAST.Paragraph([
+        self.grammar_good.get_grammar_string()
+      ])
+    )
+    
+    return body
   
-  def get_explanation_lines(self, *args, **kwargs) -> List[str]:
-    lines = []
-    lines.extend([
-      "Remember, for a string to be part of our language, we need to be able to derive it from our grammar.",
-      "Unfortunately, there isn't space here to demonstrate the derivation so please work through them on your own!"
-    ])
-    return lines
+  
+  def get_explanation(self, *args, **kwargs) -> ContentAST.Section:
+    explanation = ContentAST.Section()
+    explanation.add_element(
+      ContentAST.Paragraph([
+        "Remember, for a string to be part of our language, we need to be able to derive it from our grammar.",
+        "Unfortunately, there isn't space here to demonstrate the derivation so please work through them on your own!"
+      ])
+    )
+    return explanation
 
   def get_answers(self, *args, **kwargs) -> Tuple[Answer.AnswerKind, List[Dict[str,Any]]]:
     
-    return Answer.AnswerKind.MULTIPLE_ANSWER, list(itertools.chain(*[a.get_for_canvas() for a in self.answers]))
+    return Answer.AnswerKind.MULTIPLE_ANSWER, list(itertools.chain(*[a.get_for_canvas() for a in self.answers.values()]))
