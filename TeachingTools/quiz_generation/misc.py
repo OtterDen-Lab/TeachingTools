@@ -230,6 +230,56 @@ class ContentAST:
   
   class Document(Element):
     """Root document class that adds document-level rendering"""
+    
+    LATEX_HEADER = textwrap.dedent(r"""
+    \documentclass[12pt]{article}
+
+    % Page layout
+    \usepackage[a4paper, margin=1.5cm]{geometry}
+    
+    % Tables and formatting
+    \usepackage{booktabs}       % For clean table rules
+    \usepackage{array}          % For extra column formatting options
+    \usepackage{verbatim}       % For verbatim environments (code blocks)
+    \usepackage{enumitem}       % For customized list spacing
+    \usepackage{setspace}       % For \onehalfspacing
+    
+    % Add this after your existing packages
+    \let\originalverbatim\verbatim
+    \let\endoriginalverbatim\endverbatim
+    \renewenvironment{verbatim}
+      {\small\setlength{\baselineskip}{0.8\baselineskip}\originalverbatim}
+      {\endoriginalverbatim}
+      
+    % Listings (for code)
+    \usepackage[final]{listings}
+    \lstset{
+      basicstyle=\ttfamily,
+      columns=fullflexible,
+      frame=single,
+      breaklines=true,
+      postbreak=\mbox{$\hookrightarrow$\,} % You can remove or customize this
+    }
+    
+    % Custom commands
+    \newcounter{NumQuestions}
+    \newcommand{\question}[1]{%
+      \vspace{0.5cm}
+      \stepcounter{NumQuestions}%
+      \noindent\textbf{Question \theNumQuestions:} \hfill \rule{0.5cm}{0.15mm} / #1
+      \par\vspace{0.1cm}
+    }
+    \newcommand{\answerblank}[1]{\rule{0pt}{10mm}\rule[-1.5mm]{#1cm}{0.15mm}}
+    
+    % Optional: spacing for itemized lists
+    \setlist[itemize]{itemsep=10pt, parsep=5pt}
+    \providecommand{\tightlist}{%
+      \setlength{\itemsep}{10pt}\setlength{\parskip}{10pt}
+    }
+    
+    \begin{document}
+    """)
+    
     def __init__(self, title=None):
       super().__init__()
       self.title = title
@@ -247,6 +297,24 @@ class ContentAST:
         content = f"\\section{{{self.title}}}\n{content}"
       
       return content
+    
+    def render_latex(self, **kwargs):
+      latex = self.LATEX_HEADER
+      latex += f"\\title{{{self.title}}}\n"
+      latex += textwrap.dedent(f"""
+        \\noindent\\Large {self.title} \\hfill \\normalsize Name: \\answerblank{{{5}}}
+        
+        \\vspace{{0.5cm}}
+        \\onehalfspacing
+        
+      """)
+      
+      latex += "\n".join(element.render("latex", **kwargs) for element in self.elements)
+      
+      latex += r"\end{document}"
+      
+      return latex
+    
   
   class Question(Element):
     def __init__(
@@ -276,12 +344,13 @@ class ContentAST:
       if output_format == "latex":
         latex_lines = [
           r"\noindent\begin{minipage}{\textwidth}",
+          r"\noindent\makebox[\linewidth]{\rule{\paperwidth}{1pt}}",
           r"\question{" + str(int(self.value)) + r"}",
           r"\noindent\begin{minipage}{0.9\textwidth}",
           content,
           f"\\vspace{{{self.spacing}cm}}"
           r"\end{minipage}",
-          r"\end{minipage}"
+          r"\end{minipage}",
         ]
         content = '\n'.join(latex_lines)
       
