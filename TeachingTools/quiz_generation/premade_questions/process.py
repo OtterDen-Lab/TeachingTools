@@ -47,7 +47,6 @@ class SchedulingQuestion(ProcessQuestion):
     except KeyError:
       return SchedulingQuestion.Kind.FIFO  # or raise ValueError(f"Invalid Kind: {kind_str}")
 
-
   MAX_JOBS = 4
   MAX_ARRIVAL_TIME = 20
   MIN_JOB_DURATION = 3
