@@ -448,7 +448,6 @@ class ContentAST:
       self.length = blank_length
     
     def render_markdown(self, **kwargs):
-      log.debug(self.answer)
       if not isinstance(self.answer, list):
         key_to_display = self.answer.key
       else:
