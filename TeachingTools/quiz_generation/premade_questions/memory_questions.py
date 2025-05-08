@@ -188,10 +188,6 @@ class CachingQuestion(MemoryQuestion):
       self.cache_policy = previous.cache_policy
       self.rng_seed_offset += 1
     
-    self.cache_size = kwargs.get("cache_size", 3)
-    self.num_elements = kwargs.get("num_elements", self.cache_size+1)
-    self.num_requests = kwargs.get("num_requests", 10)
-    
     log.debug(f"self.caching_policy: {self.cache_policy}")
     
     self.requests = (
