@@ -1,6 +1,7 @@
 #!env python
 from __future__ import annotations
 
+import abc
 import collections
 import dataclasses
 import enum
@@ -13,7 +14,6 @@ import random
 import uuid
 from typing import List, Optional
 
-import canvasapi.course, canvasapi.quiz
 import matplotlib.pyplot as plt
 
 from TeachingTools.quiz_generation.misc import OutputFormat, ContentAST
@@ -24,8 +24,7 @@ log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
 
-
-class ProcessQuestion(Question):
+class ProcessQuestion(Question, abc.ABC):
   def __init__(self, *args, **kwargs):
     kwargs["topic"] = kwargs.get("topic", Question.Topic.PROCESS)
     super().__init__(*args, **kwargs)
@@ -41,11 +40,11 @@ class SchedulingQuestion(ProcessQuestion):
     RoundRobin = enum.auto()
   
   @staticmethod
-  def get_kind_from_string(kind_str: str) -> Kind:
+  def get_kind_from_string(kind_str: str) -> SchedulingQuestion.Kind:
     try:
       return SchedulingQuestion.Kind[kind_str]
     except KeyError:
-      return SchedulingQuestion.Kind.FIFO  # or raise ValueError(f"Invalid Kind: {kind_str}")
+      return SchedulingQuestion.Kind.FIFO
 
   MAX_JOBS = 4
   MAX_ARRIVAL_TIME = 20
@@ -63,7 +62,7 @@ class SchedulingQuestion(ProcessQuestion):
   ROUNDING_DIGITS = 2
   
   @dataclasses.dataclass
-  class Job():
+  class Job:
     job_id: int
     arrival: float
     duration: float
@@ -73,7 +72,7 @@ class SchedulingQuestion(ProcessQuestion):
     unpause_time: float | None = None
     last_run: float = 0               # When were we last scheduled
     
-    state_change_times : List[float] = dataclasses.field(default_factory=lambda : [])
+    state_change_times: List[float] = dataclasses.field(default_factory=lambda: [])
     
     SCHEDULER_EPSILON = 1e-09
     
@@ -84,7 +83,6 @@ class SchedulingQuestion(ProcessQuestion):
       self.unpause_time = curr_time
       if not is_rr:
         self.state_change_times.append(curr_time)
-    
     
     def stop(self, curr_time, is_rr=False) -> None:
       self.elapsed_time += (curr_time - self.unpause_time)
@@ -98,6 +96,7 @@ class SchedulingQuestion(ProcessQuestion):
     def mark_start(self, curr_time) -> None:
       self.start_time = curr_time
       self.response_time = curr_time - self.arrival + self.SCHEDULER_EPSILON
+    
     def mark_end(self, curr_time) -> None:
       self.end_time = curr_time
       self.turnaround_time = curr_time - self.arrival + self.SCHEDULER_EPSILON
@@ -129,7 +128,7 @@ class SchedulingQuestion(ProcessQuestion):
     workload = []
     
     # First create a job that is relatively long-running and arrives relatively early.
-    first_job : SchedulingQuestion.Job = self.Job(
+    first_job: SchedulingQuestion.Job = self.Job(
       job_id=0,
       arrival=random.randint(0, int(0.25 * self.MAX_ARRIVAL_TIME)),
       duration=random.randint(int(self.MAX_JOB_DURATION * 0.75), self.MAX_JOB_DURATION)
@@ -174,7 +173,7 @@ class SchedulingQuestion(ProcessQuestion):
   
   def simulation(self, jobs_to_run: List[SchedulingQuestion.Job], selector, preemptable, time_quantum=None):
     curr_time = 0
-    selected_job : SchedulingQuestion.Job | None = None
+    selected_job: SchedulingQuestion.Job | None = None
     
     self.timeline = collections.defaultdict(list)
     self.timeline[curr_time].append("Simulation Start")

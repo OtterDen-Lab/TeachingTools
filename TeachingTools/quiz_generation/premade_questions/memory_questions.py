@@ -2,19 +2,15 @@
 from __future__ import annotations
 
 import abc
+import collections
 import copy
 import enum
+import logging
+import math
 from typing import List, Optional
 
-
-import random
-import math
-import collections
-
-import logging
-
-from TeachingTools.quiz_generation.question import Question, Answer, TableGenerator, QuestionRegistry
 from TeachingTools.quiz_generation.misc import ContentAST
+from TeachingTools.quiz_generation.question import Question, Answer, QuestionRegistry
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -113,7 +109,7 @@ class CachingQuestion(MemoryQuestion):
       return self.name
   
   class Cache:
-    def __init__(self, kind : CachingQuestion.Kind, cache_size: int, all_requests : List[int]=None):
+    def __init__(self, kind : CachingQuestion.Kind, cache_size: int, all_requests : List[int] = None):
       self.kind = kind
       self.cache_size = cache_size
       self.all_requests = all_requests

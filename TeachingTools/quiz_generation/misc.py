@@ -1,22 +1,16 @@
 #!env python
 from __future__ import annotations
 
-import re
+import enum
 import fractions
-import itertools
+import logging
 import math
 import textwrap
 from io import BytesIO
 from typing import List, Dict, Callable
 
-import enum
-
-import pypandoc
 import pylatex
-
-import logging
-
-import TeachingTools.quiz_generation.quiz
+import pypandoc
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
