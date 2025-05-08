@@ -1,9 +1,10 @@
 #!env python
 from __future__ import annotations
 
+import itertools
 import logging
 import random
-from typing import List
+from typing import List, Tuple, Dict, Any
 
 from TeachingTools.quiz_generation.misc import OutputFormat
 from TeachingTools.quiz_generation.question import Question, Answer, TableGenerator, QuestionRegistry
@@ -282,14 +283,14 @@ class VSFS_states(IOQuestion):
   
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
-    
+    self.answer_kind = Answer.AnswerKind.MULTIPLE_DROPDOWN
     self.refresh()
   
   def refresh(self, *args, **kwargs):
     super().refresh(*args, **kwargs)
     
     fs = self.vsfs(4, 4, self.rng)
-    operations = fs.run_for_steps(3)
+    operations = fs.run_for_steps(10)
     
     self.start_state = operations[-1]["start_state"]
     self.end_state = operations[-1]["end_state"]
@@ -303,7 +304,13 @@ class VSFS_states(IOQuestion):
     ))
     self.rng.shuffle(wrong_answers)
     
-    self.answers["answer__cmd"] = Answer("answer__cmd",  f"{operations[-1]['cmd']}")
+    self.answers["answer__cmd"] = Answer(
+      "answer__cmd",
+      f"{operations[-1]['cmd']}",
+      kind=Answer.AnswerKind.MULTIPLE_DROPDOWN,
+      correct=True,
+      baffles=list(set([op['cmd'] for op in operations[:-1] if op != operations[-1]['cmd']]))
+    )
   
   def get_body(self) -> ContentAST.Section:
     self.refresh()

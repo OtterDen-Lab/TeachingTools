@@ -184,6 +184,7 @@ class Question(abc.ABC):
     self.points_value = points_value
     self.kind = topic
     self.spacing = kwargs.get("spacing", 0)
+    self.answer_kind = Answer.AnswerKind.BLANK
     
     self.extra_attrs = kwargs # clear page, etc.
     
@@ -237,7 +238,10 @@ class Question(abc.ABC):
   
   def get_answers(self, *args, **kwargs) -> Tuple[Answer.AnswerKind, List[Dict[str,Any]]]:
     # log.warning("get_answers using default implementation!  Consider implementing!")
-    return Answer.AnswerKind.BLANK, list(itertools.chain(*[a.get_for_canvas() for a in self.answers.values()]))
+    return (
+      self.answer_kind,
+      list(itertools.chain(*[a.get_for_canvas() for a in self.answers.values()]))
+    )
 
   def refresh(self, rng_seed=None, *args, **kwargs):
     """If it is necessary to regenerate aspects between usages, this is the time to do it.

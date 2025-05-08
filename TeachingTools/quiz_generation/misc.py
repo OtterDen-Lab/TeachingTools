@@ -35,6 +35,7 @@ class Answer:
     BLANK = "fill_in_multiple_blanks_question"
     MULTIPLE_ANSWER = "multiple_answers_question"  # todo: have baffles?
     ESSAY = "essay_question"
+    MULTIPLE_DROPDOWN = "multiple_dropdowns_question"
     
   class VariableKind(enum.Enum): # todo: use these for generate variations?
     STR = enum.auto()
@@ -54,7 +55,8 @@ class Answer:
       variable_kind : Answer.VariableKind = VariableKind.STR,
       display=None,
       length=None,
-      correct=True
+      correct=True,
+      baffles=None
   ):
     self.key = key
     self.value = value
@@ -63,16 +65,18 @@ class Answer:
     self.display = display if display is not None else value
     self.length = length # Used for bits and hex to be printed appropriately
     self.correct = correct
+    self.baffles = baffles
   
   def get_for_canvas(self) -> List[Dict]:
+    canvas_answers : List[Dict] = []
     if self.variable_kind == Answer.VariableKind.FLOAT:
-      return [{
+      canvas_answers = [{
         "blank_id": self.key,
         "answer_text": f"{self.value:0.{self.DEFAULT_ROUNDING_DIGITS}f}",
         "answer_weight": 100,
       }]
     elif self.variable_kind == Answer.VariableKind.BINARY:
-      return [
+      canvas_answers = [
         {
           "blank_id": self.key,
           "answer_text": f"{self.value:0{self.length if self.length is not None else 0}b}",
@@ -85,7 +89,7 @@ class Answer:
         }
       ]
     elif self.variable_kind == Answer.VariableKind.HEX:
-      return [
+      canvas_answers = [
         {
           "blank_id": self.key,
           "answer_text": f"{self.value:0{(self.length // 8) + 1 if self.length is not None else 0}X}",
@@ -97,7 +101,7 @@ class Answer:
         }
       ]
     elif self.variable_kind == Answer.VariableKind.BINARY_OR_HEX:
-      return [
+      canvas_answers = [
         {
           "blank_id": self.key,
           "answer_text": f"{self.value:0{self.length if self.length is not None else 0}b}",
@@ -128,13 +132,13 @@ class Answer:
     elif self.variable_kind == Answer.VariableKind.AUTOFLOAT:
       value_fraction = fractions.Fraction(self.value).limit_denominator(3*4*5) # For process questions, these are the numbers of jobs we'd have
       
-      possible_answers = [{
+      canvas_answers = [{
         "blank_id": self.key,
         "answer_text": value_fraction,
         "answer_weight": 100,
       }]
       if not value_fraction.is_integer():
-        possible_answers.extend([
+        canvas_answers.extend([
           {
             "blank_id": self.key,
             "answer_text": f"{value_fraction.numerator / value_fraction.denominator:0.{self.DEFAULT_ROUNDING_DIGITS}f}",
@@ -153,9 +157,8 @@ class Answer:
           },
         ])
       
-      return possible_answers
     elif self.variable_kind == Answer.VariableKind.LIST:
-      possible_answers = [
+      canvas_answers = [
         {
           "blank_id": self.key,
           "answer_text": ','.join(map(str, possible_state)),
@@ -163,15 +166,22 @@ class Answer:
         }
         for possible_state in [self.value] #itertools.permutations(self.value)
       ]
-      
-      return possible_answers
+    else:
+      canvas_answers = [{
+        "blank_id": self.key,
+        "answer_text": self.value,
+        "answer_weight": 100,
+      }]
     
-    canvas_answer = {
-      "blank_id": self.key,
-      "answer_text": self.value,
-      "answer_weight": 100 if self.correct else 0,
-    }
-    return [canvas_answer]
+    if self.baffles is not None:
+      for baffle in self.baffles:
+        canvas_answers.append({
+          "blank_id": self.key,
+          "answer_text": baffle,
+          "answer_weight": 0,
+        })
+    
+    return canvas_answers
 
 
 class ContentAST:
@@ -438,7 +448,12 @@ class ContentAST:
       self.length = blank_length
     
     def render_markdown(self, **kwargs):
-      return f"{self.label + (':' if len(self.label) > 0 else '')} [{self.answer.key}] {self.unit}".strip()
+      log.debug(self.answer)
+      if not isinstance(self.answer, list):
+        key_to_display = self.answer.key
+      else:
+        key_to_display = self.answer[0].key
+      return f"{self.label + (':' if len(self.label) > 0 else '')} [{key_to_display}] {self.unit}".strip()
     
     def render_html(self, **kwargs):
       return self.render_markdown()
