@@ -331,15 +331,17 @@ class ValidStringsInLanguageQuestion(LanguageQuestion):
       ])
     )
     
-    body.add_elements(
-      [
-        ContentAST.Text(f"- `{answer.value}`")
+    body.add_element(
+      ContentAST.OnlyLatex([
+        ContentAST.TextLatex(f"- `{answer.value}`")
         for answer in self.answers.values()
-      ]
+      ])
     )
     
     body.add_element(
-      ContentAST.AnswerBlock([ContentAST.Answer() for _ in range(self.num_answer_blanks)])
+      ContentAST.OnlyLatex([
+        ContentAST.AnswerBlock([ContentAST.Answer() for _ in range(self.num_answer_blanks)])
+      ])
     )
     
     return body

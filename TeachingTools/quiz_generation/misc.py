@@ -232,6 +232,18 @@ class ContentAST:
     def is_mergeable(self, other: ContentAST.Element):
       return False
   
+  class OnlyLatex(Element):
+    def render(self, output_format, **kwargs):
+      if output_format != "latex":
+        return ""
+      return super().render(output_format, **kwargs)
+  
+  class OnlyHtml(Element):
+    def render(self, output_format, **kwargs):
+      if output_format != "html":
+        return ""
+      return super().render(output_format, **kwargs)
+  
   class Document(Element):
     """Root document class that adds document-level rendering"""
     
