@@ -597,7 +597,7 @@ class ContentAST:
         result.append("    <tr>")
         for i, cell in enumerate(row):
           if isinstance(cell, ContentAST.Element):
-            cell = cell.render_html()
+            cell = cell.render(output_format="html")
           align_attr = ""
           if self.alignments and i < len(self.alignments):
             align_attr = f' align="{self.alignments[i]}"'
@@ -625,7 +625,7 @@ class ContentAST:
       
       for row in self.data:
         rendered_row = [
-          cell.render_latex()
+          cell.render(output_format="latex")
           if isinstance(cell, ContentAST.Element)
           else pylatex.escape_latex(cell)
           for cell in row

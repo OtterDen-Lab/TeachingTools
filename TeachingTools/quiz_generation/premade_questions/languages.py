@@ -247,6 +247,7 @@ class ValidStringsInLanguageQuestion(LanguageQuestion):
     self.grammar_good = BNF.parse_bnf(self.grammar_str_good)
     self.grammar_bad = BNF.parse_bnf(self.grammar_str_bad)
     
+    self.num_answer_options = kwargs.get("num_answer_options", 4)
     self.num_answer_blanks = kwargs.get("num_answer_blanks", 4)
     
     self.refresh()
@@ -310,6 +311,22 @@ class ValidStringsInLanguageQuestion(LanguageQuestion):
         self.answers.update({new_answer.key : new_answer})
         answer_text_set.add(new_answer.value)
       num_tries += 1
+    
+    # Generate answers that will be used only for the latex version.
+    self.featured_answers = {
+      self.grammar_good.generate(),
+      self.grammar_bad.generate(),
+      self.grammar_good.generate(early_exit=True)
+    }
+    while len(self.featured_answers) < self.num_answer_options:
+      self.featured_answers.add(
+        self.rng.choice([
+          lambda: self.grammar_good.generate(),
+          lambda: self.grammar_bad.generate(),
+          lambda: self.grammar_good.generate(early_exit=True),
+        ])()
+      )
+  
   
   def get_body(self, *args, **kwargs) -> ContentAST.Section:
     body = ContentAST.Section()
@@ -331,13 +348,15 @@ class ValidStringsInLanguageQuestion(LanguageQuestion):
       ])
     )
     
+    # Add in some answers as latex-only options to be circled
     body.add_element(
       ContentAST.OnlyLatex([
-        ContentAST.TextLatex(f"- `{answer.value}`")
-        for answer in self.answers.values()
+        ContentAST.TextLatex(f"- `{str(answer)}`")
+        for answer in self.featured_answers
       ])
     )
     
+    # For Latex-only, ask students to generate some more.
     body.add_element(
       ContentAST.OnlyLatex([
         ContentAST.AnswerBlock([ContentAST.Answer() for _ in range(self.num_answer_blanks)])
