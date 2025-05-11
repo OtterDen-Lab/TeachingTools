@@ -67,19 +67,19 @@ class Answer:
       canvas_answers = [{
         "blank_id": self.key,
         "answer_text": f"{self.value:0.{self.DEFAULT_ROUNDING_DIGITS}f}",
-        "answer_weight": 100,
+        "answer_weight": 100 if self.correct else 0,
       }]
     elif self.variable_kind == Answer.VariableKind.BINARY:
       canvas_answers = [
         {
           "blank_id": self.key,
           "answer_text": f"{self.value:0{self.length if self.length is not None else 0}b}",
-          "answer_weight": 100,
+          "answer_weight": 100 if self.correct else 0,
         },
         {
           "blank_id": self.key,
           "answer_text": f"0b{self.value:0{self.length if self.length is not None else 0}b}",
-          "answer_weight": 100,
+          "answer_weight": 100 if self.correct else 0,
         }
       ]
     elif self.variable_kind == Answer.VariableKind.HEX:
@@ -87,11 +87,11 @@ class Answer:
         {
           "blank_id": self.key,
           "answer_text": f"{self.value:0{(self.length // 8) + 1 if self.length is not None else 0}X}",
-          "answer_weight": 100,
+          "answer_weight": 100 if self.correct else 0,
         },{
           "blank_id": self.key,
           "answer_text": f"0x{self.value:0{(self.length // 8) + 1 if self.length is not None else 0}X}",
-          "answer_weight": 100,
+          "answer_weight": 100 if self.correct else 0,
         }
       ]
     elif self.variable_kind == Answer.VariableKind.BINARY_OR_HEX:
@@ -99,27 +99,27 @@ class Answer:
         {
           "blank_id": self.key,
           "answer_text": f"{self.value:0{self.length if self.length is not None else 0}b}",
-          "answer_weight": 100,
+          "answer_weight": 100 if self.correct else 0,
         },
         {
           "blank_id": self.key,
           "answer_text": f"0b{self.value:0{self.length if self.length is not None else 0}b}",
-          "answer_weight": 100,
+          "answer_weight": 100 if self.correct else 0,
         },
         {
           "blank_id": self.key,
           "answer_text": f"{self.value:0{math.ceil(self.length / 8) if self.length is not None else 0}X}",
-          "answer_weight": 100,
+          "answer_weight": 100 if self.correct else 0,
         },
         {
           "blank_id": self.key,
           "answer_text": f"0x{self.value:0{math.ceil(self.length / 8) if self.length is not None else 0}X}",
-          "answer_weight": 100,
+          "answer_weight": 100 if self.correct else 0,
         },
         {
           "blank_id": self.key,
           "answer_text": f"{self.value}",
-          "answer_weight": 100,
+          "answer_weight": 100 if self.correct else 0,
         },
       
       ]
@@ -129,25 +129,25 @@ class Answer:
       canvas_answers = [{
         "blank_id": self.key,
         "answer_text": value_fraction,
-        "answer_weight": 100,
+        "answer_weight": 100 if self.correct else 0,
       }]
       if not value_fraction.is_integer():
         canvas_answers.extend([
           {
             "blank_id": self.key,
             "answer_text": f"{value_fraction.numerator / value_fraction.denominator:0.{self.DEFAULT_ROUNDING_DIGITS}f}",
-            "answer_weight": 100,
+            "answer_weight": 100 if self.correct else 0,
           },
           {
             "blank_id": self.key,
             "answer_text": f"{value_fraction.numerator / value_fraction.denominator}",
-            "answer_weight": 100,
+            "answer_weight": 100 if self.correct else 0,
           },
           {
             "blank_id": self.key,
             "answer_text":
               f"{value_fraction.numerator // value_fraction.denominator} {value_fraction.numerator % value_fraction.denominator}/{value_fraction.denominator}",
-            "answer_weight": 100,
+            "answer_weight": 100 if self.correct else 0,
           },
         ])
       
@@ -156,7 +156,7 @@ class Answer:
         {
           "blank_id": self.key,
           "answer_text": ','.join(map(str, possible_state)),
-          "answer_weight": 100,
+          "answer_weight": 100 if self.correct else 0,
         }
         for possible_state in [self.value] #itertools.permutations(self.value)
       ]
@@ -164,7 +164,7 @@ class Answer:
       canvas_answers = [{
         "blank_id": self.key,
         "answer_text": self.value,
-        "answer_weight": 100,
+        "answer_weight": 100 if self.correct else 0,
       }]
     
     if self.baffles is not None:
@@ -397,6 +397,18 @@ class ContentAST:
     def merge(self, other: ContentAST.Text):
       self.content = self.render_markdown() + " " + other.render_markdown()
       self.emphasis = False
+  
+  class TextHTML(Text):
+    def __init__(self, *args, **kwargs):
+      super().__init__(*args, **kwargs)
+      self.hide_from_html = False
+      self.hide_from_latex = True
+      
+  class TextLatex(Text):
+    def __init__(self, *args, **kwargs):
+      super().__init__(*args, **kwargs)
+      self.hide_from_html = True
+      self.hide_from_latex = False
   
   class Paragraph(Element):
     """A block of text that will combine all child elements together."""
