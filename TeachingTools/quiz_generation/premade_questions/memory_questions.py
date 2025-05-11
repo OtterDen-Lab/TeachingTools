@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
 
-class MemoryQuestion(Question):
+class MemoryQuestion(Question, abc.ABC):
   def __init__(self, *args, **kwargs):
     kwargs["topic"] = kwargs.get("topic", Question.Topic.MEMORY)
     super().__init__(*args, **kwargs)
@@ -114,7 +114,7 @@ class CachingQuestion(MemoryQuestion):
       self.cache_size = cache_size
       self.all_requests = all_requests
       
-      self.cache_state = [] # queue.Queue(maxsize=cache_size)
+      self.cache_state = []
       self.last_used = collections.defaultdict(lambda: -math.inf)
       self.frequency = collections.defaultdict(lambda: 0)
     
@@ -233,12 +233,11 @@ class CachingQuestion(MemoryQuestion):
     )
     
     body.add_element(
-      ContentAST.Text(
+      ContentAST.TextHTML(
         "For the cache state, please enter the cache contents in the order suggested in class, "
         "which means separated by commas with no spaces (e.g. \"1,2,3\")"
         "and with the left-most being the next to be evicted. "
-        "In the case where there is a tie, order by increasing number.",
-        hide_from_latex=True
+        "In the case where there is a tie, order by increasing number."
       )
     )
     
