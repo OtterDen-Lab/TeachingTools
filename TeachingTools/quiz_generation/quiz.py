@@ -43,7 +43,7 @@ class Quiz:
     def sort_func(q):
       if self.question_sort_order is not None:
         try:
-          return (-q.points_value, self.question_sort_order.index(q.kind))
+          return (-q.points_value, self.question_sort_order.index(q.topic))
         except ValueError:
           return (-q.points_value, float('inf'))
       return -q.points_value
@@ -147,7 +147,7 @@ class Quiz:
     
     quiz.add_elements(
       question.get_question(**kwargs)
-      for question in self.questions
+      for question in sorted(self.questions, key=lambda q: (-q.points_value, self.question_sort_order.index(q.topic)))
     )
     
     return quiz
@@ -179,8 +179,8 @@ class Quiz:
     for topic in sort_order:
       topic_strings = {"name": topic.name}
       
-      question_count = len(list(map(lambda q: q.points_value, filter(lambda q: q.kind == topic, self.questions))))
-      topic_points = sum(map(lambda q: q.points_value, filter(lambda q: q.kind == topic, self.questions)))
+      question_count = len(list(map(lambda q: q.points_value, filter(lambda q: q.topic == topic, self.questions))))
+      topic_points = sum(map(lambda q: q.points_value, filter(lambda q: q.topic == topic, self.questions)))
       
       # If we have questions add in some states, otherwise mark them as empty
       if question_count != 0:
