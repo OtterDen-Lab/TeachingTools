@@ -1,13 +1,11 @@
 #!env python
 from __future__ import annotations
 
-import itertools
+import abc
 import logging
 import random
-from typing import List, Tuple, Dict, Any
 
-from TeachingTools.quiz_generation.misc import OutputFormat
-from TeachingTools.quiz_generation.question import Question, Answer, TableGenerator, QuestionRegistry
+from TeachingTools.quiz_generation.question import Question, Answer, QuestionRegistry
 from TeachingTools.quiz_generation.misc import ContentAST
 
 logging.basicConfig()
@@ -15,7 +13,7 @@ log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
 
-class IOQuestion(Question):
+class IOQuestion(Question, abc.ABC):
   def __init__(self, *args, **kwargs):
     kwargs["topic"] = kwargs.get("topic", Question.Topic.IO)
     super().__init__(*args, **kwargs)
@@ -32,22 +30,38 @@ class HardDriveAccessTime(IOQuestion):
   def refresh(self, *args, **kwargs):
     super().refresh(*args, **kwargs)
     
-    self.hard_drive_rotation_speed = 100 * random.randint(36, 150) # e.g. 3600rpm to 15000rpm
+    self.hard_drive_rotation_speed = 100 * random.randint(36, 150)  # e.g. 3600rpm to 15000rpm
     self.seek_delay = float(round(random.randrange(3, 20), 2))
     self.transfer_rate = random.randint(50, 300)
     self.number_of_reads = random.randint(1, 20)
     self.size_of_reads = random.randint(1, 10)
     
-    self.rotational_delay = (1 / self.hard_drive_rotation_speed) * (60 / 1) *  (1000 / 1) * (1/2)
+    self.rotational_delay = (1 / self.hard_drive_rotation_speed) * (60 / 1) * (1000 / 1) * (1/2)
     self.access_delay = self.rotational_delay + self.seek_delay
     self.transfer_delay = 1000 * (self.size_of_reads * self.number_of_reads) / 1024 / self.transfer_rate
     self.disk_access_delay = self.access_delay * self.number_of_reads + self.transfer_delay
     
     self.answers.update({
-      "answer__rotational_delay": Answer("answer__rotational_delay", self.rotational_delay, variable_kind=Answer.VariableKind.FLOAT),
-      "answer__access_delay": Answer("answer__access_delay", self.access_delay, variable_kind=Answer.VariableKind.FLOAT),
-      "answer__transfer_delay": Answer("answer__transfer_delay", self.transfer_delay, variable_kind=Answer.VariableKind.FLOAT),
-      "answer__disk_access_delay": Answer("answer__disk_access_delay", self.disk_access_delay, variable_kind=Answer.VariableKind.FLOAT),
+      "answer__rotational_delay": Answer(
+        "answer__rotational_delay",
+        self.rotational_delay,
+        variable_kind=Answer.VariableKind.FLOAT
+      ),
+      "answer__access_delay": Answer(
+        "answer__access_delay",
+        self.access_delay,
+        variable_kind=Answer.VariableKind.FLOAT
+      ),
+      "answer__transfer_delay": Answer(
+        "answer__transfer_delay",
+        self.transfer_delay,
+        variable_kind=Answer.VariableKind.FLOAT
+      ),
+      "answer__disk_access_delay": Answer(
+        "answer__disk_access_delay",
+        self.disk_access_delay,
+        variable_kind=Answer.VariableKind.FLOAT
+      ),
     })
   
   def get_body(self, *args, **kwargs) -> ContentAST.Section:
@@ -94,7 +108,8 @@ class HardDriveAccessTime(IOQuestion):
     
     explanation.add_element(
       ContentAST.Paragraph([
-        "To calculate the total disk access time (or \"delay\"), we should first calculate each of the individual parts.",
+        "To calculate the total disk access time (or \"delay\"), "
+        "we should first calculate each of the individual parts.",
         r"Since we know that  $t_{total} = (\text{# of reads}) \cdot t_{access} + t_{transfer}$"
         r"we therefore need to calculate $t_{access}$ and  $t_{transfer}$, where "
         r"$t_{access} = t_{rotation} + t_{seek}$.",
@@ -104,7 +119,10 @@ class HardDriveAccessTime(IOQuestion):
     explanation.add_elements([
       ContentAST.Paragraph(["Starting with the rotation delay, we calculate:"]),
       ContentAST.Equation(
-        "t_{rotation} = " + f"\\frac{{1 minute}}{{{self.hard_drive_rotation_speed}revolutions}}"  + r"\cdot \frac{60 seconds}{1 minute} \cdot \frac{1000 ms}{1 second} \cdot \frac{1 revolution}{2} = " + f"{self.rotational_delay:0.2f}ms",
+        "t_{rotation} = "
+        + f"\\frac{{1 minute}}{{{self.hard_drive_rotation_speed}revolutions}}"
+        + r"\cdot \frac{60 seconds}{1 minute} \cdot \frac{1000 ms}{1 second} \cdot \frac{1 revolution}{2} = "
+        + f"{self.rotational_delay:0.2f}ms",
       )
     ])
     
@@ -113,20 +131,29 @@ class HardDriveAccessTime(IOQuestion):
         "Now we can calculate:",
       ]),
       ContentAST.Equation(
-        f"t_{{access}} = t_{{rotation}} + t_{{seek}} = {self.rotational_delay:0.2f}ms + {self.seek_delay:0.2f}ms = {self.access_delay:0.2f}ms"
+        f"t_{{access}} "
+        f"= t_{{rotation}} + t_{{seek}} "
+        f"= {self.rotational_delay:0.2f}ms + {self.seek_delay:0.2f}ms = {self.access_delay:0.2f}ms"
       )
     ])
     
     explanation.add_elements([
       ContentAST.Paragraph([r"Next we need to calculate our transfer delay, $t_{transfer}$, which we do as:"]),
       ContentAST.Equation(
-        "ft_{{transfer}} = \\frac{{{self.number_of_reads} \\cdot {self.size_of_reads}KB}}{{1}} \\cdot \\frac{{1MB}}{{1024KB}} \\cdot \\frac{{1 second}}{{{self.transfer_rate}MB}} \\cdot \\frac{{1000ms}}{{1second}} = {self.transfer_delay:0.2}ms"
+        "ft_{{transfer}} "
+        "= \\frac{{{self.number_of_reads} \\cdot {self.size_of_reads}KB}}{{1}} \\cdot \\frac{{1MB}}{{1024KB}} "
+        "\\cdot \\frac{{1 second}}{{{self.transfer_rate}MB}} \\cdot \\frac{{1000ms}}{{1second}} "
+        "= {self.transfer_delay:0.2}ms"
       )
     ])
     
     explanation.add_elements([
       ContentAST.Paragraph(["Putting these together we get:"]),
-      ContentAST.Equation(f"t_{{total}} = \\text{{(# reads)}} \\cdot t_{{access}} + t_{{transfer}} = {self.number_of_reads} \\cdot {self.access_delay:0.2f} + {self.transfer_delay:0.2f} = {self.disk_access_delay:0.2f}ms")
+      ContentAST.Equation(
+        f"t_{{total}} "
+        f"= \\text{{(# reads)}} \\cdot t_{{access}} + t_{{transfer}} "
+        f"= {self.number_of_reads} \\cdot {self.access_delay:0.2f} + {self.transfer_delay:0.2f} "
+        f"= {self.disk_access_delay:0.2f}ms")
     ])
     return explanation
 
@@ -134,7 +161,7 @@ class HardDriveAccessTime(IOQuestion):
 @QuestionRegistry.register()
 class INodeAccesses(IOQuestion):
   
-  def __init__(self, output_format : OutputFormat|None = None, *args, **kwargs):
+  def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
     
     self.refresh()
@@ -145,15 +172,14 @@ class INodeAccesses(IOQuestion):
     # Calculating this first to use blocksize as an even multiple of it
     self.inode_size = 2**random.randint(6, 10)
     
-    self.block_size = self.inode_size * random.randint(8,20)
-    self.inode_number = random.randint(0,256)
+    self.block_size = self.inode_size * random.randint(8, 20)
+    self.inode_number = random.randint(0, 256)
     self.inode_start_location = self.block_size * random.randint(2, 5)
     
     self.inode_address = self.inode_start_location + self.inode_number * self.inode_size
     self.inode_block = self.inode_address // self.block_size
     self.inode_address_in_block = self.inode_address % self.block_size
     self.inode_index_in_block = int(self.inode_address_in_block / self.inode_size)
-    
     
     self.answers.update({
       "answer__inode_address": Answer("answer__inode_address", self.inode_address),
@@ -248,7 +274,6 @@ class INodeAccesses(IOQuestion):
       ])
     )
     
-    
     explanation.add_element(ContentAST.Equation.make_block_equation__multiline_equals(
       r"\text{offset within block}",
       [
@@ -284,13 +309,16 @@ class VSFS_states(IOQuestion):
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
     self.answer_kind = Answer.AnswerKind.MULTIPLE_DROPDOWN
+    
+    self.num_steps = kwargs.get("num_steps", 10)
+    
     self.refresh()
   
   def refresh(self, *args, **kwargs):
     super().refresh(*args, **kwargs)
     
     fs = self.vsfs(4, 4, self.rng)
-    operations = fs.run_for_steps(10)
+    operations = fs.run_for_steps(self.num_steps)
     
     self.start_state = operations[-1]["start_state"]
     self.end_state = operations[-1]["end_state"]
