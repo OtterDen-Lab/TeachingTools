@@ -182,7 +182,7 @@ class Question(abc.ABC):
       name = self.__class__.__name__
     self.name = name
     self.points_value = points_value
-    self.kind = topic
+    self.topic = topic
     self.spacing = kwargs.get("spacing", 0)
     self.answer_kind = Answer.AnswerKind.BLANK
     
@@ -214,7 +214,7 @@ class Question(abc.ABC):
       explanation=self.get_explanation(),
       value=self.points_value,
       spacing=self.spacing,
-      topic=self.kind
+      topic=self.topic
     )
   
   @abc.abstractmethod
