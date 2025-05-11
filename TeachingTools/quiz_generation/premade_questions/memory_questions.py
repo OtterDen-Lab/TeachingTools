@@ -2,26 +2,22 @@
 from __future__ import annotations
 
 import abc
+import collections
 import copy
 import enum
+import logging
+import math
 from typing import List, Optional
 
-
-import random
-import math
-import collections
-
-import logging
-
-from TeachingTools.quiz_generation.question import Question, Answer, TableGenerator, QuestionRegistry
 from TeachingTools.quiz_generation.misc import ContentAST
+from TeachingTools.quiz_generation.question import Question, Answer, QuestionRegistry
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
 
-class MemoryQuestion(Question):
+class MemoryQuestion(Question, abc.ABC):
   def __init__(self, *args, **kwargs):
     kwargs["topic"] = kwargs.get("topic", Question.Topic.MEMORY)
     super().__init__(*args, **kwargs)
@@ -113,12 +109,12 @@ class CachingQuestion(MemoryQuestion):
       return self.name
   
   class Cache:
-    def __init__(self, kind : CachingQuestion.Kind, cache_size: int, all_requests : List[int]=None):
+    def __init__(self, kind : CachingQuestion.Kind, cache_size: int, all_requests : List[int] = None):
       self.kind = kind
       self.cache_size = cache_size
       self.all_requests = all_requests
       
-      self.cache_state = [] # queue.Queue(maxsize=cache_size)
+      self.cache_state = []
       self.last_used = collections.defaultdict(lambda: -math.inf)
       self.frequency = collections.defaultdict(lambda: 0)
     
@@ -188,10 +184,6 @@ class CachingQuestion(MemoryQuestion):
       self.cache_policy = previous.cache_policy
       self.rng_seed_offset += 1
     
-    self.cache_size = kwargs.get("cache_size", 3)
-    self.num_elements = kwargs.get("num_elements", self.cache_size+1)
-    self.num_requests = kwargs.get("num_requests", 10)
-    
     log.debug(f"self.caching_policy: {self.cache_policy}")
     
     self.requests = (
@@ -241,12 +233,11 @@ class CachingQuestion(MemoryQuestion):
     )
     
     body.add_element(
-      ContentAST.Text(
+      ContentAST.TextHTML(
         "For the cache state, please enter the cache contents in the order suggested in class, "
         "which means separated by commas with no spaces (e.g. \"1,2,3\")"
         "and with the left-most being the next to be evicted. "
-        "In the case where there is a tie, order by increasing number.",
-        hide_from_latex=True
+        "In the case where there is a tie, order by increasing number."
       )
     )
     

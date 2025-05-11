@@ -86,6 +86,7 @@ def generate_quiz(
   for quiz in quizzes:
     
     for i in range(num_pdfs):
+      log.debug(f"Generating PDF {i+1}/{num_pdfs}")
       latex_text = quiz.get_quiz().render_latex()
       generate_latex(latex_text, remove_previous=(i==0))
     

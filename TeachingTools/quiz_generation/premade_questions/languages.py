@@ -1,6 +1,7 @@
 #!env python
 from __future__ import annotations
 
+import abc
 import enum
 import itertools
 from typing import List, Dict, Optional, Tuple, Any
@@ -16,6 +17,11 @@ logging.basicConfig()
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
+
+class LanguageQuestion(Question, abc.ABC):
+  def __init__(self, *args, **kwargs):
+    kwargs["topic"] = kwargs.get("topic", Question.Topic.LANGUAGES)
+    super().__init__(*args, **kwargs)
 
 class BNF:
   
@@ -141,22 +147,18 @@ class BNF:
     return bnf_grammar
 
 
-@QuestionRegistry.register()
-class LanguageQuestion(Question):
+@QuestionRegistry.register("LanguageQuestion")
+class ValidStringsInLanguageQuestion(LanguageQuestion):
   MAX_TRIES = 1000
   
-  def __init__(self, *args, **kwargs):
+  def __init__(self, grammar_str_good: Optional[str] = None, grammar_str_bad: Optional[str] = None, *args, **kwargs):
     super().__init__(*args, **kwargs)
     
-    self.refresh()
-  
-  def refresh(self, grammar_str: Optional[str] = None, *args, **kwargs):
-    super().refresh(*args, **kwargs)
-    
-    self.answers = {}
-    
-    if grammar_str is not None:
-      self.grammar_str = grammar_str
+    if grammar_str_good is not None and grammar_str_bad is not None:
+      self.grammar_str_good = grammar_str_good
+      self.grammar_str_bad = grammar_str_bad
+      self.include_spaces = kwargs.get("include_spaces", False)
+      self.MAX_LENGTH = kwargs.get("max_length", 30)
     else:
       which_grammar = random.choice(range(4))
       
@@ -245,6 +247,16 @@ class LanguageQuestion(Question):
     self.grammar_good = BNF.parse_bnf(self.grammar_str_good)
     self.grammar_bad = BNF.parse_bnf(self.grammar_str_bad)
     
+    self.num_answer_options = kwargs.get("num_answer_options", 4)
+    self.num_answer_blanks = kwargs.get("num_answer_blanks", 4)
+    
+    self.refresh()
+  
+  def refresh(self, *args, **kwargs):
+    super().refresh(*args, **kwargs)
+    
+    self.answers = {}
+    
     self.answers.update(
       {
         "answer_good" : Answer(
@@ -293,19 +305,40 @@ class LanguageQuestion(Question):
           else self.grammar_bad
         ).generate(self.include_spaces, early_exit=early_exit),
         Answer.AnswerKind.MULTIPLE_ANSWER,
-        correct=correct
+        correct= correct and not early_exit
       )
       if len(new_answer.value) < self.MAX_LENGTH and new_answer.value not in answer_text_set:
         self.answers.update({new_answer.key : new_answer})
         answer_text_set.add(new_answer.value)
       num_tries += 1
+    
+    # Generate answers that will be used only for the latex version.
+    self.featured_answers = {
+      self.grammar_good.generate(),
+      self.grammar_bad.generate(),
+      self.grammar_good.generate(early_exit=True)
+    }
+    while len(self.featured_answers) < self.num_answer_options:
+      self.featured_answers.add(
+        self.rng.choice([
+          lambda: self.grammar_good.generate(),
+          lambda: self.grammar_bad.generate(),
+          lambda: self.grammar_good.generate(early_exit=True),
+        ])()
+      )
+  
   
   def get_body(self, *args, **kwargs) -> ContentAST.Section:
     body = ContentAST.Section()
     
     body.add_element(
       ContentAST.Paragraph([
-        "Given the following grammar, which of the below strings are part of the language?"
+        ContentAST.TextHTML("Given the following grammar, which of the below strings are part of the language?"),
+        ContentAST.TextLatex(
+          "Given the following grammar "
+          "please circle any provided strings that are part of the language (or indicate clearly if there are none), "
+          "and on each blank line provide generate a new, unique string that is part of the language."
+        )
       ])
     )
     
@@ -315,8 +348,22 @@ class LanguageQuestion(Question):
       ])
     )
     
+    # Add in some answers as latex-only options to be circled
+    body.add_element(
+      ContentAST.OnlyLatex([
+        ContentAST.TextLatex(f"- `{str(answer)}`")
+        for answer in self.featured_answers
+      ])
+    )
+    
+    # For Latex-only, ask students to generate some more.
+    body.add_element(
+      ContentAST.OnlyLatex([
+        ContentAST.AnswerBlock([ContentAST.Answer() for _ in range(self.num_answer_blanks)])
+      ])
+    )
+    
     return body
-  
   
   def get_explanation(self, *args, **kwargs) -> ContentAST.Section:
     explanation = ContentAST.Section()
