@@ -313,9 +313,6 @@ class QuestionGroup():
     if not self.pick_once or self._current_question is None:
       self._current_question = random.choice(self.questions)
     
-    self._current_question.refresh(*args, **kwargs)
-    
-    
   def __getattr__(self, name):
     if self._current_question is None or name == "generate":
       self.instantiate()
