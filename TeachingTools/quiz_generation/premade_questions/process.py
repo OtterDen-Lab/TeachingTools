@@ -268,8 +268,6 @@ class SchedulingQuestion(ProcessQuestion):
     self.job_stats = {}
     self.SCHEDULER_KIND = self.scheduler_kind_generator()
     
-    log.debug(f"Using a {self.SCHEDULER_KIND} scheduler")
-    
     # Default to FIFO an then change as necessary
     # This is the default case
     self.SCHEDULER_NAME = "FIFO"
