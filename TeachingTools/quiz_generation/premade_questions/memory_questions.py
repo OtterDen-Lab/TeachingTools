@@ -174,15 +174,13 @@ class CachingQuestion(MemoryQuestion):
     self.refresh()
   
   def refresh(self, previous : Optional[CachingQuestion]=None, *args, **kwargs):
-    super().refresh(*args, **kwargs)
-    
-    if previous is None:
-      log.debug("picking new caching policy")
+    # Check to see if we are using the existing caching policy or a brand new one
+    if kwargs.get("hard_refresh", True):
       self.cache_policy = self.rng.choice(list(self.Kind))
     else:
-      log.debug("Reusing previous caching policy")
-      self.cache_policy = previous.cache_policy
       self.rng_seed_offset += 1
+    
+    super().refresh(*args, **kwargs)
     
     log.debug(f"self.caching_policy: {self.cache_policy}")
     
