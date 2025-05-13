@@ -32,12 +32,6 @@ class VirtualAddressParts(MemoryQuestion):
     VPN_BITS = "# VPN Bits"
     OFFSET_BITS = "# Offset Bits"
   
-  def __init__(
-      self,
-      *args, **kwargs
-  ):
-    super().__init__(*args, **kwargs)
-  
   def refresh(self, rng_seed=None, *args, **kwargs):
     super().refresh(rng_seed=rng_seed, *args, **kwargs)
     
@@ -309,9 +303,6 @@ class BaseAndBounds(MemoryAccessQuestion):
   MIN_BOUNDS_BIT = 5
   MAX_BOUNDS_BITS = 16
   
-  def __init__(self, *args, **kwargs):
-    super().__init__(*args, **kwargs)
-  
   def refresh(self, rng_seed=None, *args, **kwargs):
     super().refresh(rng_seed=rng_seed, *args, **kwargs)
     
@@ -416,9 +407,6 @@ class Segmentation(MemoryAccessQuestion):
       return False
     else:
       return True
-  
-  def __init__(self, *args, **kwargs):
-    super().__init__(*args, **kwargs)
   
   def refresh(self, *args, **kwargs):
     super().refresh(*args, **kwargs)
@@ -638,9 +626,6 @@ class Paging(MemoryAccessQuestion):
   MAX_OFFSET_BITS = 8
   MAX_VPN_BITS = 8
   MAX_PFN_BITS = 16
-  
-  def __init__(self, *args, **kwargs):
-    super().__init__(*args, **kwargs)
   
   def refresh(self, rng_seed=None, *args, **kwargs):
     super().refresh(rng_seed=rng_seed, *args, **kwargs)

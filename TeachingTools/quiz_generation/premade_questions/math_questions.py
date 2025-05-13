@@ -23,9 +23,6 @@ class BitsAndBytes(MathQuestion):
   MIN_BITS = 3
   MAX_BITS = 49
   
-  def __init__(self, *args, **kwargs):
-    super().__init__(*args, **kwargs)
-  
   def refresh(self, *args, **kwargs):
     super().refresh(*args, **kwargs)
     
@@ -107,9 +104,6 @@ class HexAndBinary(MathQuestion):
   
   MIN_HEXITS = 1
   MAX_HEXITS = 8
-  
-  def __init__(self, *args, **kwargs):
-    super().__init__(*args, **kwargs)
   
   def refresh(self, **kwargs):
     super().refresh(**kwargs)
@@ -203,9 +197,6 @@ class HexAndBinary(MathQuestion):
 class AverageMemoryAccessTime(MathQuestion):
   
   CHANCE_OF_99TH_PERCENTILE = 0.75
-  
-  def __init__(self, *args, **kwargs):
-    super().__init__(*args, **kwargs)
   
   def refresh(self, rng_seed=None, *args, **kwargs):
     super().refresh(rng_seed=rng_seed, *args, **kwargs)

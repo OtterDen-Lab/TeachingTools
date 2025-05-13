@@ -22,9 +22,6 @@ class IOQuestion(Question, abc.ABC):
 @QuestionRegistry.register()
 class HardDriveAccessTime(IOQuestion):
   
-  def __init__(self, *args, **kwargs):
-    super().__init__(*args, **kwargs)
-  
   def refresh(self, *args, **kwargs):
     super().refresh(*args, **kwargs)
     
@@ -158,9 +155,6 @@ class HardDriveAccessTime(IOQuestion):
 
 @QuestionRegistry.register()
 class INodeAccesses(IOQuestion):
-  
-  def __init__(self, *args, **kwargs):
-    super().__init__(*args, **kwargs)
   
   def refresh(self, *args, **kwargs):
     super().refresh(*args, **kwargs)
