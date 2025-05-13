@@ -34,10 +34,12 @@ class ProcessQuestion(Question, abc.ABC):
 class SchedulingQuestion(ProcessQuestion):
   class Kind(enum.Enum):
     FIFO = enum.auto()
-    # LIFO = enum.auto()
     ShortestDuration = enum.auto()
     ShortestTimeRemaining = enum.auto()
     RoundRobin = enum.auto()
+    
+    def __str__(self):
+      return self.name
   
   @staticmethod
   def get_kind_from_string(kind_str: str) -> SchedulingQuestion.Kind:
@@ -54,7 +56,6 @@ class SchedulingQuestion(ProcessQuestion):
   ANSWER_EPSILON = 1.0
   
   scheduler_algorithm = None
-  SCHEDULER_NAME = None
   SELECTOR = None
   PREEMPTABLE = False
   TIME_QUANTUM = None
@@ -170,7 +171,7 @@ class SchedulingQuestion(ProcessQuestion):
     
     return workload
   
-  def simulation(self, jobs_to_run: List[SchedulingQuestion.Job], selector, preemptable, time_quantum=None):
+  def run_simulation(self, jobs_to_run: List[SchedulingQuestion.Job], selector, preemptable, time_quantum=None):
     curr_time = 0
     selected_job: SchedulingQuestion.Job | None = None
     
@@ -257,50 +258,53 @@ class SchedulingQuestion(ProcessQuestion):
     
     self.scheduler_algorithm = self.rng.choice(list(SchedulingQuestion.Kind))
     
-  def refresh(self, previous : Optional[SchedulingQuestion]=None, *args, **kwargs):
-    if not kwargs.get("hard_refresh"):
+  def refresh(self, *args, **kwargs):
+    if not kwargs.get("hard_refresh", True):
       self.rng_seed_offset += 1
     else:
       self.scheduler_algorithm = self.rng.choice(list(SchedulingQuestion.Kind))
+    
+    log.debug(f"self.scheduler_algorithm: {self.scheduler_algorithm}")
       
     super().refresh(*args, **kwargs)
     
     self.job_stats = {}
     
-    # Default to FIFO an then change as necessary
-    # This is the default case
-    if self.scheduler_algorithm == SchedulingQuestion.Kind.ShortestDuration:
-      self.SCHEDULER_NAME = "Shortest Job First"
-      self.SELECTOR = (lambda j, curr_time: (j.duration, j.job_id))
-    elif self.scheduler_algorithm == SchedulingQuestion.Kind.ShortestTimeRemaining:
-      self.SCHEDULER_NAME = "Shortest Remaining Time to Completion"
-      self.SELECTOR = (lambda j, curr_time: (j.time_remaining(curr_time), j.job_id))
-      self.PREEMPTABLE = True
-    elif self.scheduler_algorithm == SchedulingQuestion.Kind.RoundRobin:
-      self.SCHEDULER_NAME = "Round Robin"
-      self.SELECTOR = (lambda j, curr_time: (j.last_run, j.job_id))
-      self.PREEMPTABLE = True
-      self.TIME_QUANTUM = 1e-04
-    else:
-      self.SCHEDULER_NAME = "FIFO"
-      self.SELECTOR = (lambda j, curr_time: (j.arrival, j.job_id))
-      self.PREEMPTABLE = False
-      self.TIME_QUANTUM = None
-      pass
-    
-    # jobs = [
-    #   SchedulingQuestion.Job(
-    #     job_id,
-    #     random.randint(0, self.MAX_ARRIVAL_TIME),
-    #     random.randint(self.MIN_JOB_DURATION, self.MAX_JOB_DURATION)
-    #   )
-    #   for job_id in range(self.num_jobs)
-    # ]
-    
+    # Get workload jobs
     jobs = self.get_workload(self.num_jobs)
     
-    self.simulation(jobs, self.SELECTOR, self.PREEMPTABLE, self.TIME_QUANTUM)
-    
+    # Run simulations different depending on which algorithm we chose
+    match self.scheduler_algorithm:
+      case SchedulingQuestion.Kind.ShortestDuration:
+        self.run_simulation(
+          jobs_to_run=jobs,
+          selector=(lambda j, curr_time: (j.duration, j.job_id)),
+          preemptable=False,
+          time_quantum=None
+        )
+      case SchedulingQuestion.Kind.ShortestTimeRemaining:
+        self.run_simulation(
+          jobs_to_run=jobs,
+          selector=(lambda j, curr_time: (j.time_remaining(curr_time), j.job_id)),
+          preemptable=True,
+          time_quantum=None
+        )
+      case SchedulingQuestion.Kind.RoundRobin:
+        self.run_simulation(
+          jobs_to_run=jobs,
+          selector=(lambda j, curr_time: (j.last_run, j.job_id)),
+          preemptable=True,
+          time_quantum=1e-04
+        )
+      case _:
+        self.run_simulation(
+          jobs_to_run=jobs,
+          selector=(lambda j, curr_time: (j.arrival, j.job_id)),
+          preemptable=False,
+          time_quantum=None
+        )
+      
+    # Collate stats
     self.job_stats = {
       i : {
         "arrival" : job.arrival,            # input
@@ -351,7 +355,7 @@ class SchedulingQuestion(ProcessQuestion):
     
     body.add_element(
       ContentAST.Paragraph([
-        f"Given the below information, compute the required values if using <b>{self.SCHEDULER_NAME}</b> scheduling.  "
+        f"Given the below information, compute the required values if using <b>{self.scheduler_algorithm}</b> scheduling.  "
         f"Break any ties using the job number.",
       ])
     )
@@ -561,7 +565,7 @@ class SchedulingQuestion(ProcessQuestion):
     
     # Original file-saving logic
     if not os.path.exists(image_dir): os.mkdir(image_dir)
-    image_path = os.path.join(image_dir, f"{self.SCHEDULER_NAME.replace(' ', '_')}-{uuid.uuid4()}.png")
+    image_path = os.path.join(image_dir, f"{str(self.scheduler_algorithm).replace(' ', '_')}-{uuid.uuid4()}.png")
 
     with open(image_path, 'wb') as fid:
       fid.write(image_buffer.getvalue())
