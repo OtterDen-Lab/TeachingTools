@@ -127,7 +127,7 @@ class SchedulingQuestion(ProcessQuestion):
     
     workload = []
     
-    # First create a job that is relatively long-running and arrives relatively early.
+    # First create a job that is relatively long-running and arrives first.
     first_job: SchedulingQuestion.Job = self.Job(
       job_id=0,
       arrival=random.randint(0, int(0.25 * self.MAX_ARRIVAL_TIME)),
@@ -135,6 +135,17 @@ class SchedulingQuestion(ProcessQuestion):
     )
     
     workload.append(first_job)
+    
+    # Next we want to add two jobs that will let us differentiate between FIFO, SJF, and STCF
+    #  Essentially, we want the next jobs to test for preemption and then what is chosen when we don't have preemption
+    #  2nd job:
+    #  3rd job: Should be the shortest and arrive before the 2nd job would start
+    
+    
+    #  Essentially, we want to have the next job to arrive be shorter than the 1st job (to test preemption)
+    
+    # Next we want to generate two jobs that will arrive and interact in such a way as to force them to be different
+    #  depending on whether we are scheduling with SJF or STCF
     
     # Generate unique arrival times and durations that place the arrivals in the range of the first job
     other_arrivals = random.sample(
@@ -153,6 +164,7 @@ class SchedulingQuestion(ProcessQuestion):
     )
     
     # Add the two new jobs to the workload, where we are maintaining the described approach
+    # That is, one of the jobs will
     workload.extend([
       self.Job(job_id=1, arrival=min(other_arrivals), duration=max(other_durations)),
       self.Job(job_id=2, arrival=max(other_arrivals), duration=min(other_durations)),
