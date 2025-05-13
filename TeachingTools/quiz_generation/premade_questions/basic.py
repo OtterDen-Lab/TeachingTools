@@ -70,10 +70,8 @@ class FromGenerator(FromText):
     attach_function_to_object(self, generator, "generator")
     
     self.answers = {}
-    self.refresh()
   
   def get_body(self, **kwargs) -> ContentAST.Section:
-    self.refresh()
     return super().get_body()
   
   def refresh(self, *args, **kwargs):

@@ -24,8 +24,6 @@ class HardDriveAccessTime(IOQuestion):
   
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
-    
-    self.refresh()
   
   def refresh(self, *args, **kwargs):
     super().refresh(*args, **kwargs)
@@ -163,8 +161,6 @@ class INodeAccesses(IOQuestion):
   
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
-    
-    self.refresh()
   
   def refresh(self, *args, **kwargs):
     super().refresh(*args, **kwargs)
@@ -311,8 +307,6 @@ class VSFS_states(IOQuestion):
     self.answer_kind = Answer.AnswerKind.MULTIPLE_DROPDOWN
     
     self.num_steps = kwargs.get("num_steps", 10)
-    
-    self.refresh()
   
   def refresh(self, *args, **kwargs):
     super().refresh(*args, **kwargs)
@@ -341,7 +335,6 @@ class VSFS_states(IOQuestion):
     )
   
   def get_body(self) -> ContentAST.Section:
-    self.refresh()
     body = ContentAST.Section()
     
     body.add_element(ContentAST.Paragraph(["What operation happens between these two states?"]))

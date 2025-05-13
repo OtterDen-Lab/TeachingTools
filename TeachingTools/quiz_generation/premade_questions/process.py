@@ -260,7 +260,6 @@ class SchedulingQuestion(ProcessQuestion):
       self.scheduler_kind_generator = lambda : random.choice(list(SchedulingQuestion.Kind))
     else:
       self.scheduler_kind_generator = lambda : SchedulingQuestion.get_kind_from_string(scheduler_kind)
-    self.refresh(scheduler_kind=scheduler_kind)
     
   def refresh(self, previous : Optional[SchedulingQuestion]=None, *args, **kwargs):
     super().refresh(*args, **kwargs)

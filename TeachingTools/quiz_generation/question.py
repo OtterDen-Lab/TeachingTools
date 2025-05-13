@@ -119,7 +119,7 @@ class QuestionRegistry:
     return decorator
     
   @classmethod
-  def create(cls, question_type, **kwargs):
+  def create(cls, question_type, **kwargs) -> Question:
     """Instantiate a registered subclass."""
     # If we haven't already loaded our premades, do so now
     if not cls._scanned:
@@ -128,7 +128,9 @@ class QuestionRegistry:
     if question_type.lower() not in cls._registry:
       raise ValueError(f"Unknown question type: {question_type}")
     
-    return cls._registry[question_type.lower()](**kwargs)
+    new_question : Question = cls._registry[question_type.lower()](**kwargs)
+    new_question.refresh()
+    return new_question
     
     
   @classmethod

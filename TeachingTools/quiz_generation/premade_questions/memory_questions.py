@@ -37,8 +37,6 @@ class VirtualAddressParts(MemoryQuestion):
       *args, **kwargs
   ):
     super().__init__(*args, **kwargs)
-    
-    self.refresh()
   
   def refresh(self, rng_seed=None, *args, **kwargs):
     super().refresh(rng_seed=rng_seed, *args, **kwargs)
@@ -172,8 +170,6 @@ class CachingQuestion(MemoryQuestion):
     self.num_requests = kwargs.get("num_requests", 10)
     
     self.cache_policy = self.rng.choice(list(self.Kind))
-    
-    self.refresh()
   
   def refresh(self, previous : Optional[CachingQuestion]=None, *args, **kwargs):
     # Check to see if we are using the existing caching policy or a brand new one
@@ -183,8 +179,6 @@ class CachingQuestion(MemoryQuestion):
       self.cache_policy = self.rng.choice(list(self.Kind))
     
     super().refresh(*args, **kwargs)
-    
-    log.debug(f"self.caching_policy: {self.cache_policy}")
     
     self.requests = (
         list(range(self.cache_size)) # Prime the cache with the compulsory misses
@@ -317,7 +311,6 @@ class BaseAndBounds(MemoryAccessQuestion):
   
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
-    self.refresh(*args, **kwargs)
   
   def refresh(self, rng_seed=None, *args, **kwargs):
     super().refresh(rng_seed=rng_seed, *args, **kwargs)
@@ -426,7 +419,6 @@ class Segmentation(MemoryAccessQuestion):
   
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
-    self.refresh()
   
   def refresh(self, *args, **kwargs):
     super().refresh(*args, **kwargs)
@@ -649,8 +641,6 @@ class Paging(MemoryAccessQuestion):
   
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
-    
-    self.refresh()
   
   def refresh(self, rng_seed=None, *args, **kwargs):
     super().refresh(rng_seed=rng_seed, *args, **kwargs)

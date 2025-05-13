@@ -25,7 +25,6 @@ class BitsAndBytes(MathQuestion):
   
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
-    self.refresh()
   
   def refresh(self, *args, **kwargs):
     super().refresh(*args, **kwargs)
@@ -111,7 +110,6 @@ class HexAndBinary(MathQuestion):
   
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
-    self.refresh()
   
   def refresh(self, **kwargs):
     super().refresh(**kwargs)
@@ -208,7 +206,6 @@ class AverageMemoryAccessTime(MathQuestion):
   
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
-    self.refresh()
   
   def refresh(self, rng_seed=None, *args, **kwargs):
     super().refresh(rng_seed=rng_seed, *args, **kwargs)
