@@ -53,7 +53,7 @@ class SchedulingQuestion(ProcessQuestion):
   
   ANSWER_EPSILON = 1.0
   
-  SCHEDULER_KIND = None
+  scheduler_algorithm = None
   SCHEDULER_NAME = None
   SELECTOR = None
   PREEMPTABLE = False
@@ -114,7 +114,6 @@ class SchedulingQuestion(ProcessQuestion):
     
     def has_started(self) -> bool:
       return self.response_time is None
-  
   
   def get_workload(self, num_jobs, *args, **kwargs) -> List[SchedulingQuestion.Job]:
     """Makes a guaranteed interesting workload by following rules
@@ -205,7 +204,7 @@ class SchedulingQuestion(ProcessQuestion):
         if selected_job.has_started():
           self.timeline[curr_time].append(f"Starting Job{selected_job.job_id} (resp = {curr_time - selected_job.arrival:0.{self.ROUNDING_DIGITS}f}s)")
         # We start the job that we selected
-        selected_job.run(curr_time, (self.SCHEDULER_KIND == self.Kind.RoundRobin))
+        selected_job.run(curr_time, (self.scheduler_algorithm == self.Kind.RoundRobin))
         
         # We could run to the end of the job
         possible_time_slices.append(selected_job.time_remaining(curr_time))
@@ -230,7 +229,7 @@ class SchedulingQuestion(ProcessQuestion):
       except ValueError:
         log.error("No jobs available to schedule")
         break
-      if self.SCHEDULER_KIND != SchedulingQuestion.Kind.RoundRobin:
+      if self.scheduler_algorithm != SchedulingQuestion.Kind.RoundRobin:
         if selected_job is not None:
           self.timeline[curr_time].append(f"Running Job{selected_job.job_id} for {next_time_slice:0.{self.ROUNDING_DIGITS}f}s")
         else:
@@ -239,7 +238,7 @@ class SchedulingQuestion(ProcessQuestion):
       
       # We stop the job we selected, and potentially mark it as complete
       if selected_job is not None:
-        selected_job.stop(curr_time, (self.SCHEDULER_KIND == self.Kind.RoundRobin))
+        selected_job.stop(curr_time, (self.scheduler_algorithm == self.Kind.RoundRobin))
         if selected_job.is_complete(curr_time):
           self.timeline[curr_time].append(f"Completed Job{selected_job.job_id} (TAT = {selected_job.turnaround_time:0.{self.ROUNDING_DIGITS}f}s)")
       selected_job = None
@@ -256,41 +255,37 @@ class SchedulingQuestion(ProcessQuestion):
     super().__init__(*args, **kwargs)
     self.num_jobs = num_jobs
     
-    if scheduler_kind is None:
-      self.scheduler_kind_generator = lambda : random.choice(list(SchedulingQuestion.Kind))
-    else:
-      self.scheduler_kind_generator = lambda : SchedulingQuestion.get_kind_from_string(scheduler_kind)
+    self.scheduler_algorithm = self.rng.choice(list(SchedulingQuestion.Kind))
     
   def refresh(self, previous : Optional[SchedulingQuestion]=None, *args, **kwargs):
+    if not kwargs.get("hard_refresh"):
+      self.rng_seed_offset += 1
+    else:
+      self.scheduler_algorithm = self.rng.choice(list(SchedulingQuestion.Kind))
+      
     super().refresh(*args, **kwargs)
     
     self.job_stats = {}
-    self.SCHEDULER_KIND = self.scheduler_kind_generator()
     
     # Default to FIFO an then change as necessary
     # This is the default case
-    self.SCHEDULER_NAME = "FIFO"
-    self.SELECTOR = (lambda j, curr_time: (j.arrival, j.job_id))
-    self.PREEMPTABLE = False
-    self.TIME_QUANTUM = None
-    if self.SCHEDULER_KIND == SchedulingQuestion.Kind.ShortestDuration:
+    if self.scheduler_algorithm == SchedulingQuestion.Kind.ShortestDuration:
       self.SCHEDULER_NAME = "Shortest Job First"
       self.SELECTOR = (lambda j, curr_time: (j.duration, j.job_id))
-    elif self.SCHEDULER_KIND == SchedulingQuestion.Kind.ShortestTimeRemaining:
+    elif self.scheduler_algorithm == SchedulingQuestion.Kind.ShortestTimeRemaining:
       self.SCHEDULER_NAME = "Shortest Remaining Time to Completion"
       self.SELECTOR = (lambda j, curr_time: (j.time_remaining(curr_time), j.job_id))
       self.PREEMPTABLE = True
-    # elif self.SCHEDULER_KIND == SchedulingQuestion.Kind.LIFO:
-    #   self.SCHEDULER_NAME = "LIFO"
-    #   self.SELECTOR = (lambda j, curr_time: (-j.arrival, j.job_id))
-    #   self.PREEMPTABLE = True
-    elif self.SCHEDULER_KIND == SchedulingQuestion.Kind.RoundRobin:
+    elif self.scheduler_algorithm == SchedulingQuestion.Kind.RoundRobin:
       self.SCHEDULER_NAME = "Round Robin"
       self.SELECTOR = (lambda j, curr_time: (j.last_run, j.job_id))
       self.PREEMPTABLE = True
       self.TIME_QUANTUM = 1e-04
     else:
-      # then we default to FIFO
+      self.SCHEDULER_NAME = "FIFO"
+      self.SELECTOR = (lambda j, curr_time: (j.arrival, j.job_id))
+      self.PREEMPTABLE = False
+      self.TIME_QUANTUM = None
       pass
     
     # jobs = [
@@ -399,7 +394,7 @@ class SchedulingQuestion(ProcessQuestion):
     
     explanation.add_element(
       ContentAST.Paragraph([
-        f"To calculate the overall Turnaround and Response times using {self.SCHEDULER_KIND} "
+        f"To calculate the overall Turnaround and Response times using {self.scheduler_algorithm} "
         f"we want to first start by calculating the respective target and response times of all of our individual jobs."
       ])
     )
@@ -501,7 +496,7 @@ class SchedulingQuestion(ProcessQuestion):
       ax.axvline(x_loc, zorder=0)
       plt.text(x_loc + 0, len(self.job_stats.keys())-0.3, f'{x_loc:0.{self.ROUNDING_DIGITS}f}s', rotation=90)
     
-    if self.SCHEDULER_KIND != self.Kind.RoundRobin:
+    if self.scheduler_algorithm != self.Kind.RoundRobin:
       for y_loc, job_id in enumerate(sorted(self.job_stats.keys(), reverse=True)):
         for i, (start, stop) in enumerate(zip(self.job_stats[job_id]["state_changes"], self.job_stats[job_id]["state_changes"][1:])):
           ax.barh(
