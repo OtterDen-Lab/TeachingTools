@@ -170,6 +170,7 @@ class SchedulingQuestion(ProcessQuestion):
       (job2_arrival, job2_duration),
     ]
     
+    # Add more jobs as necessary, if more than 3 are requested
     if num_jobs > 3:
       job_tuples.extend([
         (self.rng.randint(0, self.MAX_ARRIVAL_TIME), self.rng.randint(self.MIN_JOB_DURATION, self.MAX_JOB_DURATION))
@@ -191,7 +192,6 @@ class SchedulingQuestion(ProcessQuestion):
       )
     
     return workload
-    
   
   def run_simulation(self, jobs_to_run: List[SchedulingQuestion.Job], selector, preemptable, time_quantum=None):
     curr_time = 0
@@ -286,8 +286,6 @@ class SchedulingQuestion(ProcessQuestion):
     else:
       self.scheduler_algorithm = self.rng.choice(list(SchedulingQuestion.Kind))
     
-    log.debug(f"self.scheduler_algorithm: {self.scheduler_algorithm}")
-      
     super().refresh(*args, **kwargs)
     
     self.job_stats = {}

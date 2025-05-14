@@ -254,6 +254,16 @@ class ValidStringsInLanguageQuestion(LanguageQuestion):
     
     self.answers = {}
     
+    self.num_answer_options = kwargs.get("num_answer_options", 4)
+    self.num_answer_blanks = kwargs.get("num_answer_blanks", 4)
+    
+    self.refresh()
+  
+  def refresh(self, *args, **kwargs):
+    super().refresh(*args, **kwargs)
+    
+    self.answers = {}
+    
     self.answers.update(
       {
         "answer_good" : Answer(
