@@ -119,7 +119,7 @@ class QuestionRegistry:
     return decorator
     
   @classmethod
-  def create(cls, question_type, **kwargs):
+  def create(cls, question_type, **kwargs) -> Question:
     """Instantiate a registered subclass."""
     # If we haven't already loaded our premades, do so now
     if not cls._scanned:
@@ -128,7 +128,9 @@ class QuestionRegistry:
     if question_type.lower() not in cls._registry:
       raise ValueError(f"Unknown question type: {question_type}")
     
-    return cls._registry[question_type.lower()](**kwargs)
+    new_question : Question = cls._registry[question_type.lower()](**kwargs)
+    new_question.refresh()
+    return new_question
     
     
   @classmethod
@@ -209,6 +211,9 @@ class Question(abc.ABC):
     """
     # todo: would it make sense to refresh here?
     self.refresh(rng_seed=kwargs.get("rng_seed", None))
+    while not self.is_interesting():
+      self.refresh(hard_refresh=False)
+    
     return ContentAST.Question(
       body=self.get_body(),
       explanation=self.get_explanation(),
@@ -260,22 +265,17 @@ class Question(abc.ABC):
   
   def get__canvas(self, course: canvasapi.course.Course, quiz : canvasapi.quiz.Quiz, interest_threshold=1.0, *args, **kwargs):
     
-    # Get an interesting enough version of the question
-    while True:
-      self.rng_seed_offset += 1
-      self.refresh()
-      questionAST = self.get_question(**kwargs)
-      if questionAST.interest >= interest_threshold:
-        break
+    # Get the AST for the question
+    questionAST = self.get_question(**kwargs)
     
     # Get the answers and type of question
     question_type, answers = self.get_answers(*args, **kwargs)
     
+    # Define a helper function for uploading images to canvas
     def image_upload(img_data) -> str:
       
       course.create_folder(f"{quiz.id}", parent_folder_path="Quiz Files")
       file_name = f"{uuid.uuid4()}.png"
-      
       
       with io.FileIO(file_name, 'w+') as ffid:
         ffid.write(img_data.getbuffer())
@@ -289,7 +289,6 @@ class Question(abc.ABC):
       log.debug("path: " + f"/courses/{course.id}/files/{f['id']}/preview")
       return f"/courses/{course.id}/files/{f['id']}/preview"
       
-    
     # Build appropriate dictionary to send to canvas
     return {
       "question_name": f"{self.name} ({datetime.datetime.now().strftime('%m/%d/%y %H:%M:%S.%f')})",
@@ -315,9 +314,6 @@ class QuestionGroup():
     
     if not self.pick_once or self._current_question is None:
       self._current_question = random.choice(self.questions)
-    
-    self._current_question.refresh(*args, **kwargs)
-    
     
   def __getattr__(self, name):
     if self._current_question is None or name == "generate":
