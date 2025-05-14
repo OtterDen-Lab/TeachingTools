@@ -50,7 +50,7 @@ class SchedulingQuestion(ProcessQuestion):
 
   MAX_JOBS = 4
   MAX_ARRIVAL_TIME = 20
-  MIN_JOB_DURATION = 3
+  MIN_JOB_DURATION = 2
   MAX_JOB_DURATION = 10
   
   ANSWER_EPSILON = 1.0
@@ -128,60 +128,71 @@ class SchedulingQuestion(ProcessQuestion):
     workload = []
     
     # First create a job that is relatively long-running and arrives first.
-    first_job: SchedulingQuestion.Job = self.Job(
-      job_id=0,
-      arrival=random.randint(0, int(0.25 * self.MAX_ARRIVAL_TIME)),
-      duration=random.randint(int(self.MAX_JOB_DURATION * 0.75), self.MAX_JOB_DURATION)
+    # Set arrival time to something fairly low
+    job0_arrival = self.rng.randint(0, int(0.25 * self.MAX_ARRIVAL_TIME))
+    # Set duration to something fairly long
+    job0_duration = self.rng.randint(int(self.MAX_JOB_DURATION * 0.75), self.MAX_JOB_DURATION)
+    
+    # Next, let's create a job that will test whether we are preemptive or not.
+    #  The core characteristics of this job are that it:
+    #  1) would also finish _before_ the end of job0 if selected to run immediately.  This tests STCF
+    # The bounds for arrival and completion will be:
+    #  arrival:
+    #   lower: (job0_arrival + 1) so we have a definite first job
+    #   upper: (job0_arrival + job0_duration - self.MIN_JOB_DURATION) so we have enough time for a job to run
+    #  duration:
+    #   lower: self.MIN_JOB_DURATION
+    #   upper:
+    job1_arrival = self.rng.randint(
+      job0_arrival + 1, # Make sure we start _after_ job0
+      job0_arrival + job0_duration - self.MIN_JOB_DURATION - 2 # Make sure we always have enough time for job1 & job2
+    )
+    job1_duration = self.rng.randint(
+      self.MIN_JOB_DURATION + 1, # default minimum and leave room for job2
+      job0_arrival + job0_duration - job1_arrival - 1 # Make sure our job ends _at least_ before job0 would end
     )
     
-    workload.append(first_job)
-    
-    # Next we want to add two jobs that will let us differentiate between FIFO, SJF, and STCF
-    #  Essentially, we want the next jobs to test for preemption and then what is chosen when we don't have preemption
-    #  2nd job:
-    #  3rd job: Should be the shortest and arrive before the 2nd job would start
-    
-    
-    #  Essentially, we want to have the next job to arrive be shorter than the 1st job (to test preemption)
-    
-    # Next we want to generate two jobs that will arrive and interact in such a way as to force them to be different
-    #  depending on whether we are scheduling with SJF or STCF
-    
-    # Generate unique arrival times and durations that place the arrivals in the range of the first job
-    other_arrivals = random.sample(
-      range(
-        int(first_job.arrival + 1),
-        int(first_job.arrival + first_job.duration)
-      ),
-      k=2
+    # Finally, we want to differentiate between STCF and SJF
+    #  So, if we don't preempt job0 we want to make it be a tough choice between the next 2 jobs when it completes.
+    #  This means we want a job that arrives _before_ job0 finishes, after job1 enters, and is shorter than job1
+    job2_arrival = self.rng.randint(
+      job1_arrival + 1, # Make sure we arrive after job1 so we subvert FIFO
+      job0_arrival + job0_duration - 1 # ...but before job0 would exit the system
     )
-    other_durations = random.sample(
-      range(
-        1,
-        self.MAX_JOB_DURATION
-      ),
-      k=2
+    job2_duration = self.rng.randint(
+      self.MIN_JOB_DURATION, # Make sure it's at least the minimum.
+      job1_duration - 1, # Make sure it's shorter than job1
     )
     
-    # Add the two new jobs to the workload, where we are maintaining the described approach
-    # That is, one of the jobs will
-    workload.extend([
-      self.Job(job_id=1, arrival=min(other_arrivals), duration=max(other_durations)),
-      self.Job(job_id=2, arrival=max(other_arrivals), duration=min(other_durations)),
-    ])
+    # Package them up so we can add more jobs as necessary
+    job_tuples = [
+      (job0_arrival, job0_duration),
+      (job1_arrival, job1_duration),
+      (job2_arrival, job2_duration),
+    ]
     
-    # Add more jobs as necessary, if more than 3 are requested
     if num_jobs > 3:
-      workload.extend([
-        self.Job(
-          job_id=(3+i),
-          arrival=random.randint(0, self.MAX_ARRIVAL_TIME),
-          duration=random.randint(self.MIN_JOB_DURATION, self.MAX_JOB_DURATION)
-        )
-        for i in range(num_jobs - 3)
+      job_tuples.extend([
+        (self.rng.randint(0, self.MAX_ARRIVAL_TIME), self.rng.randint(self.MIN_JOB_DURATION, self.MAX_JOB_DURATION))
+        for _ in range(num_jobs - 3)
       ])
     
+    # Shuffle jobs so they are in a random order
+    self.rng.shuffle(job_tuples)
+    
+    # Make workload from job tuples
+    workload = []
+    for i, (arr, dur) in enumerate(job_tuples):
+      workload.append(
+        SchedulingQuestion.Job(
+          job_id=i,
+          arrival=arr,
+          duration=dur
+        )
+      )
+    
     return workload
+    
   
   def run_simulation(self, jobs_to_run: List[SchedulingQuestion.Job], selector, preemptable, time_quantum=None):
     curr_time = 0
