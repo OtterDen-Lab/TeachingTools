@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import abc
 import logging
-import random
 
 from TeachingTools.quiz_generation.question import Question, Answer, QuestionRegistry
 from TeachingTools.quiz_generation.misc import ContentAST
@@ -25,11 +24,11 @@ class HardDriveAccessTime(IOQuestion):
   def refresh(self, *args, **kwargs):
     super().refresh(*args, **kwargs)
     
-    self.hard_drive_rotation_speed = 100 * random.randint(36, 150)  # e.g. 3600rpm to 15000rpm
-    self.seek_delay = float(round(random.randrange(3, 20), 2))
-    self.transfer_rate = random.randint(50, 300)
-    self.number_of_reads = random.randint(1, 20)
-    self.size_of_reads = random.randint(1, 10)
+    self.hard_drive_rotation_speed = 100 * self.rng.randint(36, 150)  # e.g. 3600rpm to 15000rpm
+    self.seek_delay = float(round(self.rng.randrange(3, 20), 2))
+    self.transfer_rate = self.rng.randint(50, 300)
+    self.number_of_reads = self.rng.randint(1, 20)
+    self.size_of_reads = self.rng.randint(1, 10)
     
     self.rotational_delay = (1 / self.hard_drive_rotation_speed) * (60 / 1) * (1000 / 1) * (1/2)
     self.access_delay = self.rotational_delay + self.seek_delay
@@ -160,11 +159,11 @@ class INodeAccesses(IOQuestion):
     super().refresh(*args, **kwargs)
     
     # Calculating this first to use blocksize as an even multiple of it
-    self.inode_size = 2**random.randint(6, 10)
+    self.inode_size = 2**self.rng.randint(6, 10)
     
-    self.block_size = self.inode_size * random.randint(8, 20)
-    self.inode_number = random.randint(0, 256)
-    self.inode_start_location = self.block_size * random.randint(2, 5)
+    self.block_size = self.inode_size * self.rng.randint(8, 20)
+    self.inode_number = self.rng.randint(0, 256)
+    self.inode_start_location = self.block_size * self.rng.randint(2, 5)
     
     self.inode_address = self.inode_start_location + self.inode_number * self.inode_size
     self.inode_block = self.inode_address // self.block_size

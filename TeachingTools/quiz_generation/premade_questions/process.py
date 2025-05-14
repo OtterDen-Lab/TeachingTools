@@ -10,9 +10,8 @@ import logging
 import math
 import os
 import queue
-import random
 import uuid
-from typing import List, Optional
+from typing import List
 
 import matplotlib.pyplot as plt
 
@@ -633,8 +632,8 @@ class MLFQ_Question(ProcessQuestion):
     # Set up jobs that we'll be using
     jobs = [
       MLFQ_Question.Job(
-        arrival=random.randint(self.MIN_ARRIVAL, self.MAX_ARRIVAL),
-        duration=random.randint(self.MIN_DURATION, self.MAX_DURATION),
+        arrival=self.rng.randint(self.MIN_ARRIVAL, self.MAX_ARRIVAL),
+        duration=self.rng.randint(self.MIN_DURATION, self.MAX_DURATION),
         
       )
     ]
