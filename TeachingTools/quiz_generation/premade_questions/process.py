@@ -286,8 +286,6 @@ class SchedulingQuestion(ProcessQuestion):
     else:
       self.scheduler_algorithm = self.rng.choice(list(SchedulingQuestion.Kind))
     
-    log.debug(f"self.scheduler_algorithm: {self.scheduler_algorithm}")
-    
     super().refresh(*args, **kwargs)
     
     self.job_stats = {}
