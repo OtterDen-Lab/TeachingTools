@@ -32,14 +32,6 @@ class VirtualAddressParts(MemoryQuestion):
     VPN_BITS = "# VPN Bits"
     OFFSET_BITS = "# Offset Bits"
   
-  def __init__(
-      self,
-      *args, **kwargs
-  ):
-    super().__init__(*args, **kwargs)
-    
-    self.refresh()
-  
   def refresh(self, rng_seed=None, *args, **kwargs):
     super().refresh(rng_seed=rng_seed, *args, **kwargs)
     
@@ -171,20 +163,16 @@ class CachingQuestion(MemoryQuestion):
     self.cache_size = kwargs.get("cache_size", 3)
     self.num_requests = kwargs.get("num_requests", 10)
     
-    self.refresh()
+    self.cache_policy = self.rng.choice(list(self.Kind))
   
   def refresh(self, previous : Optional[CachingQuestion]=None, *args, **kwargs):
-    super().refresh(*args, **kwargs)
-    
-    if previous is None:
-      log.debug("picking new caching policy")
-      self.cache_policy = self.rng.choice(list(self.Kind))
-    else:
-      log.debug("Reusing previous caching policy")
-      self.cache_policy = previous.cache_policy
+    # Check to see if we are using the existing caching policy or a brand new one
+    if not kwargs.get("hard_refresh", True):
       self.rng_seed_offset += 1
+    else:
+      self.cache_policy = self.rng.choice(list(self.Kind))
     
-    log.debug(f"self.caching_policy: {self.cache_policy}")
+    super().refresh(*args, **kwargs)
     
     self.requests = (
         list(range(self.cache_size)) # Prime the cache with the compulsory misses
@@ -315,10 +303,6 @@ class BaseAndBounds(MemoryAccessQuestion):
   MIN_BOUNDS_BIT = 5
   MAX_BOUNDS_BITS = 16
   
-  def __init__(self, *args, **kwargs):
-    super().__init__(*args, **kwargs)
-    self.refresh(*args, **kwargs)
-  
   def refresh(self, rng_seed=None, *args, **kwargs):
     super().refresh(rng_seed=rng_seed, *args, **kwargs)
     
@@ -423,10 +407,6 @@ class Segmentation(MemoryAccessQuestion):
       return False
     else:
       return True
-  
-  def __init__(self, *args, **kwargs):
-    super().__init__(*args, **kwargs)
-    self.refresh()
   
   def refresh(self, *args, **kwargs):
     super().refresh(*args, **kwargs)
@@ -646,11 +626,6 @@ class Paging(MemoryAccessQuestion):
   MAX_OFFSET_BITS = 8
   MAX_VPN_BITS = 8
   MAX_PFN_BITS = 16
-  
-  def __init__(self, *args, **kwargs):
-    super().__init__(*args, **kwargs)
-    
-    self.refresh()
   
   def refresh(self, rng_seed=None, *args, **kwargs):
     super().refresh(rng_seed=rng_seed, *args, **kwargs)

@@ -5,14 +5,12 @@ import abc
 import enum
 import itertools
 from typing import List, Dict, Optional, Tuple, Any
-import random
 
 from TeachingTools.quiz_generation.question import QuestionRegistry, Question, Answer
 
-import logging
-
 from TeachingTools.quiz_generation.misc import ContentAST
 
+import logging
 logging.basicConfig()
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
@@ -77,10 +75,11 @@ class BNF:
       NonTerminal = enum.auto()
       Terminal = enum.auto()
       
-    def __init__(self, symbol : str, kind : Kind):
+    def __init__(self, symbol : str, kind : Kind, rng):
       self.symbol = symbol
       self.kind = kind
       self.productions : List[BNF.Production] = [] # productions
+      self.rng = rng
     
     def __str__(self):
       # if self.kind == BNF.Symbol.Kind.NonTerminal:
@@ -98,15 +97,15 @@ class BNF:
     def expand(self) -> List[BNF.Symbol]:
       if self.kind == BNF.Symbol.Kind.Terminal:
         return [self]
-      return random.choice(self.productions).production
+      return self.rng.choice(self.productions).production
   
   class Production:
-    def __init__(self, production_line, nonterminal_symbols: Dict[str, BNF.Symbol]):
+    def __init__(self, production_line, nonterminal_symbols: Dict[str, BNF.Symbol], rng):
       if len(production_line.strip()) == 0:
         self.production = []
       else:
         self.production = [
-          (nonterminal_symbols.get(symbol, BNF.Symbol(symbol, BNF.Symbol.Kind.Terminal)))
+          (nonterminal_symbols.get(symbol, BNF.Symbol(symbol, BNF.Symbol.Kind.Terminal, rng=rng)))
           for symbol in production_line.split(' ')
         ]
       
@@ -117,7 +116,7 @@ class BNF:
   
   
   @staticmethod
-  def parse_bnf(grammar_str) -> BNF.Grammar:
+  def parse_bnf(grammar_str, rng) -> BNF.Grammar:
     
     # Figure out all the nonterminals and create a Token for them
     terminal_symbols = {}
@@ -127,7 +126,7 @@ class BNF:
         non_terminal_str, _ = line.split("::=", 1)
         non_terminal_str = non_terminal_str.strip()
         
-        terminal_symbols[non_terminal_str] = BNF.Symbol(non_terminal_str, BNF.Symbol.Kind.NonTerminal)
+        terminal_symbols[non_terminal_str] = BNF.Symbol(non_terminal_str, BNF.Symbol.Kind.NonTerminal, rng=rng)
         if start_symbol is None:
           start_symbol = terminal_symbols[non_terminal_str]
     
@@ -142,7 +141,7 @@ class BNF:
         
         for production_str in expansions.split('|'):
           production_str = production_str.strip()
-          non_terminal.add_production(BNF.Production(production_str, terminal_symbols))
+          non_terminal.add_production(BNF.Production(production_str, terminal_symbols, rng=rng))
     bnf_grammar = BNF.Grammar(list(terminal_symbols.values()), start_symbol)
     return bnf_grammar
 
@@ -160,7 +159,7 @@ class ValidStringsInLanguageQuestion(LanguageQuestion):
       self.include_spaces = kwargs.get("include_spaces", False)
       self.MAX_LENGTH = kwargs.get("max_length", 30)
     else:
-      which_grammar = random.choice(range(4))
+      which_grammar = self.rng.choice(range(4))
       
       if which_grammar == 0:
         # todo: make a few different kinds of grammars that could be picked
@@ -244,13 +243,11 @@ class ValidStringsInLanguageQuestion(LanguageQuestion):
         self.include_spaces = False
         self.MAX_LENGTH = 100
     
-    self.grammar_good = BNF.parse_bnf(self.grammar_str_good)
-    self.grammar_bad = BNF.parse_bnf(self.grammar_str_bad)
+    self.grammar_good = BNF.parse_bnf(self.grammar_str_good, self.rng)
+    self.grammar_bad = BNF.parse_bnf(self.grammar_str_bad, self.rng)
     
     self.num_answer_options = kwargs.get("num_answer_options", 4)
     self.num_answer_blanks = kwargs.get("num_answer_blanks", 4)
-    
-    self.refresh()
   
   def refresh(self, *args, **kwargs):
     super().refresh(*args, **kwargs)
@@ -292,9 +289,9 @@ class ValidStringsInLanguageQuestion(LanguageQuestion):
     num_tries = 0
     while len(self.answers) < 10 and num_tries < self.MAX_TRIES:
       
-      correct = random.choice([True, False])
+      correct = self.rng.choice([True, False])
       if not correct:
-        early_exit = random.choice([True, False])
+        early_exit = self.rng.choice([True, False])
       else:
         early_exit = False
       new_answer = Answer(
