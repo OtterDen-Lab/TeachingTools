@@ -1,18 +1,25 @@
 #!env python
 from __future__ import annotations
 
+import abc
 import enum
 import itertools
 from typing import List, Dict, Optional, Tuple, Any
-import random
 
 from TeachingTools.quiz_generation.question import QuestionRegistry, Question, Answer
+
+from TeachingTools.quiz_generation.misc import ContentAST
 
 import logging
 logging.basicConfig()
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
+
+class LanguageQuestion(Question, abc.ABC):
+  def __init__(self, *args, **kwargs):
+    kwargs["topic"] = kwargs.get("topic", Question.Topic.LANGUAGES)
+    super().__init__(*args, **kwargs)
 
 class BNF:
   
@@ -68,10 +75,11 @@ class BNF:
       NonTerminal = enum.auto()
       Terminal = enum.auto()
       
-    def __init__(self, symbol : str, kind : Kind):
+    def __init__(self, symbol : str, kind : Kind, rng):
       self.symbol = symbol
       self.kind = kind
       self.productions : List[BNF.Production] = [] # productions
+      self.rng = rng
     
     def __str__(self):
       # if self.kind == BNF.Symbol.Kind.NonTerminal:
@@ -89,21 +97,26 @@ class BNF:
     def expand(self) -> List[BNF.Symbol]:
       if self.kind == BNF.Symbol.Kind.Terminal:
         return [self]
-      return random.choice(self.productions).production
+      return self.rng.choice(self.productions).production
   
   class Production:
-    def __init__(self, production_line, nonterminal_symbols: Dict[str, BNF.Symbol]):
-      self.production = [
-        (nonterminal_symbols.get(symbol, BNF.Symbol(symbol, BNF.Symbol.Kind.Terminal)))
-        for symbol in production_line.split(' ')
-      ]
+    def __init__(self, production_line, nonterminal_symbols: Dict[str, BNF.Symbol], rng):
+      if len(production_line.strip()) == 0:
+        self.production = []
+      else:
+        self.production = [
+          (nonterminal_symbols.get(symbol, BNF.Symbol(symbol, BNF.Symbol.Kind.Terminal, rng=rng)))
+          for symbol in production_line.split(' ')
+        ]
       
     def __str__(self):
+      if len(self.production) == 0:
+        return '""'
       return f"{' '.join([str(s) for s in self.production])}"
   
   
   @staticmethod
-  def parse_bnf(grammar_str) -> BNF.Grammar:
+  def parse_bnf(grammar_str, rng) -> BNF.Grammar:
     
     # Figure out all the nonterminals and create a Token for them
     terminal_symbols = {}
@@ -113,7 +126,7 @@ class BNF:
         non_terminal_str, _ = line.split("::=", 1)
         non_terminal_str = non_terminal_str.strip()
         
-        terminal_symbols[non_terminal_str] = BNF.Symbol(non_terminal_str, BNF.Symbol.Kind.NonTerminal)
+        terminal_symbols[non_terminal_str] = BNF.Symbol(non_terminal_str, BNF.Symbol.Kind.NonTerminal, rng=rng)
         if start_symbol is None:
           start_symbol = terminal_symbols[non_terminal_str]
     
@@ -128,30 +141,25 @@ class BNF:
         
         for production_str in expansions.split('|'):
           production_str = production_str.strip()
-          non_terminal.add_production(BNF.Production(production_str, terminal_symbols))
+          non_terminal.add_production(BNF.Production(production_str, terminal_symbols, rng=rng))
     bnf_grammar = BNF.Grammar(list(terminal_symbols.values()), start_symbol)
     return bnf_grammar
 
 
-@QuestionRegistry.register()
-class LanguageQuestion(Question):
+@QuestionRegistry.register("LanguageQuestion")
+class ValidStringsInLanguageQuestion(LanguageQuestion):
   MAX_TRIES = 1000
   
-  def __init__(self, *args, **kwargs):
+  def __init__(self, grammar_str_good: Optional[str] = None, grammar_str_bad: Optional[str] = None, *args, **kwargs):
     super().__init__(*args, **kwargs)
     
-    self.instantiate()
-  
-  def instantiate(self, rng_seed=None, grammar_str: Optional[str] = None, *args, **kwargs):
-    super().instantiate(rng_seed=rng_seed, *args, **kwargs)
-    
-    log.debug("Instantiate")
-    self.answers = []
-    
-    if grammar_str is not None:
-      self.grammar_str = grammar_str
+    if grammar_str_good is not None and grammar_str_bad is not None:
+      self.grammar_str_good = grammar_str_good
+      self.grammar_str_bad = grammar_str_bad
+      self.include_spaces = kwargs.get("include_spaces", False)
+      self.MAX_LENGTH = kwargs.get("max_length", 30)
     else:
-      which_grammar = random.choice(range(3))
+      which_grammar = self.rng.choice(range(4))
       
       if which_grammar == 0:
         # todo: make a few different kinds of grammars that could be picked
@@ -221,43 +229,79 @@ class LanguageQuestion(Question):
         """
         self.include_spaces = True
         self.MAX_LENGTH = 100
+      elif which_grammar == 3:
+        self.grammar_str_good = """
+          <A> ::= a <B> a |
+          <B> ::= b <C> b |
+          <C> ::= c <A> c |
+        """
+        self.grammar_str_bad = """
+          <A> ::= a <B> c
+          <B> ::= b <C> a |
+          <C> ::= c <A> b |
+        """
+        self.include_spaces = False
+        self.MAX_LENGTH = 100
     
-    self.grammar_good = BNF.parse_bnf(self.grammar_str_good)
-    self.grammar_bad = BNF.parse_bnf(self.grammar_str_bad)
+    self.grammar_good = BNF.parse_bnf(self.grammar_str_good, self.rng)
+    self.grammar_bad = BNF.parse_bnf(self.grammar_str_bad, self.rng)
     
-    self.answers.append(
-      Answer(
-        f"answer_good",
-        self.grammar_good.generate(self.include_spaces),
-        Answer.AnswerKind.MULTIPLE_ANSWER,
-        correct=True
-      )
+    self.num_answer_options = kwargs.get("num_answer_options", 4)
+    self.num_answer_blanks = kwargs.get("num_answer_blanks", 4)
+  
+  def refresh(self, *args, **kwargs):
+    super().refresh(*args, **kwargs)
+    
+    self.answers = {}
+    
+    self.num_answer_options = kwargs.get("num_answer_options", 4)
+    self.num_answer_blanks = kwargs.get("num_answer_blanks", 4)
+    
+    self.refresh()
+  
+  def refresh(self, *args, **kwargs):
+    super().refresh(*args, **kwargs)
+    
+    self.answers = {}
+    
+    self.answers.update(
+      {
+        "answer_good" : Answer(
+          f"answer_good",
+          self.grammar_good.generate(self.include_spaces),
+          Answer.AnswerKind.MULTIPLE_ANSWER,
+          correct=True
+        )
+      }
     )
     
-    self.answers.append(
-      Answer(
-        f"answer_bad",
-        self.grammar_bad.generate(self.include_spaces),
-        Answer.AnswerKind.MULTIPLE_ANSWER,
-        correct=False
-      )
-    )
-    self.answers.append(
-      Answer(
-        f"answer_bad_early",
-        self.grammar_bad.generate(self.include_spaces, early_exit=True),
-        Answer.AnswerKind.MULTIPLE_ANSWER,
-        correct=False
-      )
-    )
+    self.answers.update(
+      {
+        "answer_bad":
+          Answer(
+            f"answer_bad",
+            self.grammar_bad.generate(self.include_spaces),
+            Answer.AnswerKind.MULTIPLE_ANSWER,
+            correct=False
+          )
+      })
+    self.answers.update({
+      "answer_bad_early":
+        Answer(
+          f"answer_bad_early",
+          self.grammar_bad.generate(self.include_spaces, early_exit=True),
+          Answer.AnswerKind.MULTIPLE_ANSWER,
+          correct=False
+        )
+    })
     
-    answer_text_set = {a.value for a in self.answers}
+    answer_text_set = {a.value for a in self.answers.values()}
     num_tries = 0
     while len(self.answers) < 10 and num_tries < self.MAX_TRIES:
       
-      correct = random.choice([True, False])
+      correct = self.rng.choice([True, False])
       if not correct:
-        early_exit = random.choice([True, False])
+        early_exit = self.rng.choice([True, False])
       else:
         early_exit = False
       new_answer = Answer(
@@ -268,30 +312,76 @@ class LanguageQuestion(Question):
           else self.grammar_bad
         ).generate(self.include_spaces, early_exit=early_exit),
         Answer.AnswerKind.MULTIPLE_ANSWER,
-        correct=correct
+        correct= correct and not early_exit
       )
       if len(new_answer.value) < self.MAX_LENGTH and new_answer.value not in answer_text_set:
-        self.answers.append(new_answer)
+        self.answers.update({new_answer.key : new_answer})
         answer_text_set.add(new_answer.value)
       num_tries += 1
+    
+    # Generate answers that will be used only for the latex version.
+    self.featured_answers = {
+      self.grammar_good.generate(),
+      self.grammar_bad.generate(),
+      self.grammar_good.generate(early_exit=True)
+    }
+    while len(self.featured_answers) < self.num_answer_options:
+      self.featured_answers.add(
+        self.rng.choice([
+          lambda: self.grammar_good.generate(),
+          lambda: self.grammar_bad.generate(),
+          lambda: self.grammar_good.generate(early_exit=True),
+        ])()
+      )
   
-  def get_body_lines(self, *args, **kwargs) -> List[str]:
-    lines = []
-    lines.extend([
-      "Given the following grammar, which of the below strings are part of the language?",
-      "",
-      self.grammar_good.get_grammar_string()
-    ])
-    return lines
   
-  def get_explanation_lines(self, *args, **kwargs) -> List[str]:
-    lines = []
-    lines.extend([
-      "Remember, for a string to be part of our language, we need to be able to derive it from our grammar.",
-      "Unfortunately, there isn't space here to demonstrate the derivation so please work through them on your own!"
-    ])
-    return lines
+  def get_body(self, *args, **kwargs) -> ContentAST.Section:
+    body = ContentAST.Section()
+    
+    body.add_element(
+      ContentAST.Paragraph([
+        ContentAST.TextHTML("Given the following grammar, which of the below strings are part of the language?"),
+        ContentAST.TextLatex(
+          "Given the following grammar "
+          "please circle any provided strings that are part of the language (or indicate clearly if there are none), "
+          "and on each blank line provide generate a new, unique string that is part of the language."
+        )
+      ])
+    )
+    
+    body.add_element(
+      ContentAST.Paragraph([
+        self.grammar_good.get_grammar_string()
+      ])
+    )
+    
+    # Add in some answers as latex-only options to be circled
+    body.add_element(
+      ContentAST.OnlyLatex([
+        ContentAST.TextLatex(f"- `{str(answer)}`")
+        for answer in self.featured_answers
+      ])
+    )
+    
+    # For Latex-only, ask students to generate some more.
+    body.add_element(
+      ContentAST.OnlyLatex([
+        ContentAST.AnswerBlock([ContentAST.Answer() for _ in range(self.num_answer_blanks)])
+      ])
+    )
+    
+    return body
+  
+  def get_explanation(self, *args, **kwargs) -> ContentAST.Section:
+    explanation = ContentAST.Section()
+    explanation.add_element(
+      ContentAST.Paragraph([
+        "Remember, for a string to be part of our language, we need to be able to derive it from our grammar.",
+        "Unfortunately, there isn't space here to demonstrate the derivation so please work through them on your own!"
+      ])
+    )
+    return explanation
 
   def get_answers(self, *args, **kwargs) -> Tuple[Answer.AnswerKind, List[Dict[str,Any]]]:
     
-    return Answer.AnswerKind.MULTIPLE_ANSWER, list(itertools.chain(*[a.get_for_canvas() for a in self.answers]))
+    return Answer.AnswerKind.MULTIPLE_ANSWER, list(itertools.chain(*[a.get_for_canvas() for a in self.answers.values()]))
