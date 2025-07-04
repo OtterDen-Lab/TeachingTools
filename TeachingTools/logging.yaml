@@ -36,22 +36,22 @@ handlers:
 
 loggers:
   TeachingTools:
-    level: DEBUG
+    level: INFO
     handlers: [console, file]
     propagate: false
 
   TeachingTools.grading_assistant:
-    level: DEBUG
+    level: INFO
     handlers: [console, file]
     propagate: false
 
   TeachingTools.lms_interface:
-    level: DEBUG
+    level: INFO
     handlers: [console, file]
     propagate: false
 
   TeachingTools.quiz_generation:
-    level: DEBUG
+    level: INFO
     handlers: [console, file]
     propagate: false
 
