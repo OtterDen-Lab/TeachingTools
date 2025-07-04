@@ -25,16 +25,6 @@ import logging
 log = logging.getLogger(__name__)
 
 
-logger = logging.getLogger("canvasapi")
-handler = logging.StreamHandler(sys.stderr)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-handler.setLevel(logging.WARNING)
-handler.setFormatter(formatter)
-logger.addHandler(handler)
-logger.setLevel(logging.WARNING)
-
-
 QUESTION_VARIATIONS_TO_TRY = 1000
 
 
