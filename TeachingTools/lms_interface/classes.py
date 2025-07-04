@@ -132,8 +132,10 @@ class Feedback:
   attachments: List[io.BytesIO] = dataclasses.field(default_factory=list)
   
   def __str__(self):
-    return f"Feedback({self.score}, {self.comments[:10].replace('\n','\\n')}{'...' if len(self.comments) > 10 else ''})"
-  
+    short_comment = self.comments[:10].replace('\n', '\\n')
+    ellipsis = '...' if len(self.comments) > 10 else ''
+    return f"Feedback({self.score}, {short_comment}{ellipsis})"
+
   def __eq__(self, other):
     if not isinstance(other, Feedback):
       return NotImplemented

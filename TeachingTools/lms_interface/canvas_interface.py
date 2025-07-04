@@ -17,7 +17,6 @@ import sys
 import requests
 import io
 
-from TeachingTools.quiz_generation.quiz import Quiz
 from TeachingTools.lms_interface.classes import LMSWrapper, Student, Submission, Submission__Canvas
 
 import logging
