@@ -41,8 +41,6 @@ class FromGenerator(FromText):
     self.possible_variations = kwargs.get("possible_variations", float('inf'))
     
     def attach_function_to_object(obj, function_code, function_name='get_body_lines'):
-      # log.debug(f"\ndef {function_name}(self):\n" + "\n".join(f"    {line}" for line in function_code.splitlines()))
-      
       function_code = "import random\n" + function_code
       
       # Define the function dynamically using exec

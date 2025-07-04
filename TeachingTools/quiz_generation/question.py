@@ -135,12 +135,10 @@ class QuestionRegistry:
   def load_premade_questions(cls):
     package_name = "TeachingTools.quiz_generation.premade_questions"  # Fully qualified package name
     package_path = pathlib.Path(__file__).parent / "premade_questions"
-    # log.debug(f"package_path: {package_path}")
     
     for _, module_name, _ in pkgutil.iter_modules([str(package_path)]):
       # Import the module
       module = importlib.import_module(f"{package_name}.{module_name}")
-      # log.debug(f"Loaded module: {module.__name__}")
 
 
 class Question(abc.ABC):
@@ -240,7 +238,6 @@ class Question(abc.ABC):
     )
   
   def get_answers(self, *args, **kwargs) -> Tuple[Answer.AnswerKind, List[Dict[str,Any]]]:
-    # log.warning("get_answers using default implementation!  Consider implementing!")
     return (
       self.answer_kind,
       list(itertools.chain(*[a.get_for_canvas() for a in self.answers.values()]))

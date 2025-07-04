@@ -107,7 +107,6 @@ class SchedulingQuestion(ProcessQuestion):
       return time_remaining
     
     def is_complete(self, curr_time) -> bool:
-      # log.debug(f"is complete: {self.duration} <= {self.elapsed_time} : {self.duration <= self.elapsed_time}")
       return self.duration <= self.elapsed_time + self.SCHEDULER_EPSILON # self.time_remaining(curr_time) <= 0
     
     def has_started(self) -> bool:
