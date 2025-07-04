@@ -24,7 +24,7 @@ import logging
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
+log.setLevel(logging.INFO)
 
 
 logger = logging.getLogger("canvasapi")
@@ -267,7 +267,6 @@ class CanvasAssignment(LMSWrapper):
         else:
           log.warning(f"Failed to delete comment {comment_id}: {response.json()}")
     
-    
     def upload_buffer_as_file(buffer, name):
       with io.FileIO(name, 'w+') as ffid:
         ffid.write(buffer)
@@ -307,7 +306,7 @@ class CanvasAssignment(LMSWrapper):
         _inner=self.canvas_course.get_user(canvaspai_submission.user_id)
       )
       
-      log.info(f"Checking submissions for {student.name} ({len(canvaspai_submission.submission_history)} submissions)")
+      log.debug(f"Checking submissions for {student.name} ({len(canvaspai_submission.submission_history)} submissions)")
       
       # Walk through submissions in the reverse order, so we'll default to grabbing the most recent submission first
       # This is important when we are going to be only including most recent
