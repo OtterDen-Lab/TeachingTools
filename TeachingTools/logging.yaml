@@ -1,0 +1,65 @@
+version: 1
+disable_existing_loggers: false
+
+formatters:
+  standard:
+    format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    datefmt: '%Y-%m-%d %H:%M:%S'
+  
+  detailed:
+    format: '%(asctime)s - %(name)s - %(levelname)s - %(module)s - %(funcName)s:%(lineno)d - %(message)s'
+    datefmt: '%Y-%m-%d %H:%M:%S'
+
+  simple:
+    format: '%(levelname)s - %(message)s'
+
+handlers:
+  console:
+    class: logging.StreamHandler
+    level: DEBUG
+    formatter: standard
+    stream: ext://sys.stdout
+
+  file:
+    class: logging.FileHandler
+    level: DEBUG
+    formatter: detailed
+    filename: ${LOG_FILE:-teachingtools.log}
+    mode: a
+
+  error_file:
+    class: logging.FileHandler
+    level: ERROR
+    formatter: detailed
+    filename: ${ERROR_LOG_FILE:-teachingtools_errors.log}
+    mode: a
+
+loggers:
+  TeachingTools:
+    level: DEBUG
+    handlers: [console, file]
+    propagate: false
+
+  TeachingTools.grading_assistant:
+    level: DEBUG
+    handlers: [console, file]
+    propagate: false
+
+  TeachingTools.lms_interface:
+    level: DEBUG
+    handlers: [console, file]
+    propagate: false
+
+  TeachingTools.quiz_generation:
+    level: DEBUG
+    handlers: [console, file]
+    propagate: false
+
+  canvasapi:
+    level: WARNING
+    handlers: [console]
+    propagate: false
+
+root:
+  level: INFO
+  handlers: [console, file, error_file]
