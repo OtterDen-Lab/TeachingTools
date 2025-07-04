@@ -1,84 +1,39 @@
 prod: True
 push: True
 courses:
-  - name: CST334
-    id: 27739
-    assignments:
-      - name: PA1
-        id: 452300
-        kind: ProgrammingAssignment
-        grader: CST334
-        kwargs:
-          num_repeats: 1
-          assignment_path: PA1
-      - name: PA2
-        id: 452301
-        kind: ProgrammingAssignment
-        grader: CST334
-        kwargs:
-          num_repeats: 1
-          assignment_path: PA2
-      - name: PA3
-        id: 452302
-        kind: ProgrammingAssignment
-        grader: CST334
-        kwargs:
-          num_repeats: 10
-          assignment_path: PA3
-      - name: PA4
-        id: 452303
-        kind: ProgrammingAssignment
-        grader: CST334
-        kwargs:
-          num_repeats: 10
-          assignment_path: PA4
-      - name: PA5
-        id: 452304
-        kind: ProgrammingAssignment
-        grader: CST334
-        kwargs:
-          num_repeats: 10
-          assignment_path: PA5
-      - name: PA6
-        id: 452305
-        kind: ProgrammingAssignment
-        grader: CST334
-        kwargs:
-          num_repeats: 10
-          assignment_path: PA6
   - name: CST334-online
-    id: 28716
+    id: 29233
     assignments:
       - name: PA1
-        id: 472830
+        id: 487781
         kind: ProgrammingAssignment
         grader: CST334online
         kwargs:
           num_repeats: 10
           assignment_path: PA1
       - name: PA2
-        id: 472831
+        id: 487782
         kind: ProgrammingAssignment
         grader: CST334online
         kwargs:
           num_repeats: 10
           assignment_path: PA2
       - name: PA3
-        id: 472832
+        id: 487783
         kind: ProgrammingAssignment
         grader: CST334online
         kwargs:
           num_repeats: 10
           assignment_path: PA3
       - name: PA4
-        id: 472833
+        id: 487784
         kind: ProgrammingAssignment
         grader: CST334online
         kwargs:
           num_repeats: 10
           assignment_path: PA4
       - name: PA5
-        id: 472834
+        id: 487785
         kind: ProgrammingAssignment
         grader: CST334online
         kwargs:
