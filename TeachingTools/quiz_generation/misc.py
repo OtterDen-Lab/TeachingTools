@@ -12,9 +12,7 @@ from typing import List, Dict, Callable
 import pylatex
 import pypandoc
 
-logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
 
 
 class OutputFormat(enum.Enum):

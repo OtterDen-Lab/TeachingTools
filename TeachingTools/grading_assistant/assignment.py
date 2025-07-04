@@ -35,9 +35,7 @@ import logging
 import colorama
 
 
-logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
 
 NAME_SIMILARITY_THRESHOLD = 95
 

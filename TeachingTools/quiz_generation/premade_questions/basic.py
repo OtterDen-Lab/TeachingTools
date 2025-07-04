@@ -8,9 +8,7 @@ import logging
 from TeachingTools.quiz_generation.misc import ContentAST
 from TeachingTools.quiz_generation.question import Question, QuestionRegistry, Answer
 
-logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
 
 
 @QuestionRegistry.register()

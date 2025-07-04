@@ -17,9 +17,7 @@ import yaml
 from TeachingTools.quiz_generation.misc import OutputFormat, ContentAST
 from TeachingTools.quiz_generation.question import Question, QuestionRegistry, QuestionGroup
 
-logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
 
 
 class Quiz:

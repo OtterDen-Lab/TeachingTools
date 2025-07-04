@@ -23,9 +23,7 @@ import canvasapi.course, canvasapi.quiz
 from TeachingTools.quiz_generation.misc import OutputFormat, Answer, ContentAST
 
 import logging
-logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
 
 
 @dataclasses.dataclass

@@ -18,9 +18,7 @@ import matplotlib.pyplot as plt
 from TeachingTools.quiz_generation.misc import OutputFormat, ContentAST
 from TeachingTools.quiz_generation.question import Question, Answer, QuestionRegistry
 
-logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
 
 
 class ProcessQuestion(Question, abc.ABC):

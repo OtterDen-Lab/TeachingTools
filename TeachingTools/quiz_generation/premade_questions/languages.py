@@ -11,9 +11,7 @@ from TeachingTools.quiz_generation.question import QuestionRegistry, Question, A
 from TeachingTools.quiz_generation.misc import ContentAST
 
 import logging
-logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
 
 
 class LanguageQuestion(Question, abc.ABC):
