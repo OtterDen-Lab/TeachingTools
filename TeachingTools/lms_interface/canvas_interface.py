@@ -22,19 +22,7 @@ from TeachingTools.lms_interface.classes import LMSWrapper, Student, Submission,
 
 import logging
 
-logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(logging.INFO)
-
-
-logger = logging.getLogger("canvasapi")
-handler = logging.StreamHandler(sys.stderr)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-handler.setLevel(logging.WARNING)
-handler.setFormatter(formatter)
-logger.addHandler(handler)
-logger.setLevel(logging.WARNING)
 
 
 QUESTION_VARIATIONS_TO_TRY = 1000
@@ -255,7 +243,6 @@ class CanvasAssignment(LMSWrapper):
       log.debug("Clobbering...")
       # todo: clobbering should probably be moved up or made into a different function for cleanliness.
       for comment in submission.submission_comments:
-        # log.debug(f"Existing comment: {comment}")
         comment_id = comment['id']
         # Construct the URL to delete the comment
         delete_url = f"{self.canvas_interface.canvas_url}/api/v1/courses/{self.canvas_course.course.id}/assignments/{self.assignment.id}/submissions/{user_id}/comments/{comment_id}"
@@ -433,7 +420,6 @@ class CanvasHelpers:
         if datetime.fromisoformat(assignment.unlock_at) > datetime.now(timezone.utc):
           log.debug(assignment)
           for submission in assignment.get_submissions():
-          #   log.debug(submission.__dict__)
             submission.mark_unread()
           
     

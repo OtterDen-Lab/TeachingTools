@@ -35,9 +35,7 @@ import logging
 import colorama
 
 
-logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
 
 NAME_SIMILARITY_THRESHOLD = 95
 
@@ -421,8 +419,6 @@ class Assignment__Exam(Assignment):
       # Remove the matches, even if it wasn't the best match
       submissions.remove(best_pair[0])
       students.remove(best_pair[1])
-    # log.debug(f"submissions_w_names: {len(submissions_w_names)}")
-    # log.debug(f"submissions_wo_names: {len(submissions_wo_names)}")
     try:
       log.debug(f"Matched {100*(len(submissions_w_names) / len(submissions_w_names + submissions_wo_names)):0.2f}% of submissions")
     except ZeroDivisionError:
@@ -492,7 +488,6 @@ class Assignment__Exam(Assignment):
     exam_pdf = fitz.open()
     
     for page_number, page_map in enumerate(page_mappings):
-      # log.debug(f"Adding {page_number} from {page_mappings}")
       pdf_path = os.path.join(
         input_directory,
         f"{page_number:03}",

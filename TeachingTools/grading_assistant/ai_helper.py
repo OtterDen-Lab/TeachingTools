@@ -10,9 +10,7 @@ from openai import OpenAI
 from anthropic import Anthropic
 
 import logging
-logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
 
 
 class AI_Helper(abc.ABC):

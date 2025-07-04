@@ -18,9 +18,7 @@ import matplotlib.pyplot as plt
 from TeachingTools.quiz_generation.misc import OutputFormat, ContentAST
 from TeachingTools.quiz_generation.question import Question, Answer, QuestionRegistry
 
-logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
 
 
 class ProcessQuestion(Question, abc.ABC):
@@ -109,7 +107,6 @@ class SchedulingQuestion(ProcessQuestion):
       return time_remaining
     
     def is_complete(self, curr_time) -> bool:
-      # log.debug(f"is complete: {self.duration} <= {self.elapsed_time} : {self.duration <= self.elapsed_time}")
       return self.duration <= self.elapsed_time + self.SCHEDULER_EPSILON # self.time_remaining(curr_time) <= 0
     
     def has_started(self) -> bool:

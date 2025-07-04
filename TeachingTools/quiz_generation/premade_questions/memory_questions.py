@@ -12,9 +12,7 @@ from typing import List, Optional
 from TeachingTools.quiz_generation.misc import ContentAST
 from TeachingTools.quiz_generation.question import Question, Answer, QuestionRegistry
 
-logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
 
 
 class MemoryQuestion(Question, abc.ABC):

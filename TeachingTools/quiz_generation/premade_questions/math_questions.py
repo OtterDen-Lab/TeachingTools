@@ -6,9 +6,7 @@ import math
 from TeachingTools.quiz_generation.question import Question, QuestionRegistry, Answer
 from TeachingTools.quiz_generation.misc import ContentAST
 
-logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
 
 
 class MathQuestion(Question, abc.ABC):

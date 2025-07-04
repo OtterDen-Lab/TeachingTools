@@ -12,9 +12,7 @@ from typing import Optional, List, Dict
 
 import canvasapi.canvas
 
-logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
 
 
 
