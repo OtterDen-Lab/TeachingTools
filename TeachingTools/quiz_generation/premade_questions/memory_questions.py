@@ -55,9 +55,9 @@ class VirtualAddressParts(MemoryQuestion):
     body = ContentAST.Section()
     
     body.add_element(
-      ContentAST.Paragraph(
+      ContentAST.Paragraph([
         "Given the information in the below table, please complete the table as appropriate."
-      )
+      ])
     )
     
     body.add_element(
@@ -79,13 +79,24 @@ class VirtualAddressParts(MemoryQuestion):
   def get_explanation(self, **kwargs) -> ContentAST.Section:
     explanation = ContentAST.Section()
     
-    explanation.add_elements([
-      ContentAST.Text(f"{self.num_va_bits}", emphasis=(self.blank_kind == self.Target.VA_BITS)),
-      ContentAST.Text(" = "),
-      ContentAST.Text(f"{self.num_vpn_bits}", emphasis=(self.blank_kind == self.Target.VPN_BITS)),
-      ContentAST.Text(" + "),
-      ContentAST.Text(f"{self.num_offset_bits}", emphasis=(self.blank_kind == self.Target.OFFSET_BITS))
-    ])
+    explanation.add_element(
+      ContentAST.Paragraph([
+        "Remember, when we are calculating the size of virtual address spaces, "
+        "the number of bits in the overall address space is equal to the number of bits in the VPN "
+        "plus the number of bits for the offset.",
+        "We don't waste any bits!"
+      ])
+    )
+    
+    explanation.add_element(
+      ContentAST.Paragraph([
+        ContentAST.Text(f"{self.num_va_bits}", emphasis=(self.blank_kind == self.Target.VA_BITS)),
+        ContentAST.Text(" = "),
+        ContentAST.Text(f"{self.num_vpn_bits}", emphasis=(self.blank_kind == self.Target.VPN_BITS)),
+        ContentAST.Text(" + "),
+        ContentAST.Text(f"{self.num_offset_bits}", emphasis=(self.blank_kind == self.Target.OFFSET_BITS))
+      ])
+    )
     
     return explanation
     
@@ -184,8 +195,6 @@ class CachingQuestion(MemoryQuestion):
     else:
       self.cache_policy = self.cache_policy_generator()
     super().refresh(*args, **kwargs)
-    
-    log.debug(f"Using a {self.cache_policy} policy")
     
     self.requests = (
         list(range(self.cache_size)) # Prime the cache with the compulsory misses
