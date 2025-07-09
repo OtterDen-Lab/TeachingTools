@@ -23,7 +23,6 @@ dependencies = [
     "pandas",
     "pypandoc~=1.6.3",
     "pytablewriter~=1.2.0",
-    "canvasapi==3.2.0",
     "pypdf~=4.1.0",
     "openai",
     "fuzzywuzzy",
@@ -31,6 +30,7 @@ dependencies = [
     "anthropic",
     "pylatex>=1.4.2",
     "docker>=6.1.3",
+    "lms_interface @ file:///Users/ssogden/repos/teaching/lms_interface"
 ]
 
 [project.optional-dependencies]
@@ -43,6 +43,9 @@ dev = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["TeachingTools"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.black]
 line-length = 88
