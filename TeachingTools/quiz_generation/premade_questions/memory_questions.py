@@ -54,8 +54,10 @@ class VirtualAddressParts(MemoryQuestion):
   def get_body(self, **kwargs) -> ContentAST.Section:
     body = ContentAST.Section()
     
-    body.add_text_element(
-      "Given the information in the below table, please complete the table as appropriate."
+    body.add_element(
+      ContentAST.Paragraph(
+        "Given the information in the below table, please complete the table as appropriate."
+      )
     )
     
     body.add_element(
@@ -94,7 +96,7 @@ class CachingQuestion(MemoryQuestion):
   class Kind(enum.Enum):
     FIFO = enum.auto()
     LRU = enum.auto()
-    Belady = enum.auto()
+    BELADY = enum.auto()
     def __str__(self):
       return self.name
   
@@ -144,7 +146,7 @@ class CachingQuestion(MemoryQuestion):
       #     key=(lambda e: (self.frequency[e], e)),
       #     reverse=False
       #   )
-      elif self.kind == CachingQuestion.Kind.Belady:
+      elif self.kind == CachingQuestion.Kind.BELADY:
         upcoming_requests = self.all_requests[request_number+1:]
         self.cache_state = sorted(
           self.cache_state,
@@ -161,16 +163,29 @@ class CachingQuestion(MemoryQuestion):
     self.cache_size = kwargs.get("cache_size", 3)
     self.num_requests = kwargs.get("num_requests", 10)
     
-    self.cache_policy = self.rng.choice(list(self.Kind))
+    # First set a random algo, then try to see if we should use a different one
+    self.cache_policy_generator = (lambda: self.rng.choice(list(self.Kind)))
+    
+    policy_str = (kwargs.get("policy") or kwargs.get("algo")).upper()
+    if policy_str:
+      try:
+        self.cache_policy_generator = (lambda: self.Kind[policy_str])
+      except KeyError:
+        log.warning(
+          f"Invalid cache policy '{policy_str}'. Valid options are: {[k.name for k in self.Kind]}. Defaulting to random"
+        )
+    
+    self.cache_policy = self.cache_policy_generator()
   
-  def refresh(self, previous : Optional[CachingQuestion]=None, *args, **kwargs):
+  def refresh(self, previous : Optional[CachingQuestion]=None, *args, hard_refresh : bool = False, **kwargs):
     # Check to see if we are using the existing caching policy or a brand new one
-    if not kwargs.get("hard_refresh", True):
+    if not hard_refresh:
       self.rng_seed_offset += 1
     else:
-      self.cache_policy = self.rng.choice(list(self.Kind))
-    
+      self.cache_policy = self.cache_policy_generator()
     super().refresh(*args, **kwargs)
+    
+    log.debug(f"Using a {self.cache_policy} policy")
     
     self.requests = (
         list(range(self.cache_size)) # Prime the cache with the compulsory misses
@@ -246,7 +261,7 @@ class CachingQuestion(MemoryQuestion):
       ContentAST.AnswerBlock(
         ContentAST.Answer(
           answer=self.answers["answer__hit_rate"],
-          label="Hit rate, excluding compulsory misses",
+          label=f"Hit rate, excluding compulsory misses.  If appropriate, round to {Answer.DEFAULT_ROUNDING_DIGITS} decimal digits.",
           unit="%"
         )
       )
