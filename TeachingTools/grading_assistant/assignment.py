@@ -28,8 +28,8 @@ import os
 import pandas as pd
 
 import TeachingTools.grading_assistant.ai_helper as ai_helper
-from TeachingTools.lms_interface.canvas_interface import CanvasCourse, CanvasAssignment
-from TeachingTools.lms_interface.classes import Student, Submission, Feedback
+from lms_interface.canvas_interface import CanvasCourse, CanvasAssignment
+from lms_interface.classes import Student, Submission, Feedback
 
 import logging
 import colorama
