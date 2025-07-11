@@ -6,7 +6,7 @@ import os
 import shutil
 import subprocess
 
-from TeachingTools.lms_interface.canvas_interface import CanvasInterface, CanvasHelpers
+from lms_interface.canvas_interface import CanvasInterface, CanvasHelpers
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
