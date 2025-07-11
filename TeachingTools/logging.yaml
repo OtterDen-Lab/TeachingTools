@@ -45,7 +45,7 @@ loggers:
     handlers: [console, file]
     propagate: false
 
-  TeachingTools.lms_interface:
+  lms_interface:
     level: INFO
     handlers: [console, file]
     propagate: false

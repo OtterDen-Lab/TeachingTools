@@ -22,7 +22,7 @@ import pandas as pd
 from typing import List, Tuple, Optional
 
 from TeachingTools.grading_assistant.assignment import Assignment
-from TeachingTools.lms_interface.classes import Feedback, Submission
+from lms_interface.classes import Feedback, Submission
 
 docker = None
 def _import_docker():
