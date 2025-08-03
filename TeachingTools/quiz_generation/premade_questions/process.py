@@ -1,6 +1,7 @@
 #!env python
 from __future__ import annotations
 
+import abc
 import collections
 import dataclasses
 import enum
@@ -9,23 +10,18 @@ import logging
 import math
 import os
 import queue
-import random
 import uuid
-from typing import List, Optional
+from typing import List
 
-import canvasapi.course, canvasapi.quiz
 import matplotlib.pyplot as plt
 
 from TeachingTools.quiz_generation.misc import OutputFormat, ContentAST
 from TeachingTools.quiz_generation.question import Question, Answer, QuestionRegistry
 
-logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
 
 
-
-class ProcessQuestion(Question):
+class ProcessQuestion(Question, abc.ABC):
   def __init__(self, *args, **kwargs):
     kwargs["topic"] = kwargs.get("topic", Question.Topic.PROCESS)
     super().__init__(*args, **kwargs)
@@ -35,28 +31,28 @@ class ProcessQuestion(Question):
 class SchedulingQuestion(ProcessQuestion):
   class Kind(enum.Enum):
     FIFO = enum.auto()
-    # LIFO = enum.auto()
     ShortestDuration = enum.auto()
     ShortestTimeRemaining = enum.auto()
     RoundRobin = enum.auto()
+    
+    def __str__(self):
+      return self.name
   
   @staticmethod
-  def get_kind_from_string(kind_str: str) -> Kind:
+  def get_kind_from_string(kind_str: str) -> SchedulingQuestion.Kind:
     try:
       return SchedulingQuestion.Kind[kind_str]
     except KeyError:
-      return SchedulingQuestion.Kind.FIFO  # or raise ValueError(f"Invalid Kind: {kind_str}")
-
+      return SchedulingQuestion.Kind.FIFO
 
   MAX_JOBS = 4
   MAX_ARRIVAL_TIME = 20
-  MIN_JOB_DURATION = 3
+  MIN_JOB_DURATION = 2
   MAX_JOB_DURATION = 10
   
   ANSWER_EPSILON = 1.0
   
-  SCHEDULER_KIND = None
-  SCHEDULER_NAME = None
+  scheduler_algorithm = None
   SELECTOR = None
   PREEMPTABLE = False
   TIME_QUANTUM = None
@@ -64,7 +60,7 @@ class SchedulingQuestion(ProcessQuestion):
   ROUNDING_DIGITS = 2
   
   @dataclasses.dataclass
-  class Job():
+  class Job:
     job_id: int
     arrival: float
     duration: float
@@ -74,7 +70,7 @@ class SchedulingQuestion(ProcessQuestion):
     unpause_time: float | None = None
     last_run: float = 0               # When were we last scheduled
     
-    state_change_times : List[float] = dataclasses.field(default_factory=lambda : [])
+    state_change_times: List[float] = dataclasses.field(default_factory=lambda: [])
     
     SCHEDULER_EPSILON = 1e-09
     
@@ -85,7 +81,6 @@ class SchedulingQuestion(ProcessQuestion):
       self.unpause_time = curr_time
       if not is_rr:
         self.state_change_times.append(curr_time)
-    
     
     def stop(self, curr_time, is_rr=False) -> None:
       self.elapsed_time += (curr_time - self.unpause_time)
@@ -99,6 +94,7 @@ class SchedulingQuestion(ProcessQuestion):
     def mark_start(self, curr_time) -> None:
       self.start_time = curr_time
       self.response_time = curr_time - self.arrival + self.SCHEDULER_EPSILON
+    
     def mark_end(self, curr_time) -> None:
       self.end_time = curr_time
       self.turnaround_time = curr_time - self.arrival + self.SCHEDULER_EPSILON
@@ -111,12 +107,10 @@ class SchedulingQuestion(ProcessQuestion):
       return time_remaining
     
     def is_complete(self, curr_time) -> bool:
-      # log.debug(f"is complete: {self.duration} <= {self.elapsed_time} : {self.duration <= self.elapsed_time}")
       return self.duration <= self.elapsed_time + self.SCHEDULER_EPSILON # self.time_remaining(curr_time) <= 0
     
     def has_started(self) -> bool:
       return self.response_time is None
-  
   
   def get_workload(self, num_jobs, *args, **kwargs) -> List[SchedulingQuestion.Job]:
     """Makes a guaranteed interesting workload by following rules
@@ -129,53 +123,76 @@ class SchedulingQuestion(ProcessQuestion):
     
     workload = []
     
-    # First create a job that is relatively long-running and arrives relatively early.
-    first_job : SchedulingQuestion.Job = self.Job(
-      job_id=0,
-      arrival=random.randint(0, int(0.25 * self.MAX_ARRIVAL_TIME)),
-      duration=random.randint(int(self.MAX_JOB_DURATION * 0.75), self.MAX_JOB_DURATION)
+    # First create a job that is relatively long-running and arrives first.
+    # Set arrival time to something fairly low
+    job0_arrival = self.rng.randint(0, int(0.25 * self.MAX_ARRIVAL_TIME))
+    # Set duration to something fairly long
+    job0_duration = self.rng.randint(int(self.MAX_JOB_DURATION * 0.75), self.MAX_JOB_DURATION)
+    
+    # Next, let's create a job that will test whether we are preemptive or not.
+    #  The core characteristics of this job are that it:
+    #  1) would also finish _before_ the end of job0 if selected to run immediately.  This tests STCF
+    # The bounds for arrival and completion will be:
+    #  arrival:
+    #   lower: (job0_arrival + 1) so we have a definite first job
+    #   upper: (job0_arrival + job0_duration - self.MIN_JOB_DURATION) so we have enough time for a job to run
+    #  duration:
+    #   lower: self.MIN_JOB_DURATION
+    #   upper:
+    job1_arrival = self.rng.randint(
+      job0_arrival + 1, # Make sure we start _after_ job0
+      job0_arrival + job0_duration - self.MIN_JOB_DURATION - 2 # Make sure we always have enough time for job1 & job2
+    )
+    job1_duration = self.rng.randint(
+      self.MIN_JOB_DURATION + 1, # default minimum and leave room for job2
+      job0_arrival + job0_duration - job1_arrival - 1 # Make sure our job ends _at least_ before job0 would end
     )
     
-    workload.append(first_job)
-    
-    # Generate unique arrival times and durations that place the arrivals in the range of the first job
-    other_arrivals = random.sample(
-      range(
-        int(first_job.arrival + 1),
-        int(first_job.arrival + first_job.duration)
-      ),
-      k=2
+    # Finally, we want to differentiate between STCF and SJF
+    #  So, if we don't preempt job0 we want to make it be a tough choice between the next 2 jobs when it completes.
+    #  This means we want a job that arrives _before_ job0 finishes, after job1 enters, and is shorter than job1
+    job2_arrival = self.rng.randint(
+      job1_arrival + 1, # Make sure we arrive after job1 so we subvert FIFO
+      job0_arrival + job0_duration - 1 # ...but before job0 would exit the system
     )
-    other_durations = random.sample(
-      range(
-        1,
-        self.MAX_JOB_DURATION
-      ),
-      k=2
+    job2_duration = self.rng.randint(
+      self.MIN_JOB_DURATION, # Make sure it's at least the minimum.
+      job1_duration - 1, # Make sure it's shorter than job1
     )
     
-    # Add the two new jobs to the workload, where we are maintaining the described approach
-    workload.extend([
-      self.Job(job_id=1, arrival=min(other_arrivals), duration=max(other_durations)),
-      self.Job(job_id=2, arrival=max(other_arrivals), duration=min(other_durations)),
-    ])
+    # Package them up so we can add more jobs as necessary
+    job_tuples = [
+      (job0_arrival, job0_duration),
+      (job1_arrival, job1_duration),
+      (job2_arrival, job2_duration),
+    ]
     
     # Add more jobs as necessary, if more than 3 are requested
     if num_jobs > 3:
-      workload.extend([
-        self.Job(
-          job_id=(3+i),
-          arrival=random.randint(0, self.MAX_ARRIVAL_TIME),
-          duration=random.randint(self.MIN_JOB_DURATION, self.MAX_JOB_DURATION)
-        )
-        for i in range(num_jobs - 3)
+      job_tuples.extend([
+        (self.rng.randint(0, self.MAX_ARRIVAL_TIME), self.rng.randint(self.MIN_JOB_DURATION, self.MAX_JOB_DURATION))
+        for _ in range(num_jobs - 3)
       ])
+    
+    # Shuffle jobs so they are in a random order
+    self.rng.shuffle(job_tuples)
+    
+    # Make workload from job tuples
+    workload = []
+    for i, (arr, dur) in enumerate(job_tuples):
+      workload.append(
+        SchedulingQuestion.Job(
+          job_id=i,
+          arrival=arr,
+          duration=dur
+        )
+      )
     
     return workload
   
-  def simulation(self, jobs_to_run: List[SchedulingQuestion.Job], selector, preemptable, time_quantum=None):
+  def run_simulation(self, jobs_to_run: List[SchedulingQuestion.Job], selector, preemptable, time_quantum=None):
     curr_time = 0
-    selected_job : SchedulingQuestion.Job | None = None
+    selected_job: SchedulingQuestion.Job | None = None
     
     self.timeline = collections.defaultdict(list)
     self.timeline[curr_time].append("Simulation Start")
@@ -207,7 +224,7 @@ class SchedulingQuestion(ProcessQuestion):
         if selected_job.has_started():
           self.timeline[curr_time].append(f"Starting Job{selected_job.job_id} (resp = {curr_time - selected_job.arrival:0.{self.ROUNDING_DIGITS}f}s)")
         # We start the job that we selected
-        selected_job.run(curr_time, (self.SCHEDULER_KIND == self.Kind.RoundRobin))
+        selected_job.run(curr_time, (self.scheduler_algorithm == self.Kind.RoundRobin))
         
         # We could run to the end of the job
         possible_time_slices.append(selected_job.time_remaining(curr_time))
@@ -232,7 +249,7 @@ class SchedulingQuestion(ProcessQuestion):
       except ValueError:
         log.error("No jobs available to schedule")
         break
-      if self.SCHEDULER_KIND != SchedulingQuestion.Kind.RoundRobin:
+      if self.scheduler_algorithm != SchedulingQuestion.Kind.RoundRobin:
         if selected_job is not None:
           self.timeline[curr_time].append(f"Running Job{selected_job.job_id} for {next_time_slice:0.{self.ROUNDING_DIGITS}f}s")
         else:
@@ -241,7 +258,7 @@ class SchedulingQuestion(ProcessQuestion):
       
       # We stop the job we selected, and potentially mark it as complete
       if selected_job is not None:
-        selected_job.stop(curr_time, (self.SCHEDULER_KIND == self.Kind.RoundRobin))
+        selected_job.stop(curr_time, (self.scheduler_algorithm == self.Kind.RoundRobin))
         if selected_job.is_complete(curr_time):
           self.timeline[curr_time].append(f"Completed Job{selected_job.job_id} (TAT = {selected_job.turnaround_time:0.{self.ROUNDING_DIGITS}f}s)")
       selected_job = None
@@ -259,58 +276,53 @@ class SchedulingQuestion(ProcessQuestion):
     self.num_jobs = num_jobs
     
     if scheduler_kind is None:
-      self.scheduler_kind_generator = lambda : random.choice(list(SchedulingQuestion.Kind))
-    else:
-      self.scheduler_kind_generator = lambda : SchedulingQuestion.get_kind_from_string(scheduler_kind)
-    self.refresh(scheduler_kind=scheduler_kind)
+      self.scheduler_algorithm = self.rng.choice(list(SchedulingQuestion.Kind))
     
-  def refresh(self, previous : Optional[SchedulingQuestion]=None, *args, **kwargs):
+  def refresh(self, *args, **kwargs):
+    if not kwargs.get("hard_refresh", True):
+      self.rng_seed_offset += 1
+    else:
+      self.scheduler_algorithm = self.rng.choice(list(SchedulingQuestion.Kind))
+    
     super().refresh(*args, **kwargs)
     
     self.job_stats = {}
-    self.SCHEDULER_KIND = self.scheduler_kind_generator()
     
-    log.debug(f"Using a {self.SCHEDULER_KIND} scheduler")
-    
-    # Default to FIFO an then change as necessary
-    # This is the default case
-    self.SCHEDULER_NAME = "FIFO"
-    self.SELECTOR = (lambda j, curr_time: (j.arrival, j.job_id))
-    self.PREEMPTABLE = False
-    self.TIME_QUANTUM = None
-    if self.SCHEDULER_KIND == SchedulingQuestion.Kind.ShortestDuration:
-      self.SCHEDULER_NAME = "Shortest Job First"
-      self.SELECTOR = (lambda j, curr_time: (j.duration, j.job_id))
-    elif self.SCHEDULER_KIND == SchedulingQuestion.Kind.ShortestTimeRemaining:
-      self.SCHEDULER_NAME = "Shortest Remaining Time to Completion"
-      self.SELECTOR = (lambda j, curr_time: (j.time_remaining(curr_time), j.job_id))
-      self.PREEMPTABLE = True
-    # elif self.SCHEDULER_KIND == SchedulingQuestion.Kind.LIFO:
-    #   self.SCHEDULER_NAME = "LIFO"
-    #   self.SELECTOR = (lambda j, curr_time: (-j.arrival, j.job_id))
-    #   self.PREEMPTABLE = True
-    elif self.SCHEDULER_KIND == SchedulingQuestion.Kind.RoundRobin:
-      self.SCHEDULER_NAME = "Round Robin"
-      self.SELECTOR = (lambda j, curr_time: (j.last_run, j.job_id))
-      self.PREEMPTABLE = True
-      self.TIME_QUANTUM = 1e-04
-    else:
-      # then we default to FIFO
-      pass
-    
-    # jobs = [
-    #   SchedulingQuestion.Job(
-    #     job_id,
-    #     random.randint(0, self.MAX_ARRIVAL_TIME),
-    #     random.randint(self.MIN_JOB_DURATION, self.MAX_JOB_DURATION)
-    #   )
-    #   for job_id in range(self.num_jobs)
-    # ]
-    
+    # Get workload jobs
     jobs = self.get_workload(self.num_jobs)
     
-    self.simulation(jobs, self.SELECTOR, self.PREEMPTABLE, self.TIME_QUANTUM)
-    
+    # Run simulations different depending on which algorithm we chose
+    match self.scheduler_algorithm:
+      case SchedulingQuestion.Kind.ShortestDuration:
+        self.run_simulation(
+          jobs_to_run=jobs,
+          selector=(lambda j, curr_time: (j.duration, j.job_id)),
+          preemptable=False,
+          time_quantum=None
+        )
+      case SchedulingQuestion.Kind.ShortestTimeRemaining:
+        self.run_simulation(
+          jobs_to_run=jobs,
+          selector=(lambda j, curr_time: (j.time_remaining(curr_time), j.job_id)),
+          preemptable=True,
+          time_quantum=None
+        )
+      case SchedulingQuestion.Kind.RoundRobin:
+        self.run_simulation(
+          jobs_to_run=jobs,
+          selector=(lambda j, curr_time: (j.last_run, j.job_id)),
+          preemptable=True,
+          time_quantum=1e-04
+        )
+      case _:
+        self.run_simulation(
+          jobs_to_run=jobs,
+          selector=(lambda j, curr_time: (j.arrival, j.job_id)),
+          preemptable=False,
+          time_quantum=None
+        )
+      
+    # Collate stats
     self.job_stats = {
       i : {
         "arrival" : job.arrival,            # input
@@ -361,7 +373,7 @@ class SchedulingQuestion(ProcessQuestion):
     
     body.add_element(
       ContentAST.Paragraph([
-        f"Given the below information, compute the required values if using <b>{self.SCHEDULER_NAME}</b> scheduling.  "
+        f"Given the below information, compute the required values if using <b>{self.scheduler_algorithm}</b> scheduling.  "
         f"Break any ties using the job number.",
       ])
     )
@@ -404,7 +416,7 @@ class SchedulingQuestion(ProcessQuestion):
     
     explanation.add_element(
       ContentAST.Paragraph([
-        f"To calculate the overall Turnaround and Response times using {self.SCHEDULER_KIND} "
+        f"To calculate the overall Turnaround and Response times using {self.scheduler_algorithm} "
         f"we want to first start by calculating the respective target and response times of all of our individual jobs."
       ])
     )
@@ -413,8 +425,8 @@ class SchedulingQuestion(ProcessQuestion):
       ContentAST.Paragraph([
         "We do this by subtracting arrival time from either the completion time or the start time.  That is:"
         ]),
-      ContentAST.Equation(f"Job_TAT = Job_completion - Job_arrival"),
-      ContentAST.Equation(f"Job_response = Job_start - Job_arrival"),
+      ContentAST.Equation("Job_{TAT} = Job_{completion} - Job_{arrival}"),
+      ContentAST.Equation("Job_{response} = Job_{start} - Job_{arrival}"),
     ])
     
     explanation.add_element(
@@ -506,7 +518,7 @@ class SchedulingQuestion(ProcessQuestion):
       ax.axvline(x_loc, zorder=0)
       plt.text(x_loc + 0, len(self.job_stats.keys())-0.3, f'{x_loc:0.{self.ROUNDING_DIGITS}f}s', rotation=90)
     
-    if self.SCHEDULER_KIND != self.Kind.RoundRobin:
+    if self.scheduler_algorithm != self.Kind.RoundRobin:
       for y_loc, job_id in enumerate(sorted(self.job_stats.keys(), reverse=True)):
         for i, (start, stop) in enumerate(zip(self.job_stats[job_id]["state_changes"], self.job_stats[job_id]["state_changes"][1:])):
           ax.barh(
@@ -571,7 +583,7 @@ class SchedulingQuestion(ProcessQuestion):
     
     # Original file-saving logic
     if not os.path.exists(image_dir): os.mkdir(image_dir)
-    image_path = os.path.join(image_dir, f"{self.SCHEDULER_NAME.replace(' ', '_')}-{uuid.uuid4()}.png")
+    image_path = os.path.join(image_dir, f"{str(self.scheduler_algorithm).replace(' ', '_')}-{uuid.uuid4()}.png")
 
     with open(image_path, 'wb') as fid:
       fid.write(image_buffer.getvalue())
@@ -616,8 +628,8 @@ class MLFQ_Question(ProcessQuestion):
     # Set up jobs that we'll be using
     jobs = [
       MLFQ_Question.Job(
-        arrival=random.randint(self.MIN_ARRIVAL, self.MAX_ARRIVAL),
-        duration=random.randint(self.MIN_DURATION, self.MAX_DURATION),
+        arrival=self.rng.randint(self.MIN_ARRIVAL, self.MAX_ARRIVAL),
+        duration=self.rng.randint(self.MIN_DURATION, self.MAX_DURATION),
         
       )
     ]

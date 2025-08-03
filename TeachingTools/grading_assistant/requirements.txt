@@ -1,4 +1,0 @@
-fuzzywuzzy
-colorama
-anthropic
-docker-py

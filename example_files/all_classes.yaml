@@ -1,95 +1,108 @@
 name: "(Ungraded) BitsAndBytes"
-practice: False
+practice: True
 questions:
   1:
-    BitsAndBytes:
+    BitsAndBytes1:
       class: BitsAndBytes
-      repeat: 5
+      _config:
+        repeat: 5
+---
+name: "(Ungraded) VirtualAddressParts"
+practice: True
+questions:
+  1:
+    VirtualAddressParts:
+      class: VirtualAddressParts
+      _config:
+        repeat: 5
 ---
 name: "(Ungraded) HexAndBinary"
-practice: False
+practice: True
 questions:
   1:
     HexAndBinary:
       class: HexAndBinary
-      repeat: 5
+      _config:
+        repeat: 5
 ---
 name: "(Ungraded) AverageMemoryAccessTime"
-practice: False
+practice: True
 questions:
   1:
     AverageMemoryAccessTime:
       class: AverageMemoryAccessTime
-      repeat: 5
----
-name: "(Ungraded) Caching"
-practice: False
-questions:
-  1:
-    Caching:
-      class: CachingQuestion
-      repeat: 5
+      _config:
+        repeat: 5
 ---
 name: "(Ungraded) Paging"
-practice: False
+practice: True
 questions:
   1:
     Paging:
       class: Paging
-      repeat: 5
+      _config:
+        repeat: 5
 ---
 name: "(Ungraded) BaseAndBounds"
-practice: False
+practice: True
 questions:
   1:
     BaseAndBounds:
       class: BaseAndBounds
-      repeat: 5
+      _config:
+        repeat: 5
 ---
 name: "(Ungraded) Segmentation"
-practice: False
-questions:
-   1:
-     Segmentation:
-       class: Segmentation
-       repeat: 5
----
-name: "(Ungraded) HardDriveAccessTime"
-practice: False
+practice: True
 questions:
   1:
-    HardDriveAccessTime:
-      class: HardDriveAccessTime
-      repeat: 5
----
-name: "(Ungraded) INodeAccesses"
-practice: False
-questions:
-  1:
-    INodeAccesses:
-      class: INodeAccesses
-      repeat: 5
----
-name: "(Ungraded) VSFS_states"
-practice: False
-questions:
-   1:
-     VSFS_states:
-       class: VSFS_states
-       repeat: 5
+    Segmentation:
+      class: Segmentation
+      _config:
+        repeat: 5
 ---
 name: "(Ungraded) Scheduling"
-practice: False
+practice: True
 questions:
   1:
     Scheduling:
       class: SchedulingQuestion
-      repeat: 5
+      _config:
+        repeat: 5
 ---
-name: "(Ungraded) Language"
-practice: False
+name: "(Ungraded) Caching"
+practice: True
 questions:
- 1:
-   Language:
-     class: LanguageQuestion
-     repeat: 5
+  1:
+    Caching:
+      class: CachingQuestion
+      _config:
+        repeat: 5
+---
+name: "(Ungraded) HardDriveAccessTime"
+practice: True
+questions:
+  1:
+    HardDriveAccessTime:
+      class: HardDriveAccessTime
+      _config:
+        repeat: 5
+---
+name: "(Ungraded) INodeAccesses"
+practice: True
+questions:
+  1:
+    INodeAccesses:
+      class: INodeAccesses
+      _config:
+        repeat: 5
+---
+name: "(Ungraded) VSFS_states"
+practice: True
+questions:
+  1:
+    VSFS_states:
+      class: VSFS_states
+      _config:
+        repeat: 5
+# ---

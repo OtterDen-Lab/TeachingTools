@@ -1,26 +1,18 @@
 #!env python
 from __future__ import annotations
 
-import re
+import enum
 import fractions
-import itertools
+import logging
 import math
 import textwrap
 from io import BytesIO
 from typing import List, Dict, Callable
 
-import enum
-
-import pypandoc
 import pylatex
+import pypandoc
 
-import logging
-
-import TeachingTools.quiz_generation.quiz
-
-logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
 
 
 class OutputFormat(enum.Enum):
@@ -35,6 +27,7 @@ class Answer:
     BLANK = "fill_in_multiple_blanks_question"
     MULTIPLE_ANSWER = "multiple_answers_question"  # todo: have baffles?
     ESSAY = "essay_question"
+    MULTIPLE_DROPDOWN = "multiple_dropdowns_question"
     
   class VariableKind(enum.Enum): # todo: use these for generate variations?
     STR = enum.auto()
@@ -54,7 +47,8 @@ class Answer:
       variable_kind : Answer.VariableKind = VariableKind.STR,
       display=None,
       length=None,
-      correct=True
+      correct=True,
+      baffles=None
   ):
     self.key = key
     self.value = value
@@ -63,115 +57,140 @@ class Answer:
     self.display = display if display is not None else value
     self.length = length # Used for bits and hex to be printed appropriately
     self.correct = correct
+    self.baffles = baffles
   
   def get_for_canvas(self) -> List[Dict]:
+    canvas_answers : List[Dict] = []
     if self.variable_kind == Answer.VariableKind.FLOAT:
-      return [{
+      canvas_answers = [{
         "blank_id": self.key,
         "answer_text": f"{self.value:0.{self.DEFAULT_ROUNDING_DIGITS}f}",
-        "answer_weight": 100,
+        "answer_weight": 100 if self.correct else 0,
       }]
     elif self.variable_kind == Answer.VariableKind.BINARY:
-      return [
+      canvas_answers = [
         {
           "blank_id": self.key,
           "answer_text": f"{self.value:0{self.length if self.length is not None else 0}b}",
-          "answer_weight": 100,
+          "answer_weight": 100 if self.correct else 0,
         },
         {
           "blank_id": self.key,
           "answer_text": f"0b{self.value:0{self.length if self.length is not None else 0}b}",
-          "answer_weight": 100,
+          "answer_weight": 100 if self.correct else 0,
         }
       ]
     elif self.variable_kind == Answer.VariableKind.HEX:
-      return [
+      canvas_answers = [
         {
           "blank_id": self.key,
           "answer_text": f"{self.value:0{(self.length // 8) + 1 if self.length is not None else 0}X}",
-          "answer_weight": 100,
+          "answer_weight": 100 if self.correct else 0,
         },{
           "blank_id": self.key,
           "answer_text": f"0x{self.value:0{(self.length // 8) + 1 if self.length is not None else 0}X}",
-          "answer_weight": 100,
+          "answer_weight": 100 if self.correct else 0,
         }
       ]
     elif self.variable_kind == Answer.VariableKind.BINARY_OR_HEX:
-      return [
+      canvas_answers = [
         {
           "blank_id": self.key,
           "answer_text": f"{self.value:0{self.length if self.length is not None else 0}b}",
-          "answer_weight": 100,
+          "answer_weight": 100 if self.correct else 0,
         },
         {
           "blank_id": self.key,
           "answer_text": f"0b{self.value:0{self.length if self.length is not None else 0}b}",
-          "answer_weight": 100,
+          "answer_weight": 100 if self.correct else 0,
         },
         {
           "blank_id": self.key,
           "answer_text": f"{self.value:0{math.ceil(self.length / 8) if self.length is not None else 0}X}",
-          "answer_weight": 100,
+          "answer_weight": 100 if self.correct else 0,
         },
         {
           "blank_id": self.key,
           "answer_text": f"0x{self.value:0{math.ceil(self.length / 8) if self.length is not None else 0}X}",
-          "answer_weight": 100,
+          "answer_weight": 100 if self.correct else 0,
         },
         {
           "blank_id": self.key,
           "answer_text": f"{self.value}",
-          "answer_weight": 100,
+          "answer_weight": 100 if self.correct else 0,
         },
       
       ]
     elif self.variable_kind == Answer.VariableKind.AUTOFLOAT:
       value_fraction = fractions.Fraction(self.value).limit_denominator(3*4*5) # For process questions, these are the numbers of jobs we'd have
       
-      possible_answers = [{
-        "blank_id": self.key,
-        "answer_text": value_fraction,
-        "answer_weight": 100,
-      }]
-      if not value_fraction.is_integer():
-        possible_answers.extend([
-          {
-            "blank_id": self.key,
-            "answer_text": f"{value_fraction.numerator / value_fraction.denominator:0.{self.DEFAULT_ROUNDING_DIGITS}f}",
-            "answer_weight": 100,
-          },
-          {
-            "blank_id": self.key,
-            "answer_text": f"{value_fraction.numerator / value_fraction.denominator}",
-            "answer_weight": 100,
-          },
-          {
-            "blank_id": self.key,
-            "answer_text":
-              f"{value_fraction.numerator // value_fraction.denominator} {value_fraction.numerator % value_fraction.denominator}/{value_fraction.denominator}",
-            "answer_weight": 100,
-          },
-        ])
+      canvas_answers = [
+        { # Add in the value with python left to its own devices
+          "blank_id": self.key,
+          "answer_text": f"{self.value:0.{self.DEFAULT_ROUNDING_DIGITS}f}",
+          "answer_weight": 100 if self.correct else 0,
+        },
+        { # Add in the value rounded
+          "blank_id": self.key,
+          "answer_text": f"{self.value:0.{self.DEFAULT_ROUNDING_DIGITS}f}",
+          "answer_weight": 100 if self.correct else 0,
+        },
+        { # Add in the value fraction
+          "blank_id": self.key,
+          "answer_text": value_fraction,
+          "answer_weight": 100 if self.correct else 0,
+        },
+        { # Add in the value fraction rounded
+          "blank_id": self.key,
+          "answer_text": f"{value_fraction:0.{self.DEFAULT_ROUNDING_DIGITS}f}",
+          "answer_weight": 100 if self.correct else 0,
+        },
+        { # Add in value _as a fraction_ rounded
+          "blank_id": self.key,
+          "answer_text": f"{value_fraction.numerator / value_fraction.denominator:0.{self.DEFAULT_ROUNDING_DIGITS}f}",
+          "answer_weight": 100 if self.correct else 0,
+        }
+      ]
+      # Add in fractions
+      canvas_answers.extend([
+        {
+          "blank_id": self.key,
+          "answer_text": f"{value_fraction.numerator / value_fraction.denominator}",
+          "answer_weight": 100 if self.correct else 0,
+        },
+        {
+          "blank_id": self.key,
+          "answer_text":
+            f"{value_fraction.numerator // value_fraction.denominator} {value_fraction.numerator % value_fraction.denominator}/{value_fraction.denominator}",
+          "answer_weight": 100 if self.correct else 0,
+        },
+      ])
       
-      return possible_answers
     elif self.variable_kind == Answer.VariableKind.LIST:
-      possible_answers = [
+      canvas_answers = [
         {
           "blank_id": self.key,
           "answer_text": ','.join(map(str, possible_state)),
-          "answer_weight": 100,
+          "answer_weight": 100 if self.correct else 0,
         }
         for possible_state in [self.value] #itertools.permutations(self.value)
       ]
-      
-      return possible_answers
+    else:
+      canvas_answers = [{
+        "blank_id": self.key,
+        "answer_text": self.value,
+        "answer_weight": 100 if self.correct else 0,
+      }]
     
-    canvas_answer = {
-      "blank_id": self.key,
-      "answer_text": self.value,
-      "answer_weight": 100 if self.correct else 0,
-    }
-    return [canvas_answer]
+    if self.baffles is not None:
+      for baffle in self.baffles:
+        canvas_answers.append({
+          "blank_id": self.key,
+          "answer_text": baffle,
+          "answer_weight": 0,
+        })
+    
+    return canvas_answers
 
 
 class ContentAST:
@@ -228,8 +247,70 @@ class ContentAST:
     def is_mergeable(self, other: ContentAST.Element):
       return False
   
+  class OnlyLatex(Element):
+    def render(self, output_format, **kwargs):
+      if output_format != "latex":
+        return ""
+      return super().render(output_format, **kwargs)
+  
+  class OnlyHtml(Element):
+    def render(self, output_format, **kwargs):
+      if output_format != "html":
+        return ""
+      return super().render(output_format, **kwargs)
+  
   class Document(Element):
     """Root document class that adds document-level rendering"""
+    
+    LATEX_HEADER = textwrap.dedent(r"""
+    \documentclass[12pt]{article}
+
+    % Page layout
+    \usepackage[a4paper, margin=1.5cm]{geometry}
+    
+    % Tables and formatting
+    \usepackage{booktabs}       % For clean table rules
+    \usepackage{array}          % For extra column formatting options
+    \usepackage{verbatim}       % For verbatim environments (code blocks)
+    \usepackage{enumitem}       % For customized list spacing
+    \usepackage{setspace}       % For \onehalfspacing
+    
+    % Add this after your existing packages
+    \let\originalverbatim\verbatim
+    \let\endoriginalverbatim\endverbatim
+    \renewenvironment{verbatim}
+      {\small\setlength{\baselineskip}{0.8\baselineskip}\originalverbatim}
+      {\endoriginalverbatim}
+      
+    % Listings (for code)
+    \usepackage[final]{listings}
+    \lstset{
+      basicstyle=\ttfamily,
+      columns=fullflexible,
+      frame=single,
+      breaklines=true,
+      postbreak=\mbox{$\hookrightarrow$\,} % You can remove or customize this
+    }
+    
+    % Custom commands
+    \newcounter{NumQuestions}
+    \newcommand{\question}[1]{%
+      \vspace{0.5cm}
+      \stepcounter{NumQuestions}%
+      \noindent\textbf{Question \theNumQuestions:} \hfill \rule{0.5cm}{0.15mm} / #1
+      \par\vspace{0.1cm}
+    }
+    \newcommand{\answerblank}[1]{\rule{0pt}{10mm}\rule[-1.5mm]{#1cm}{0.15mm}}
+    
+    % Optional: spacing for itemized lists
+    \setlist[itemize]{itemsep=10pt, parsep=5pt}
+    \providecommand{\tightlist}{%
+      \setlength{\itemsep}{10pt}\setlength{\parskip}{10pt}
+    }
+    
+    \begin{document}
+    """)
+    
     def __init__(self, title=None):
       super().__init__()
       self.title = title
@@ -247,6 +328,24 @@ class ContentAST:
         content = f"\\section{{{self.title}}}\n{content}"
       
       return content
+    
+    def render_latex(self, **kwargs):
+      latex = self.LATEX_HEADER
+      latex += f"\\title{{{self.title}}}\n"
+      latex += textwrap.dedent(f"""
+        \\noindent\\Large {self.title} \\hfill \\normalsize Name: \\answerblank{{{5}}}
+        
+        \\vspace{{0.5cm}}
+        \\onehalfspacing
+        
+      """)
+      
+      latex += "\n".join(element.render("latex", **kwargs) for element in self.elements)
+      
+      latex += r"\end{document}"
+      
+      return latex
+    
   
   class Question(Element):
     def __init__(
@@ -276,12 +375,13 @@ class ContentAST:
       if output_format == "latex":
         latex_lines = [
           r"\noindent\begin{minipage}{\textwidth}",
+          r"\noindent\makebox[\linewidth]{\rule{\paperwidth}{1pt}}",
           r"\question{" + str(int(self.value)) + r"}",
           r"\noindent\begin{minipage}{0.9\textwidth}",
           content,
           f"\\vspace{{{self.spacing}cm}}"
           r"\end{minipage}",
-          r"\end{minipage}"
+          r"\end{minipage}",
         ]
         content = '\n'.join(latex_lines)
       
@@ -324,6 +424,18 @@ class ContentAST:
     def merge(self, other: ContentAST.Text):
       self.content = self.render_markdown() + " " + other.render_markdown()
       self.emphasis = False
+  
+  class TextHTML(Text):
+    def __init__(self, *args, **kwargs):
+      super().__init__(*args, **kwargs)
+      self.hide_from_html = False
+      self.hide_from_latex = True
+      
+  class TextLatex(Text):
+    def __init__(self, *args, **kwargs):
+      super().__init__(*args, **kwargs)
+      self.hide_from_html = True
+      self.hide_from_latex = False
   
   class Paragraph(Element):
     """A block of text that will combine all child elements together."""
@@ -369,7 +481,11 @@ class ContentAST:
       self.length = blank_length
     
     def render_markdown(self, **kwargs):
-      return f"{self.label + (':' if len(self.label) > 0 else '')} [{self.answer.key}] {self.unit}".strip()
+      if not isinstance(self.answer, list):
+        key_to_display = self.answer.key
+      else:
+        key_to_display = self.answer[0].key
+      return f"{self.label + (':' if len(self.label) > 0 else '')} [{key_to_display}] {self.unit}".strip()
     
     def render_html(self, **kwargs):
       return self.render_markdown()
@@ -410,7 +526,7 @@ class ContentAST:
       return r"$$ \displaystyle " + f"{self.latex}" + r" \frac{}{}$$"
     
     def render_html(self, **kwargs):
-      return f"<div class='math'>$$ \\displaystyle{self.latex} \\frac{{}}{{}}$$</div>"
+      return f"<div class='math'>$$ \\displaystyle {self.latex} \\frac{{}}{{}}$$</div>"
     
     def render_latex(self, **kwargs):
       return f"\\begin{{equation}}\n{self.latex}\n\\end{{equation}}"
@@ -496,7 +612,7 @@ class ContentAST:
         result.append("    <tr>")
         for i, cell in enumerate(row):
           if isinstance(cell, ContentAST.Element):
-            cell = cell.render_html()
+            cell = cell.render(output_format="html")
           align_attr = ""
           if self.alignments and i < len(self.alignments):
             align_attr = f' align="{self.alignments[i]}"'
@@ -524,7 +640,7 @@ class ContentAST:
       
       for row in self.data:
         rendered_row = [
-          cell.render_latex()
+          cell.render(output_format="latex")
           if isinstance(cell, ContentAST.Element)
           else pylatex.escape_latex(cell)
           for cell in row

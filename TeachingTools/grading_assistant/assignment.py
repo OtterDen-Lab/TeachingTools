@@ -28,16 +28,14 @@ import os
 import pandas as pd
 
 import TeachingTools.grading_assistant.ai_helper as ai_helper
-from TeachingTools.lms_interface.canvas_interface import CanvasCourse, CanvasAssignment
-from TeachingTools.lms_interface.classes import Student, Submission, Feedback
+from lms_interface.canvas_interface import CanvasCourse, CanvasAssignment
+from lms_interface.classes import Student, Submission, Feedback
 
 import logging
 import colorama
 
 
-logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
 
 NAME_SIMILARITY_THRESHOLD = 95
 
@@ -150,6 +148,12 @@ class Assignment__ProgrammingAssignment(Assignment):
   Assignment for programming assignment grading, where prepare will download files and finalize will upload feedback.
   Will hopefully be run automatically.
   """
+  
+  allowed_filenames = [
+    "student_code.c",
+    "student_code.h"
+  ]
+  
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
   
@@ -162,6 +166,15 @@ class Assignment__ProgrammingAssignment(Assignment):
     self.submissions = self.lms_assignment.get_submissions(limit=(None if not do_regrade else limit))
     if not do_regrade:
       self.submissions = list(filter(lambda s: s.status == Submission.Status.UNGRADED, self.submissions))
+      
+    # If a student changed the filename, try to fix it automatically.
+    for submission in self.submissions:
+      for f in submission.files:
+        if f.name not in self.__class__.allowed_filenames:
+          # Then we'll need to try to match it.
+          new_name = max(self.allowed_filenames, key=(lambda s: fuzzywuzzy.fuzz.ratio(s, f.name)))
+          log.info(f"Renaming {f.name} to {new_name}")
+          f.name = new_name
     
     log.info(f"Total students to grade: {len(self.submissions)}")
     if limit is not None:
@@ -406,8 +419,6 @@ class Assignment__Exam(Assignment):
       # Remove the matches, even if it wasn't the best match
       submissions.remove(best_pair[0])
       students.remove(best_pair[1])
-    # log.debug(f"submissions_w_names: {len(submissions_w_names)}")
-    # log.debug(f"submissions_wo_names: {len(submissions_wo_names)}")
     try:
       log.debug(f"Matched {100*(len(submissions_w_names) / len(submissions_w_names + submissions_wo_names)):0.2f}% of submissions")
     except ZeroDivisionError:
@@ -477,7 +488,6 @@ class Assignment__Exam(Assignment):
     exam_pdf = fitz.open()
     
     for page_number, page_map in enumerate(page_mappings):
-      # log.debug(f"Adding {page_number} from {page_mappings}")
       pdf_path = os.path.join(
         input_directory,
         f"{page_number:03}",

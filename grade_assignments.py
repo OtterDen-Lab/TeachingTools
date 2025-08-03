@@ -8,8 +8,7 @@ import tempfile
 
 import yaml
 
-from TeachingTools.quiz_generation.quiz import Quiz
-from TeachingTools.lms_interface.canvas_interface import CanvasInterface, CanvasCourse, CanvasAssignment
+from lms_interface.canvas_interface import CanvasInterface, CanvasCourse, CanvasAssignment
 from TeachingTools.grading_assistant.assignment import AssignmentRegistry
 from TeachingTools.grading_assistant.grader import GraderRegistry
 

@@ -2,26 +2,20 @@
 from __future__ import annotations
 
 import abc
+import collections
 import copy
 import enum
+import logging
+import math
 from typing import List, Optional
 
-
-import random
-import math
-import collections
-
-import logging
-
-from TeachingTools.quiz_generation.question import Question, Answer, TableGenerator, QuestionRegistry
 from TeachingTools.quiz_generation.misc import ContentAST
+from TeachingTools.quiz_generation.question import Question, Answer, QuestionRegistry
 
-logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
 
 
-class MemoryQuestion(Question):
+class MemoryQuestion(Question, abc.ABC):
   def __init__(self, *args, **kwargs):
     kwargs["topic"] = kwargs.get("topic", Question.Topic.MEMORY)
     super().__init__(*args, **kwargs)
@@ -35,14 +29,6 @@ class VirtualAddressParts(MemoryQuestion):
     VA_BITS = "# VA Bits"
     VPN_BITS = "# VPN Bits"
     OFFSET_BITS = "# Offset Bits"
-  
-  def __init__(
-      self,
-      *args, **kwargs
-  ):
-    super().__init__(*args, **kwargs)
-    
-    self.refresh()
   
   def refresh(self, rng_seed=None, *args, **kwargs):
     super().refresh(rng_seed=rng_seed, *args, **kwargs)
@@ -68,8 +54,10 @@ class VirtualAddressParts(MemoryQuestion):
   def get_body(self, **kwargs) -> ContentAST.Section:
     body = ContentAST.Section()
     
-    body.add_text_element(
-      "Given the information in the below table, please complete the table as appropriate."
+    body.add_element(
+      ContentAST.Paragraph([
+        "Given the information in the below table, please complete the table as appropriate."
+      ])
     )
     
     body.add_element(
@@ -91,13 +79,24 @@ class VirtualAddressParts(MemoryQuestion):
   def get_explanation(self, **kwargs) -> ContentAST.Section:
     explanation = ContentAST.Section()
     
-    explanation.add_elements([
-      ContentAST.Text(f"{self.num_va_bits}", emphasis=(self.blank_kind == self.Target.VA_BITS)),
-      ContentAST.Text(" = "),
-      ContentAST.Text(f"{self.num_vpn_bits}", emphasis=(self.blank_kind == self.Target.VPN_BITS)),
-      ContentAST.Text(" + "),
-      ContentAST.Text(f"{self.num_offset_bits}", emphasis=(self.blank_kind == self.Target.OFFSET_BITS))
-    ])
+    explanation.add_element(
+      ContentAST.Paragraph([
+        "Remember, when we are calculating the size of virtual address spaces, "
+        "the number of bits in the overall address space is equal to the number of bits in the VPN "
+        "plus the number of bits for the offset.",
+        "We don't waste any bits!"
+      ])
+    )
+    
+    explanation.add_element(
+      ContentAST.Paragraph([
+        ContentAST.Text(f"{self.num_va_bits}", emphasis=(self.blank_kind == self.Target.VA_BITS)),
+        ContentAST.Text(" = "),
+        ContentAST.Text(f"{self.num_vpn_bits}", emphasis=(self.blank_kind == self.Target.VPN_BITS)),
+        ContentAST.Text(" + "),
+        ContentAST.Text(f"{self.num_offset_bits}", emphasis=(self.blank_kind == self.Target.OFFSET_BITS))
+      ])
+    )
     
     return explanation
     
@@ -108,17 +107,17 @@ class CachingQuestion(MemoryQuestion):
   class Kind(enum.Enum):
     FIFO = enum.auto()
     LRU = enum.auto()
-    Belady = enum.auto()
+    BELADY = enum.auto()
     def __str__(self):
       return self.name
   
   class Cache:
-    def __init__(self, kind : CachingQuestion.Kind, cache_size: int, all_requests : List[int]=None):
+    def __init__(self, kind : CachingQuestion.Kind, cache_size: int, all_requests : List[int] = None):
       self.kind = kind
       self.cache_size = cache_size
       self.all_requests = all_requests
       
-      self.cache_state = [] # queue.Queue(maxsize=cache_size)
+      self.cache_state = []
       self.last_used = collections.defaultdict(lambda: -math.inf)
       self.frequency = collections.defaultdict(lambda: 0)
     
@@ -158,7 +157,7 @@ class CachingQuestion(MemoryQuestion):
       #     key=(lambda e: (self.frequency[e], e)),
       #     reverse=False
       #   )
-      elif self.kind == CachingQuestion.Kind.Belady:
+      elif self.kind == CachingQuestion.Kind.BELADY:
         upcoming_requests = self.all_requests[request_number+1:]
         self.cache_state = sorted(
           self.cache_state,
@@ -175,24 +174,27 @@ class CachingQuestion(MemoryQuestion):
     self.cache_size = kwargs.get("cache_size", 3)
     self.num_requests = kwargs.get("num_requests", 10)
     
-    self.refresh()
+    # First set a random algo, then try to see if we should use a different one
+    self.cache_policy_generator = (lambda: self.rng.choice(list(self.Kind)))
+    
+    policy_str = (kwargs.get("policy") or kwargs.get("algo"))
+    if policy_str:
+      try:
+        self.cache_policy_generator = (lambda: self.Kind[policy_str.upper()])
+      except KeyError:
+        log.warning(
+          f"Invalid cache policy '{policy_str}'. Valid options are: {[k.name for k in self.Kind]}. Defaulting to random"
+        )
+    
+    self.cache_policy = self.cache_policy_generator()
   
-  def refresh(self, previous : Optional[CachingQuestion]=None, *args, **kwargs):
-    super().refresh(*args, **kwargs)
-    
-    if previous is None:
-      log.debug("picking new caching policy")
-      self.cache_policy = self.rng.choice(list(self.Kind))
-    else:
-      log.debug("Reusing previous caching policy")
-      self.cache_policy = previous.cache_policy
+  def refresh(self, previous : Optional[CachingQuestion]=None, *args, hard_refresh : bool = False, **kwargs):
+    # Check to see if we are using the existing caching policy or a brand new one
+    if not hard_refresh:
       self.rng_seed_offset += 1
-    
-    self.cache_size = kwargs.get("cache_size", 3)
-    self.num_elements = kwargs.get("num_elements", self.cache_size+1)
-    self.num_requests = kwargs.get("num_requests", 10)
-    
-    log.debug(f"self.caching_policy: {self.cache_policy}")
+    else:
+      self.cache_policy = self.cache_policy_generator()
+    super().refresh(*args, **kwargs)
     
     self.requests = (
         list(range(self.cache_size)) # Prime the cache with the compulsory misses
@@ -241,12 +243,11 @@ class CachingQuestion(MemoryQuestion):
     )
     
     body.add_element(
-      ContentAST.Text(
+      ContentAST.TextHTML(
         "For the cache state, please enter the cache contents in the order suggested in class, "
         "which means separated by commas with no spaces (e.g. \"1,2,3\")"
         "and with the left-most being the next to be evicted. "
-        "In the case where there is a tie, order by increasing number.",
-        hide_from_latex=True
+        "In the case where there is a tie, order by increasing number."
       )
     )
     
@@ -269,7 +270,7 @@ class CachingQuestion(MemoryQuestion):
       ContentAST.AnswerBlock(
         ContentAST.Answer(
           answer=self.answers["answer__hit_rate"],
-          label="Hit rate, excluding compulsory misses",
+          label=f"Hit rate, excluding compulsory misses.  If appropriate, round to {Answer.DEFAULT_ROUNDING_DIGITS} decimal digits.",
           unit="%"
         )
       )
@@ -323,10 +324,6 @@ class BaseAndBounds(MemoryAccessQuestion):
   MAX_BITS = 32
   MIN_BOUNDS_BIT = 5
   MAX_BOUNDS_BITS = 16
-  
-  def __init__(self, *args, **kwargs):
-    super().__init__(*args, **kwargs)
-    self.refresh(*args, **kwargs)
   
   def refresh(self, rng_seed=None, *args, **kwargs):
     super().refresh(rng_seed=rng_seed, *args, **kwargs)
@@ -432,10 +429,6 @@ class Segmentation(MemoryAccessQuestion):
       return False
     else:
       return True
-  
-  def __init__(self, *args, **kwargs):
-    super().__init__(*args, **kwargs)
-    self.refresh()
   
   def refresh(self, *args, **kwargs):
     super().refresh(*args, **kwargs)
@@ -655,11 +648,6 @@ class Paging(MemoryAccessQuestion):
   MAX_OFFSET_BITS = 8
   MAX_VPN_BITS = 8
   MAX_PFN_BITS = 16
-  
-  def __init__(self, *args, **kwargs):
-    super().__init__(*args, **kwargs)
-    
-    self.refresh()
   
   def refresh(self, rng_seed=None, *args, **kwargs):
     super().refresh(rng_seed=rng_seed, *args, **kwargs)

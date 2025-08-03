@@ -1,29 +1,14 @@
 #!env python
 from __future__ import annotations
 
-import datetime
-import inspect
-import pprint
-import random
-import re
-
-import canvasapi.course
-import canvasapi.quiz
-import pypandoc
-
-import yaml
 from typing import List, Dict, Any, Tuple
-import jinja2
 
 import logging
 
-from TeachingTools.quiz_generation.misc import OutputFormat, ContentAST
-from TeachingTools.quiz_generation.question import Question, QuestionRegistry, Answer, TableGenerator
-from TeachingTools.quiz_generation.premade_questions.exam_generation_functions import QuickFunctions
+from TeachingTools.quiz_generation.misc import ContentAST
+from TeachingTools.quiz_generation.question import Question, QuestionRegistry, Answer
 
-logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
 
 
 @QuestionRegistry.register()
@@ -56,7 +41,7 @@ class FromGenerator(FromText):
     self.possible_variations = kwargs.get("possible_variations", float('inf'))
     
     def attach_function_to_object(obj, function_code, function_name='get_body_lines'):
-      # log.debug(f"\ndef {function_name}(self):\n" + "\n".join(f"    {line}" for line in function_code.splitlines()))
+      function_code = "import random\n" + function_code
       
       # Define the function dynamically using exec
       exec(f"def {function_name}(self):\n" + "\n".join(f"    {line}" for line in function_code.splitlines()), globals(), locals())
@@ -70,10 +55,8 @@ class FromGenerator(FromText):
     attach_function_to_object(self, generator, "generator")
     
     self.answers = {}
-    self.refresh()
   
   def get_body(self, **kwargs) -> ContentAST.Section:
-    self.refresh()
     return super().get_body()
   
   def refresh(self, *args, **kwargs):
