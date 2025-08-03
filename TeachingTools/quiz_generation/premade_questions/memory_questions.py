@@ -177,10 +177,10 @@ class CachingQuestion(MemoryQuestion):
     # First set a random algo, then try to see if we should use a different one
     self.cache_policy_generator = (lambda: self.rng.choice(list(self.Kind)))
     
-    policy_str = (kwargs.get("policy") or kwargs.get("algo")).upper()
+    policy_str = (kwargs.get("policy") or kwargs.get("algo"))
     if policy_str:
       try:
-        self.cache_policy_generator = (lambda: self.Kind[policy_str])
+        self.cache_policy_generator = (lambda: self.Kind[policy_str.upper()])
       except KeyError:
         log.warning(
           f"Invalid cache policy '{policy_str}'. Valid options are: {[k.name for k in self.Kind]}. Defaulting to random"
