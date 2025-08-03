@@ -215,12 +215,22 @@ class Grader__Manual(Grader):
     graded_submissions : List[Submission] = []
     
     # Make submission objects for students who have already been matched
+    num_students_unmmatched = 0
     for _, row in grades_df[grades_df["user_id"].notna()].iterrows():
-      log.debug(canvas_students_by_id[int(row["user_id"])])
-      submission = Submission(
-        student=canvas_students_by_id[int(row["user_id"])],
-        status=Submission.Status.GRADED,
-      )
+      try:
+        log.debug(canvas_students_by_id[int(row["user_id"])])
+        submission = Submission(
+          student=canvas_students_by_id[int(row["user_id"])],
+          status=Submission.Status.GRADED,
+        )
+        del canvas_students_by_id[int(row["user_id"])]
+      except:
+        submission = Submission(
+          student=None,
+          status=Submission.Status.GRADED
+        )
+        num_students_unmmatched += 1
+        
       # todo: get PDFs and comments.
       submission.feedback = Feedback(
         score=row["total"],
@@ -232,7 +242,6 @@ class Grader__Manual(Grader):
         "document_id": row["document_id"]
       })
       graded_submissions.append(submission)
-      del canvas_students_by_id[int(row["user_id"])]
     
     log.info(f"There were {len(graded_submissions)} matched canvas users.")
     log.info(f"There are {len(canvas_students_by_id)} unmatched canvas users")
@@ -243,7 +252,7 @@ class Grader__Manual(Grader):
     if kwargs.get("merge_only"):
       pass
     else:
-      if grades_df[grades_df["user_id"].isna()].shape[0] > 0:
+      if grades_df[grades_df["user_id"].isna()].shape[0] > 0 or num_students_unmmatched > 0:
         log.error("There were unmatched students.  Please correct and re-run.")
         exit(2)
     
