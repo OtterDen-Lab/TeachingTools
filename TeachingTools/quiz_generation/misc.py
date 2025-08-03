@@ -125,31 +125,46 @@ class Answer:
       value_fraction = fractions.Fraction(self.value).limit_denominator(3*4*5) # For process questions, these are the numbers of jobs we'd have
       
       canvas_answers = [
-        {
+        { # Add in the value with python left to its own devices
+          "blank_id": self.key,
+          "answer_text": f"{self.value:0.{self.DEFAULT_ROUNDING_DIGITS}f}",
+          "answer_weight": 100 if self.correct else 0,
+        },
+        { # Add in the value rounded
+          "blank_id": self.key,
+          "answer_text": f"{self.value:0.{self.DEFAULT_ROUNDING_DIGITS}f}",
+          "answer_weight": 100 if self.correct else 0,
+        },
+        { # Add in the value fraction
           "blank_id": self.key,
           "answer_text": value_fraction,
           "answer_weight": 100 if self.correct else 0,
         },
-        {
+        { # Add in the value fraction rounded
+          "blank_id": self.key,
+          "answer_text": f"{value_fraction:0.{self.DEFAULT_ROUNDING_DIGITS}f}",
+          "answer_weight": 100 if self.correct else 0,
+        },
+        { # Add in value _as a fraction_ rounded
           "blank_id": self.key,
           "answer_text": f"{value_fraction.numerator / value_fraction.denominator:0.{self.DEFAULT_ROUNDING_DIGITS}f}",
           "answer_weight": 100 if self.correct else 0,
         }
       ]
-      if not value_fraction.is_integer():
-        canvas_answers.extend([
-          {
-            "blank_id": self.key,
-            "answer_text": f"{value_fraction.numerator / value_fraction.denominator}",
-            "answer_weight": 100 if self.correct else 0,
-          },
-          {
-            "blank_id": self.key,
-            "answer_text":
-              f"{value_fraction.numerator // value_fraction.denominator} {value_fraction.numerator % value_fraction.denominator}/{value_fraction.denominator}",
-            "answer_weight": 100 if self.correct else 0,
-          },
-        ])
+      # Add in fractions
+      canvas_answers.extend([
+        {
+          "blank_id": self.key,
+          "answer_text": f"{value_fraction.numerator / value_fraction.denominator}",
+          "answer_weight": 100 if self.correct else 0,
+        },
+        {
+          "blank_id": self.key,
+          "answer_text":
+            f"{value_fraction.numerator // value_fraction.denominator} {value_fraction.numerator % value_fraction.denominator}/{value_fraction.denominator}",
+          "answer_weight": 100 if self.correct else 0,
+        },
+      ])
       
     elif self.variable_kind == Answer.VariableKind.LIST:
       canvas_answers = [
