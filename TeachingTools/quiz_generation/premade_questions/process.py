@@ -275,7 +275,8 @@ class SchedulingQuestion(ProcessQuestion):
     super().__init__(*args, **kwargs)
     self.num_jobs = num_jobs
     
-    self.scheduler_algorithm = self.rng.choice(list(SchedulingQuestion.Kind))
+    if scheduler_kind is None:
+      self.scheduler_algorithm = self.rng.choice(list(SchedulingQuestion.Kind))
     
   def refresh(self, *args, **kwargs):
     if not kwargs.get("hard_refresh", True):
