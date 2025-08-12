@@ -1,0 +1,3 @@
+[submodule "lms_interface"]
+	path = lms_interface
+	url = https://github.com/OtterDen-Lab/LMSInterface.git
