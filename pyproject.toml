@@ -9,7 +9,7 @@ description = "A collection of tools for teaching and grading"
 authors = [
     {name = "Sam Ogden", email = "samuel.s.ogden@gmail.com"},
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.12"
 
 
 dependencies = [
